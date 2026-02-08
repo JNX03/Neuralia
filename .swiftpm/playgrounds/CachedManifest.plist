@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CachedManifest</key>
+	<dict>
+		<key>manifestData</key>
+		<data>
+		eyJkZXBlbmRlbmNpZXMiOltdLCJkaXNwbGF5TmFtZSI6Ik5ldXJhIiwicGFj
+		a2FnZUtpbmQiOnsicm9vdCI6e319LCJwbGF0Zm9ybXMiOlt7Im9wdGlvbnMi
+		OltdLCJwbGF0Zm9ybU5hbWUiOiJpb3MiLCJ2ZXJzaW9uIjoiMTYuMCJ9XSwi
+		cHJvZHVjdHMiOlt7Im5hbWUiOiJOZXVyYSIsInNldHRpbmdzIjpbeyJidW5k
+		bGVJZGVudGlmaWVyIjpbIkpueDAzLm1yYy5OZXVyYSJdfSx7ImRpc3BsYXlW
+		ZXJzaW9uIjpbIjEuMCJdfSx7ImJ1bmRsZVZlcnNpb24iOlsiMSJdfSx7ImlP
+		U0FwcEluZm8iOlt7ImFjY2VudENvbG9yIjp7InByZXNldENvbG9yIjp7InBy
+		ZXNldENvbG9yIjp7InJhd1ZhbHVlIjoicGluayJ9fX0sImFwcENhdGVnb3J5
+		Ijp7InJhd1ZhbHVlIjoicHVibGljLmFwcC1jYXRlZ29yeS5kZXZlbG9wZXIt
+		dG9vbHMifSwiYXBwSWNvbiI6eyJhc3NldCI6eyJuYW1lIjoiQXBwSWNvbiJ9
+		fSwiY2FwYWJpbGl0aWVzIjpbXSwic3VwcG9ydGVkRGV2aWNlRmFtaWxpZXMi
+		OlsicGFkIiwicGhvbmUiXSwic3VwcG9ydGVkSW50ZXJmYWNlT3JpZW50YXRp
+		b25zIjpbeyJwb3J0cmFpdCI6e319LHsibGFuZHNjYXBlUmlnaHQiOnt9fSx7
+		ImxhbmRzY2FwZUxlZnQiOnt9fSx7InBvcnRyYWl0VXBzaWRlRG93biI6eyJj
+		b25kaXRpb24iOnsiZGV2aWNlRmFtaWxpZXMiOlsicGFkIl19fX1dfV19XSwi
+		dGFyZ2V0cyI6WyJBcHBNb2R1bGUiXSwidHlwZSI6eyJleGVjdXRhYmxlIjpu
+		dWxsfX1dLCJzd2lmdExhbmd1YWdlVmVyc2lvbnMiOlsiNiJdLCJ0YXJnZXRN
+		YXAiOnsiQXBwTW9kdWxlIjp7ImRlcGVuZGVuY2llcyI6W10sImV4Y2x1ZGUi
+		OltdLCJuYW1lIjoiQXBwTW9kdWxlIiwicGFja2FnZUFjY2VzcyI6dHJ1ZSwi
+		cGF0aCI6Ii4iLCJyZXNvdXJjZXMiOltdLCJzZXR0aW5ncyI6W10sInR5cGUi
+		OiJleGVjdXRhYmxlIn19LCJ0YXJnZXRzIjpbeyJkZXBlbmRlbmNpZXMiOltd
+		LCJleGNsdWRlIjpbXSwibmFtZSI6IkFwcE1vZHVsZSIsInBhY2thZ2VBY2Nl
+		c3MiOnRydWUsInBhdGgiOiIuIiwicmVzb3VyY2VzIjpbXSwic2V0dGluZ3Mi
+		OltdLCJ0eXBlIjoiZXhlY3V0YWJsZSJ9XSwidG9vbHNWZXJzaW9uIjp7Il92
+		ZXJzaW9uIjoiNi4wLjAifX0=
+		</data>
+		<key>manifestHash</key>
+		<data>
+		6LlECLidlzSfWRlLeUXYXPVz+jb6rVtkMC7M64jdNHI=
+		</data>
+		<key>schemaVersion</key>
+		<integer>4</integer>
+		<key>swiftPMVersionString</key>
+		<string>6.0.2-dev</string>
+	</dict>
+</dict>
+</plist>
