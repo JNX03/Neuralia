@@ -7,15 +7,18 @@ struct ContentView: View {
         ZStack {
             if showMainMenu {
                 MainMenuView()
-                    .transition(.opacity)
             } else {
                 LoadingView(onStart: {
-                    withAnimation(.easeInOut(duration: 0.35)) {
+                    withAnimation(.easeInOut(duration: 0.5)) {
                         showMainMenu = true
                     }
                 })
-                .transition(.opacity)
             }
         }
     }
+}
+
+#Preview {
+    ContentView()
+        .preferredColorScheme(.dark)
 }

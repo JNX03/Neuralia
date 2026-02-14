@@ -114,7 +114,7 @@ final class LoadingViewModel: ObservableObject {
         
         for _ in 0..<steps {
             if Task.isCancelled { return }
-            displayText = String((0..<targetLength).map { _ in randomChars.randomElement()! })
+            displayText = String((0..<targetLength).map { _ in randomChars.randomElement() ?? "X" })
             await sleepSeconds(tick)
         }
     }
@@ -130,7 +130,7 @@ final class LoadingViewModel: ObservableObject {
             
             for i in 0..<total {
                 if i <= idx { out.append(chars[i]) }
-                else { out.append(randomChars.randomElement()!) }
+                else { out.append(randomChars.randomElement() ?? "X") }
             }
             
             displayText = out
@@ -154,12 +154,17 @@ final class LoadingViewModel: ObservableObject {
         
         slideshowTask = Task { @MainActor in
             while !Task.isCancelled {
+                guard !Task.isCancelled else { return }
+                
                 let stayDuration = Double.random(in: 5.0...7.0)
                 
                 let start: CGFloat = panLeftToRight ? -90 : 90
                 let end: CGFloat = panLeftToRight ? 90 : -90
                 
                 panOffset = start
+                
+                // Check cancellation before animation
+                guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: stayDuration)) { panOffset = end }
                 
                 await sleepSeconds(stayDuration)
@@ -169,7 +174,9 @@ final class LoadingViewModel: ObservableObject {
                 await sleepSeconds(0.5)
                 if Task.isCancelled { return }
                 
-                currentImageIndex = (currentImageIndex + 1) % backgroundImages.count
+                // Safely update index
+                let nextIndex = (currentImageIndex + 1) % backgroundImages.count
+                currentImageIndex = nextIndex
                 panLeftToRight.toggle()
                 
                 panOffset = panLeftToRight ? -90 : 90
@@ -359,6 +366,7 @@ struct LoadingView: View {
     
     @State private var pointerHideTask: Task<Void, Never>?
     @State private var trailClearTask: Task<Void, Never>?
+    @State private var hasStarted = false
 
     
     var body: some View {
@@ -421,18 +429,22 @@ struct LoadingView: View {
             )
         }
         .coordinateSpace(name: "screen")
-        .simultaneousGesture(pointerGesture)   // ✅ click/tap/drag anywhere (whole screen)
+        .simultaneousGesture(pointerGesture)
         .onDisappear {
             pointerHideTask?.cancel()
             trailClearTask?.cancel()
             pointerHideTask = nil
             trailClearTask = nil
+            hasStarted = false
         }
     }
     
     private var pointerGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("screen"))
             .onChanged { value in
+                // Skip if already transitioning
+                guard !hasStarted else { return }
+                
                 pointerHideTask?.cancel()
                 trailClearTask?.cancel()
                 
@@ -440,18 +452,17 @@ struct LoadingView: View {
                 pointerIsDown = true
                 pointerLocation = value.location
                 
-                // ✅ shorter trail: fewer points + more distance threshold
+                // Trail tracking
                 let p = value.location
                 if let last = trailPoints.last {
                     let d = hypot(p.x - last.x, p.y - last.y)
-                    if d > 3.0 { // was 1.5
+                    if d > 3.0 {
                         trailPoints.append(p)
                     }
                 } else {
                     trailPoints = [p]
                 }
                 
-                // ✅ shorter cap (was 40)
                 if trailPoints.count > 18 {
                     trailPoints.removeFirst(trailPoints.count - 18)
                 }
@@ -464,9 +475,14 @@ struct LoadingView: View {
                 let isTap = dist < 16
                 
                 if isTap { spawnRipple(at: value.location) }
-                if vm.phase == .main, isTap { onStart() }
                 
-                // ✅ trail fades away (not instant)
+                // Only trigger onStart if in main phase and not already started
+                if vm.phase == .main, isTap, !hasStarted {
+                    hasStarted = true
+                    onStart()
+                }
+                
+                // Trail fade
                 trailClearTask?.cancel()
                 trailClearTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 80_000_000)
@@ -475,7 +491,7 @@ struct LoadingView: View {
                     }
                 }
                 
-                // ✅ cursor fades away after release
+                // Cursor fade
                 pointerHideTask?.cancel()
                 pointerHideTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 140_000_000)

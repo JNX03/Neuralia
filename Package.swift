@@ -8,18 +8,18 @@ import PackageDescription
 import AppleProductTypes
 
 let package = Package(
-    name: "Neura",
+    name: "Neuralia",
     platforms: [
         .iOS("16.0")
     ],
     products: [
         .iOSApplication(
-            name: "Neura",
+            name: "Neuralia",
             targets: ["AppModule"],
             bundleIdentifier: "Jnx03.mrc.Neura",
             displayVersion: "1.0",
             bundleVersion: "1",
-            appIcon: .asset("AppIcon"),
+            appIcon: .placeholder(icon: .camera),
             accentColor: .presetColor(.pink),
             supportedDeviceFamilies: [
                 .pad,
