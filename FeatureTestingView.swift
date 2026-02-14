@@ -105,7 +105,7 @@ final class SpeechManager: ObservableObject {
 }
 
 enum Emotion: String, CaseIterable {
-    case neutral, happy, excited, sad, concerned, angry, mysterious, surprised, gentle
+    case neutral, happy, excited, sad, concerned, angry, mysterious, surprised, gentle, curious
 }
 
 // MARK: - Character Animation Types
@@ -177,7 +177,8 @@ struct FeatureTestingView: View {
                                     subtitle: "Character animations and visual effects",
                                     icon: "film.fill",
                                     color: .blue,
-                                    disabled: true
+                                    disabled: true,
+                                    action: {}
                                 )
                                 
                                 FeatureCard(
@@ -185,7 +186,8 @@ struct FeatureTestingView: View {
                                     subtitle: "Sound effects and voice synthesis",
                                     icon: "speaker.wave.2.fill",
                                     color: .green,
-                                    disabled: true
+                                    disabled: true,
+                                    action: {}
                                 )
                                 
                                 FeatureCard(
@@ -193,7 +195,8 @@ struct FeatureTestingView: View {
                                     subtitle: "Buttons, cards, and interface elements",
                                     icon: "rectangle.grid.2x2.fill",
                                     color: .orange,
-                                    disabled: true
+                                    disabled: true,
+                                    action: {}
                                 )
                             }
                             .padding(.horizontal, ResponsiveLayout(width: geo.size.width, height: geo.size.height).padding)
@@ -300,7 +303,7 @@ struct FeatureHeader: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .symbolEffect(.bounce, options: .repeating)
+                    .modifier(BounceModifier())
             }
             
             Text("Feature Testing")
@@ -863,7 +866,6 @@ struct VisualNovelDialogView: View {
         showTextInput = false
         speechManager.speak("Nice to meet you, \(userInput)!", emotion: .gentle)
         triggerAnimation(.bounce)
-        let name = userInput
         userInput = ""
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -1085,6 +1087,21 @@ struct PressEventsModifier: ViewModifier {
 extension View {
     func pressEvents(onPress: @escaping () -> Void, onRelease: @escaping () -> Void) -> some View {
         modifier(PressEventsModifier(onPress: onPress, onRelease: onRelease))
+    }
+}
+
+// MARK: - Bounce Modifier (iOS 16 compatible)
+struct BounceModifier: ViewModifier {
+    @State private var isBouncing = false
+    
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isBouncing ? 1.1 : 1.0)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {
+                    isBouncing = true
+                }
+            }
     }
 }
 
