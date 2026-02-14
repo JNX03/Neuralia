@@ -72,7 +72,7 @@ final class SpeechManager: ObservableObject {
         case .surprised:
             utterance.pitchMultiplier = 1.35
             utterance.rate = 0.52
-        case .gentle:
+        case .gentle, .curious:
             utterance.pitchMultiplier = 1.1
             utterance.rate = 0.45
         case .neutral:
@@ -736,7 +736,7 @@ struct VisualNovelDialogView: View {
         case .angry: return .red
         case .mysterious: return .purple
         case .surprised: return .pink
-        case .gentle: return .mint
+        case .gentle, .curious: return .mint
         case .neutral: return .cyan
         }
     }
