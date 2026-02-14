@@ -11,13 +11,11 @@ class MainMenuViewModel: ObservableObject {
     private var idleTime: Double = 0
     private var isUserInteracting = false
     
-    // Smaller max offset to prevent showing image edge
     private let maxOffset: CGFloat = 25
     private let idleDelay: TimeInterval = 2.0
     
     func start() {
         stop()
-        
         timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.update()
@@ -35,12 +33,10 @@ class MainMenuViewModel: ObservableObject {
         lastTouchTime = Date()
         idleTime = 0
         
-        // Damping for smooth feel
         let damping: CGFloat = 0.25
         var newX = translation.width * damping
         var newY = translation.height * damping
         
-        // Clamp to prevent showing edges
         newX = max(-maxOffset, min(maxOffset, newX))
         newY = max(-maxOffset, min(maxOffset, newY))
         
@@ -57,24 +53,19 @@ class MainMenuViewModel: ObservableObject {
         let timeSinceTouch = Date().timeIntervalSince(lastTouchTime)
         
         if timeSinceTouch >= idleDelay {
-            // Smooth continuous floating movement
             idleTime += 0.016
             
-            // Multiple sine waves for organic movement
             let wave1X = sin(idleTime * 0.8) * 15
             let wave2X = sin(idleTime * 0.3) * 8
             let wave1Y = cos(idleTime * 0.6) * 12
             let wave2Y = sin(idleTime * 0.4) * 6
             
-            // Smooth transition to idle position
             let targetX = wave1X + wave2X
             let targetY = wave1Y + wave2Y
             
-            // Gentle interpolation
             offsetX += (targetX - offsetX) * 0.05
             offsetY += (targetY - offsetY) * 0.05
         } else {
-            // Return to center when user stops touching
             offsetX *= 0.98
             offsetY *= 0.98
         }
@@ -83,25 +74,22 @@ class MainMenuViewModel: ObservableObject {
 
 struct MainMenuView: View {
     @StateObject private var viewModel = MainMenuViewModel()
+    @State private var showFeatureTesting = false
     
     var body: some View {
         ZStack {
-            // Background Image with larger scale to prevent edge visibility
             Image("cnxaqu")
                 .resizable()
                 .scaledToFill()
-                .scaleEffect(1.4) // Larger scale to hide edges
+                .scaleEffect(1.4)
                 .offset(x: viewModel.offsetX, y: viewModel.offsetY)
                 .ignoresSafeArea()
             
-            // Dark overlay
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
             
-            // Menu Panel
             HStack {
                 VStack(alignment: .leading, spacing: 20) {
-                    // App Icon - bigger and more prominent
                     HStack {
                         Spacer()
                         Image("icon")
@@ -113,17 +101,17 @@ struct MainMenuView: View {
                     }
                     .padding(.top, 10)
                     
-                    // Menu Buttons
                     VStack(spacing: 12) {
-                        MenuButton(title: "Play", icon: "play.fill")
-                        MenuButton(title: "Load Game", icon: "square.and.arrow.down.fill")
-                        MenuButton(title: "Gallery", icon: "photo.on.rectangle.angled")
-                        MenuButton(title: "Settings", icon: "gearshape.fill")
+                        MenuButton(title: "Play", icon: "play.fill", action: {})
+                        MenuButton(title: "Load Game", icon: "square.and.arrow.down.fill", action: {})
+                        MenuButton(title: "Gallery", icon: "photo.on.rectangle.angled", action: {})
+                        MenuButton(title: "Feature Testing", icon: "testtube.2", action: {
+                            showFeatureTesting = true
+                        })
                     }
                     
                     Spacer()
                     
-                    // Status
                     HStack {
                         Circle()
                             .fill(Color.green)
@@ -142,7 +130,6 @@ struct MainMenuView: View {
                 Spacer()
             }
             
-            // Version
             VStack {
                 Spacer()
                 HStack {
@@ -168,15 +155,19 @@ struct MainMenuView: View {
                     viewModel.touchEnded()
                 }
         )
+        .fullScreenCover(isPresented: $showFeatureTesting) {
+            FeatureTestingView()
+        }
     }
 }
 
 struct MenuButton: View {
     let title: String
     let icon: String
+    let action: () -> Void
     
     var body: some View {
-        Button(action: {}) {
+        Button(action: action) {
             HStack {
                 Image(systemName: icon)
                     .frame(width: 30)
