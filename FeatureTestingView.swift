@@ -168,7 +168,7 @@ struct FeatureTestingView: View {
                                 
                                 FeatureCard(
                                     title: "Image Training Lab",
-                                    subtitle: "Learn how AI models work! Train with emojis and hand-drawn digits. Adjust epochs, learning rate, and dataset splits!",
+                                    subtitle: "Draw and classify! Train a KNN model to recognize your drawings with live preview.",
                                     icon: "brain.head.profile",
                                     color: .cyan,
                                     layout: layout,
