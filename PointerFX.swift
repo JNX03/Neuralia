@@ -34,18 +34,18 @@ struct PointerFXOverlay: View {
             
             // ✅ Trail (line follow drag)
             if trailPoints.count > 1 {
-                BlueArchiveTrailFX(points: trailPoints, isDown: isDown)
+                NeonTrailFX(points: trailPoints, isDown: isDown)
             }
             
             // ✅ Multiple ripples
             ForEach(ripples) { r in
-                BlueArchiveRippleFX()
+                NeonRippleFX()
                     .position(r.location)
             }
             
             // Cursor
             if isVisible {
-                BlueArchiveCursorFX(isDown: isDown)
+                NeonCursorFX(isDown: isDown)
                     .position(location)
             }
         }
@@ -55,7 +55,7 @@ struct PointerFXOverlay: View {
 }
 
 // MARK: - Trail
-private struct BlueArchiveTrailFX: View {
+private struct NeonTrailFX: View {
     let points: [CGPoint]
     let isDown: Bool
     
@@ -95,7 +95,7 @@ private struct BlueArchiveTrailFX: View {
 }
 
 // MARK: - Cursor (neon)
-private struct BlueArchiveCursorFX: View {
+private struct NeonCursorFX: View {
     let isDown: Bool
     
     private var ringGradient: AngularGradient {
@@ -135,7 +135,7 @@ private struct BlueArchiveCursorFX: View {
 }
 
 // MARK: - Ripple
-private struct BlueArchiveRippleFX: View {
+private struct NeonRippleFX: View {
     @State private var animate = false
     
     private var ringGradient: AngularGradient {
