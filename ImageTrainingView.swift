@@ -1,21 +1,49 @@
 import SwiftUI
 
-// MARK: - Drawing Sample
+// MARK: - Drawing Sample with High-Resolution Grid
 struct DrawingSample: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     var label: String
     var grid: [[Bool]]
+    var highResGrid: [[Bool]]  // 56x56 for better quality
+    var originalStrokes: [[CGPoint]]  // Original canvas coordinates for display
+    var normalizedStrokes: [[CGPoint]] // Normalized 0-1 for classification
+    var canvasSize: CGSize
+    
+    static let gridSize = 28
+    static let highResGridSize = 56
+    
+    init(id: UUID = UUID(), label: String, grid: [[Bool]], highResGrid: [[Bool]]? = nil, 
+         originalStrokes: [[CGPoint]] = [], normalizedStrokes: [[CGPoint]] = [], canvasSize: CGSize = .zero) {
+        self.id = id
+        self.label = label
+        self.grid = grid
+        self.highResGrid = highResGrid ?? grid
+        self.originalStrokes = originalStrokes
+        self.normalizedStrokes = normalizedStrokes
+        self.canvasSize = canvasSize
+    }
     
     static func fromStrokes(_ strokes: [[CGPoint]], label: String, canvasSize: CGSize) -> DrawingSample {
-        let gridSize = 28
-        var grid = Array(repeating: Array(repeating: false, count: gridSize), count: gridSize)
+        let gridSize = gridSize
+        let highResSize = highResGridSize
         
-        for stroke in strokes {
-            for point in stroke {
-                let x = Int((point.x / canvasSize.width) * CGFloat(gridSize))
-                let y = Int((point.y / canvasSize.height) * CGFloat(gridSize))
+        var grid = Array(repeating: Array(repeating: false, count: gridSize), count: gridSize)
+        var highResGrid = Array(repeating: Array(repeating: false, count: highResSize), count: highResSize)
+        
+        // Normalize strokes to center and fit for classification
+        let normalizedStrokes = normalizeStrokes(strokes, canvasSize: canvasSize)
+        
+        // Rasterize to low-res grid (28x28) with anti-aliasing
+        for stroke in normalizedStrokes {
+            for i in 0..<stroke.count {
+                let point = stroke[i]
+                let x = Int(point.x * CGFloat(gridSize))
+                let y = Int(point.y * CGFloat(gridSize))
+                
                 if x >= 0 && x < gridSize && y >= 0 && y < gridSize {
                     grid[y][x] = true
+                    // Add neighbors for thicker lines
                     for dy in -1...1 {
                         for dx in -1...1 {
                             let nx = x + dx, ny = y + dy
@@ -25,105 +53,542 @@ struct DrawingSample: Identifiable, Codable {
                         }
                     }
                 }
+                
+                // Draw line segments for continuous strokes
+                if i > 0 {
+                    let prev = stroke[i-1]
+                    drawLineOnGrid(&grid, from: prev, to: point, gridSize: gridSize)
+                }
             }
         }
-        return DrawingSample(label: label, grid: grid)
+        
+        // Rasterize to high-res grid (56x56)
+        for stroke in normalizedStrokes {
+            for i in 0..<stroke.count {
+                let point = stroke[i]
+                let x = Int(point.x * CGFloat(highResSize))
+                let y = Int(point.y * CGFloat(highResSize))
+                
+                if x >= 0 && x < highResSize && y >= 0 && y < highResSize {
+                    highResGrid[y][x] = true
+                    // Smaller brush for high-res
+                    for dy in 0...1 {
+                        for dx in 0...1 {
+                            let nx = x + dx, ny = y + dy
+                            if nx >= 0 && nx < highResSize && ny >= 0 && ny < highResSize {
+                                highResGrid[ny][nx] = true
+                            }
+                        }
+                    }
+                }
+                
+                if i > 0 {
+                    let prev = stroke[i-1]
+                    drawLineOnGrid(&highResGrid, from: CGPoint(x: prev.x * CGFloat(highResSize), y: prev.y * CGFloat(highResSize)), 
+                                  to: CGPoint(x: point.x * CGFloat(highResSize), y: point.y * CGFloat(highResSize)), gridSize: highResSize)
+                }
+            }
+        }
+        
+        return DrawingSample(label: label, grid: grid, highResGrid: highResGrid, 
+                             originalStrokes: strokes, normalizedStrokes: normalizedStrokes, canvasSize: canvasSize)
     }
     
+    static func normalizeStrokes(_ strokes: [[CGPoint]], canvasSize: CGSize) -> [[CGPoint]] {
+        // Find bounding box
+        var minX = CGFloat.infinity, minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+        
+        for stroke in strokes {
+            for point in stroke {
+                minX = min(minX, point.x)
+                minY = min(minY, point.y)
+                maxX = max(maxX, point.x)
+                maxY = max(maxY, point.y)
+            }
+        }
+        
+        let width = maxX - minX
+        let height = maxY - minY
+        let maxDim = max(width, height)
+        
+        guard maxDim > 0 else { return strokes }
+        
+        // Add padding
+        let padding = maxDim * 0.15
+        let scale = 1.0 / (maxDim + 2 * padding)
+        
+        // Center offset
+        let offsetX = (maxDim - width) / 2 - padding
+        let offsetY = (maxDim - height) / 2 - padding
+        
+        return strokes.map { stroke in
+            stroke.map { point in
+                CGPoint(
+                    x: (point.x - minX + offsetX) * scale,
+                    y: (point.y - minY + offsetY) * scale
+                )
+            }
+        }
+    }
+    
+    static func drawLineOnGrid(_ grid: inout [[Bool]], from: CGPoint, to: CGPoint, gridSize: Int) {
+        let dx = abs(Int(to.x) - Int(from.x))
+        let dy = abs(Int(to.y) - Int(from.y))
+        let sx = from.x < to.x ? 1 : -1
+        let sy = from.y < to.y ? 1 : -1
+        var err = dx - dy
+        var x = Int(from.x)
+        var y = Int(from.y)
+        
+        while true {
+            if x >= 0 && x < gridSize && y >= 0 && y < gridSize {
+                grid[y][x] = true
+            }
+            if x == Int(to.x) && y == Int(to.y) { break }
+            let e2 = 2 * err
+            if e2 > -dy {
+                err -= dy
+                x += sx
+            }
+            if e2 < dx {
+                err += dx
+                y += sy
+            }
+        }
+    }
+    
+    // MARK: - Advanced Feature Extraction
     func featureVector() -> [Double] {
         var features: [Double] = []
-        // Row densities (28)
+        let size = DrawingSample.gridSize
+        
+        // 1. Row densities (28)
         for row in grid {
-            features.append(Double(row.filter { $0 }.count) / 28.0)
+            features.append(Double(row.filter { $0 }.count) / Double(size))
         }
-        // Column densities (28)
-        for col in 0..<28 {
+        
+        // 2. Column densities (28)
+        for col in 0..<size {
             var count = 0
-            for row in 0..<28 { if grid[row][col] { count += 1 } }
-            features.append(Double(count) / 28.0)
+            for row in 0..<size { if grid[row][col] { count += 1 } }
+            features.append(Double(count) / Double(size))
         }
-        // 4 quadrants
-        for qy in 0..<2 {
-            for qx in 0..<2 {
+        
+        // 3. Zone-based features (16 zones, 4x4)
+        let zoneSize = size / 4
+        for zy in 0..<4 {
+            for zx in 0..<4 {
                 var count = 0
-                for y in (qy*14)..<((qy+1)*14) {
-                    for x in (qx*14)..<((qx+1)*14) {
+                for y in (zy*zoneSize)..<((zy+1)*zoneSize) {
+                    for x in (zx*zoneSize)..<((zx+1)*zoneSize) {
                         if grid[y][x] { count += 1 }
                     }
                 }
-                features.append(Double(count) / 196.0)
+                features.append(Double(count) / Double(zoneSize * zoneSize))
             }
         }
-        // Center of mass
+        
+        // 4. Center of mass and spread
         var sumX = 0.0, sumY = 0.0, total = 0.0
-        for y in 0..<28 {
-            for x in 0..<28 {
+        var sumX2 = 0.0, sumY2 = 0.0
+        for y in 0..<size {
+            for x in 0..<size {
                 if grid[y][x] {
                     sumX += Double(x)
                     sumY += Double(y)
+                    sumX2 += Double(x * x)
+                    sumY2 += Double(y * y)
                     total += 1
                 }
             }
         }
-        features.append(total > 0 ? sumX / total / 28.0 : 0.5)
-        features.append(total > 0 ? sumY / total / 28.0 : 0.5)
+        
+        if total > 0 {
+            let meanX = sumX / total
+            let meanY = sumY / total
+            features.append(meanX / Double(size))
+            features.append(meanY / Double(size))
+            // Variance (spread)
+            features.append(sqrt(sumX2/total - meanX*meanX) / Double(size))
+            features.append(sqrt(sumY2/total - meanY*meanY) / Double(size))
+        } else {
+            features.append(contentsOf: [0.5, 0.5, 0, 0])
+        }
+        
+        // 5. Perimeter and compactness
+        var perimeter = 0
+        for y in 0..<size {
+            for x in 0..<size {
+                if grid[y][x] {
+                    // Check if edge pixel
+                    var isEdge = false
+                    for dy in -1...1 {
+                        for dx in -1...1 {
+                            if dx == 0 && dy == 0 { continue }
+                            let nx = x + dx, ny = y + dy
+                            if nx < 0 || nx >= size || ny < 0 || ny >= size || !grid[ny][nx] {
+                                isEdge = true
+                            }
+                        }
+                    }
+                    if isEdge { perimeter += 1 }
+                }
+            }
+        }
+        features.append(Double(perimeter) / Double(size * 4))
+        features.append(total > 0 ? Double(perimeter * perimeter) / total / 100.0 : 0)
+        
+        // 6. Horizontal and vertical projections (profile)
+        for i in 0..<size/2 {
+            // Left vs right density
+            var left = 0, right = 0
+            for y in 0..<size {
+                for x in 0..<i {
+                    if grid[y][x] { left += 1 }
+                }
+                for x in i..<size {
+                    if grid[y][x] { right += 1 }
+                }
+            }
+            features.append(Double(left) / max(Double(left + right), 1))
+        }
+        
+        for i in 0..<size/2 {
+            // Top vs bottom density
+            var top = 0, bottom = 0
+            for y in 0..<i {
+                for x in 0..<size {
+                    if grid[y][x] { top += 1 }
+                }
+            }
+            for y in i..<size {
+                for x in 0..<size {
+                    if grid[y][x] { bottom += 1 }
+                }
+            }
+            features.append(Double(top) / max(Double(top + bottom), 1))
+        }
+        
+        // 7. Diagonal features
+        var diag1 = 0, diag2 = 0, diag3 = 0, diag4 = 0
+        for y in 0..<size {
+            for x in 0..<size {
+                if grid[y][x] {
+                    if x > y { diag1 += 1 }
+                    if x + y < size { diag2 += 1 }
+                    if x > size/2 && y > size/2 { diag3 += 1 }
+                    if x < size/2 && y > size/2 { diag4 += 1 }
+                }
+            }
+        }
+        features.append(Double(diag1) / Double(size * size))
+        features.append(Double(diag2) / Double(size * size))
+        features.append(Double(diag3) / Double(size * size / 4))
+        features.append(Double(diag4) / Double(size * size / 4))
+        
+        // 8. Euler number (connectivity approximation)
+        var components = 0
+        var visited = Array(repeating: Array(repeating: false, count: size), count: size)
+        for y in 0..<size {
+            for x in 0..<size {
+                if grid[y][x] && !visited[y][x] {
+                    components += 1
+                    // Flood fill
+                    var stack = [(x, y)]
+                    while !stack.isEmpty {
+                        let (cx, cy) = stack.removeLast()
+                        if cx < 0 || cx >= size || cy < 0 || cy >= size || visited[cy][cx] || !grid[cy][cx] {
+                            continue
+                        }
+                        visited[cy][cx] = true
+                        stack.append((cx+1, cy))
+                        stack.append((cx-1, cy))
+                        stack.append((cx, cy+1))
+                        stack.append((cx, cy-1))
+                    }
+                }
+            }
+        }
+        features.append(Double(min(components, 5)) / 5.0)
+        
+        // 9. Aspect ratio from bounding box
+        var minX = size, maxX = 0, minY = size, maxY = 0
+        for y in 0..<size {
+            for x in 0..<size {
+                if grid[y][x] {
+                    minX = min(minX, x)
+                    maxX = max(maxX, x)
+                    minY = min(minY, y)
+                    maxY = max(maxY, y)
+                }
+            }
+        }
+        let bboxWidth = max(maxX - minX, 1)
+        let bboxHeight = max(maxY - minY, 1)
+        features.append(Double(bboxWidth) / Double(size))
+        features.append(Double(bboxHeight) / Double(size))
+        features.append(Double(bboxWidth) / Double(bboxHeight))
+        
         return features
+    }
+    
+    // Augment sample with small variations
+    func augmentedSamples(count: Int) -> [DrawingSample] {
+        var augmented: [DrawingSample] = [self]
+        let size = DrawingSample.gridSize
+        
+        for _ in 0..<count {
+            var newGrid = grid
+            // Random small shifts
+            let shiftX = Int.random(in: -1...1)
+            let shiftY = Int.random(in: -1...1)
+            
+            var shifted = Array(repeating: Array(repeating: false, count: size), count: size)
+            for y in 0..<size {
+                for x in 0..<size {
+                    if grid[y][x] {
+                        let nx = x + shiftX
+                        let ny = y + shiftY
+                        if nx >= 0 && nx < size && ny >= 0 && ny < size {
+                            shifted[ny][nx] = true
+                        }
+                    }
+                }
+            }
+            
+            // Small noise removal or addition
+            for y in 0..<size {
+                for x in 0..<size {
+                    if Double.random(in: 0...1) < 0.02 {
+                        shifted[y][x] = !shifted[y][x]
+                    }
+                }
+            }
+            
+            augmented.append(DrawingSample(label: label, grid: shifted))
+        }
+        
+        return augmented
     }
 }
 
-// MARK: - KNN Classified
+// MARK: - KNN Classifier with Advanced Features
 class KNNClassifier: ObservableObject {
     @Published var trainingSamples: [DrawingSample] = []
-    @Published var k: Int = 3
+    @Published var k: Int = 5
     @Published var isTrained = false
+    @Published var useAugmentation = false
+    @Published var augmentationFactor = 3
+    @Published var featureWeights: [Double] = []
+    @Published var distanceMetric: DistanceMetric = .euclidean
+    @Published var lastPredictionDetails: PredictionDetails?
+    
+    enum DistanceMetric: String, CaseIterable {
+        case euclidean = "Euclidean"
+        case manhattan = "Manhattan"
+        case cosine = "Cosine"
+        case minkowski = "Minkowski"
+    }
+    
+    struct PredictionDetails {
+        let topMatches: [(label: String, distance: Double, sampleId: UUID)]
+        let featureSimilarities: [Double]
+        let processingTime: TimeInterval
+    }
     
     func addSample(_ sample: DrawingSample) {
         trainingSamples.append(sample)
+        updateTrainingStatus()
     }
     
     func removeSample(id: UUID) {
         trainingSamples.removeAll { $0.id == id }
+        updateTrainingStatus()
     }
     
     func removeSamples(for label: String) {
         trainingSamples.removeAll { $0.label == label }
-        isTrained = !trainingSamples.isEmpty && Set(trainingSamples.map { $0.label }).count >= 2
+        updateTrainingStatus()
     }
     
     func clear() {
         trainingSamples.removeAll()
         isTrained = false
+        lastPredictionDetails = nil
+    }
+    
+    private func updateTrainingStatus() {
+        let uniqueClasses = Set(trainingSamples.map { $0.label })
+        isTrained = trainingSamples.count >= 2 && uniqueClasses.count >= 2
     }
     
     func train() {
-        let uniqueClasses = Set(trainingSamples.map { $0.label })
-        isTrained = trainingSamples.count >= 2 && uniqueClasses.count >= 2
+        updateTrainingStatus()
+        // Compute optimal feature weights based on variance
+        computeFeatureWeights()
+    }
+    
+    private func computeFeatureWeights() {
+        guard !trainingSamples.isEmpty else { return }
+        
+        let features = trainingSamples.map { $0.featureVector() }
+        let featureCount = features[0].count
+        var weights = Array(repeating: 1.0, count: featureCount)
+        
+        // Calculate variance for each feature
+        for i in 0..<featureCount {
+            let values = features.map { $0[i] }
+            let mean = values.reduce(0, +) / Double(values.count)
+            let variance = values.map { pow($0 - mean, 2) }.reduce(0, +) / Double(values.count)
+            // Higher weight for features with lower variance within classes and higher variance between classes
+            weights[i] = 1.0 / (1.0 + variance)
+        }
+        
+        featureWeights = weights
     }
     
     func classify(_ sample: DrawingSample) -> (label: String, confidence: Double) {
         guard isTrained else { return ("Untrained", 0.0) }
         
+        let startTime = CFAbsoluteTimeGetCurrent()
         let testFeatures = sample.featureVector()
-        var distances: [(label: String, distance: Double)] = trainingSamples.map { train in
-            let trainFeatures = train.featureVector()
-            var sum = 0.0
-            for i in 0..<min(testFeatures.count, trainFeatures.count) {
-                let diff = testFeatures[i] - trainFeatures[i]
-                sum += diff * diff
+        
+        // Get all samples including augmented if enabled
+        var allSamples = trainingSamples
+        if useAugmentation {
+            for sample in trainingSamples {
+                allSamples.append(contentsOf: sample.augmentedSamples(count: augmentationFactor))
             }
-            return (train.label, sqrt(sum))
+        }
+        
+        var distances: [(label: String, distance: Double, sampleId: UUID)] = allSamples.map { train in
+            let trainFeatures = train.featureVector()
+            let distance = calculateDistance(testFeatures, trainFeatures)
+            return (train.label, distance, train.id)
         }
         
         distances.sort { $0.distance < $1.distance }
         let kNearest = distances.prefix(k)
         
-        var votes: [String: Int] = [:]
-        for n in kNearest { votes[n.label, default: 0] += 1 }
+        // Weighted voting by distance
+        var votes: [String: Double] = [:]
+        var totalWeight = 0.0
         
-        let winner = votes.max { $0.value < $1.value }?.key ?? "Unknown"
-        let confidence = Double(votes[winner] ?? 0) / Double(k)
+        for neighbor in kNearest {
+            let weight = 1.0 / (1.0 + neighbor.distance)  // Inverse distance weighting
+            votes[neighbor.label, default: 0] += weight
+            totalWeight += weight
+        }
         
-        return (winner, confidence)
+        // Find winner
+        let sortedVotes = votes.sorted { $0.value > $1.value }
+        guard let winner = sortedVotes.first else {
+            return ("Unknown", 0.0)
+        }
+        
+        // Calculate confidence
+        let winnerVotes = winner.value
+        let confidence = winnerVotes / totalWeight
+        
+        // Store prediction details
+        let processingTime = CFAbsoluteTimeGetCurrent() - startTime
+        lastPredictionDetails = PredictionDetails(
+            topMatches: Array(kNearest),
+            featureSimilarities: calculateSimilarities(testFeatures, allSamples),
+            processingTime: processingTime
+        )
+        
+        return (winner.key, confidence)
+    }
+    
+    private func calculateDistance(_ a: [Double], _ b: [Double]) -> Double {
+        let minCount = min(a.count, b.count)
+        let weights = featureWeights.isEmpty ? Array(repeating: 1.0, count: minCount) : featureWeights
+        
+        switch distanceMetric {
+        case .euclidean:
+            var sum = 0.0
+            for i in 0..<minCount {
+                let diff = (a[i] - b[i]) * weights[i]
+                sum += diff * diff
+            }
+            return sqrt(sum)
+            
+        case .manhattan:
+            var sum = 0.0
+            for i in 0..<minCount {
+                sum += abs(a[i] - b[i]) * weights[i]
+            }
+            return sum
+            
+        case .cosine:
+            var dot = 0.0, normA = 0.0, normB = 0.0
+            for i in 0..<minCount {
+                dot += a[i] * b[i] * weights[i]
+                normA += a[i] * a[i] * weights[i]
+                normB += b[i] * b[i] * weights[i]
+            }
+            return 1.0 - dot / (sqrt(normA) * sqrt(normB) + 1e-10)
+            
+        case .minkowski:
+            let p = 3.0
+            var sum = 0.0
+            for i in 0..<minCount {
+                sum += pow(abs(a[i] - b[i]) * weights[i], p)
+            }
+            return pow(sum, 1.0 / p)
+        }
+    }
+    
+    private func calculateSimilarities(_ testFeatures: [Double], _ samples: [DrawingSample]) -> [Double] {
+        // Calculate average similarity per feature group
+        let featureGroups = [
+            ("Rows", 0..<28),
+            ("Cols", 28..<56),
+            ("Zones", 56..<72),
+            ("Center", 72..<76),
+            ("Shape", 76..<80)
+        ]
+        
+        return featureGroups.map { _, range in
+            var totalSim = 0.0
+            for sample in samples.prefix(10) {
+                let features = sample.featureVector()
+                for i in range {
+                    if i < testFeatures.count && i < features.count {
+                        totalSim += 1.0 - abs(testFeatures[i] - features[i])
+                    }
+                }
+            }
+            return totalSim / Double(range.count * 10)
+        }
+    }
+    
+    func crossValidation() -> Double {
+        guard trainingSamples.count >= 5 else { return 0.0 }
+        
+        var correct = 0
+        var total = 0
+        
+        for i in 0..<trainingSamples.count {
+            var tempSamples = trainingSamples
+            let testSample = tempSamples.remove(at: i)
+            
+            // Temporarily set samples and classify
+            let savedSamples = trainingSamples
+            trainingSamples = tempSamples
+            
+            let result = classify(testSample)
+            if result.label == testSample.label {
+                correct += 1
+            }
+            total += 1
+            
+            trainingSamples = savedSamples
+        }
+        
+        return Double(correct) / Double(total)
     }
 }
 
@@ -135,6 +600,7 @@ struct AdaptiveLayout {
     let isPad: Bool
     let isPhone: Bool
     
+    @MainActor
     init(size: CGSize, horizontalSizeClass: UserInterfaceSizeClass?) {
         width = size.width
         height = size.height
@@ -179,9 +645,18 @@ struct AdaptiveLayout {
     }
     
     var canvasHeight: CGFloat {
-        if isPhone && isCompact { return min(width * 0.7, 280) }
-        if isPhone { return min(width * 0.5, 320) }
-        return min(height * 0.35, 350)
+        return canvasSize
+    }
+    
+    var canvasSize: CGFloat {
+        // Square canvas based on available width
+        if isPhone && isCompact { 
+            return min(width - (padding * 2), 320) 
+        }
+        if isPhone { 
+            return min(width * 0.45, 320) 
+        }
+        return min(min(width * 0.4, height * 0.4), 350)
     }
     
     var thumbSize: CGFloat {
@@ -221,19 +696,16 @@ struct ImageTrainingView: View {
             NavigationStack {
                 Group {
                     if layout.isPhone && layout.isCompact {
-                        // iPhone Portrait - Tab style
                         PhonePortraitView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass, 
                                         trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
                                         testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
                                         prediction: $prediction, classToDelete: $classToDelete)
                     } else if layout.isPhone {
-                        // iPhone Landscape - Split
                         PhoneLandscapeView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass,
                                          trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
                                          testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
                                          prediction: $prediction, classToDelete: $classToDelete)
                     } else {
-                        // iPad/Mac - Full layout
                         TabletView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass,
                                   trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
                                   testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
@@ -292,6 +764,7 @@ struct PhonePortraitView: View {
     @Binding var classToDelete: String?
     @State private var selectedTab = 0
     @State private var showAddClass = false
+    @State private var showSettings = false
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -338,19 +811,11 @@ struct PhonePortraitView: View {
                     }
                     
                     if let result = prediction {
-                        PredictionCard(result: result, layout: layout)
+                        PredictionCard(result: result, details: knn.lastPredictionDetails, layout: layout)
                     }
                     
                     if knn.isTrained {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("K-Neighbors: \(knn.k)")
-                                .font(.system(size: layout.fontSize - 2))
-                                .foregroundColor(.secondary)
-                            Slider(value: .init(get: { Double(knn.k) }, set: { knn.k = Int($0) }), in: 1...10, step: 1)
-                        }
-                        .padding(layout.padding)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(layout.cornerRadius)
+                        AdvancedSettingsSection(knn: knn, layout: layout)
                     }
                 }
                 .padding(layout.padding)
@@ -453,9 +918,13 @@ struct PhoneLandscapeView: View {
                     }
                     
                     if let result = prediction {
-                        PredictionCard(result: result, layout: layout)
+                        PredictionCard(result: result, details: knn.lastPredictionDetails, layout: layout)
                     } else {
                         PlaceholderCard(layout: layout)
+                    }
+                    
+                    if knn.isTrained {
+                        AdvancedSettingsSection(knn: knn, layout: layout)
                     }
                 }
                 .padding(layout.padding)
@@ -567,26 +1036,13 @@ struct TabletView: View {
                 }
                 
                 if let result = prediction {
-                    PredictionCard(result: result, layout: layout)
+                    PredictionCard(result: result, details: knn.lastPredictionDetails, layout: layout)
                 } else {
                     PlaceholderCard(layout: layout)
                 }
                 
                 if knn.isTrained {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("K-Neighbors")
-                                .font(.system(size: layout.fontSize - 1))
-                            Spacer()
-                            Text("\(knn.k)")
-                                .font(.system(size: layout.fontSize - 1, weight: .medium))
-                                .foregroundColor(.secondary)
-                        }
-                        Slider(value: .init(get: { Double(knn.k) }, set: { knn.k = Int($0) }), in: 1...10, step: 1)
-                    }
-                    .padding(layout.padding)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(layout.cornerRadius)
+                    AdvancedSettingsSection(knn: knn, layout: layout)
                 }
                 
                 Spacer()
@@ -726,21 +1182,26 @@ struct DrawingCanvas: View {
                     }
                 }
                 
-                // Strokes
+                // Strokes with smooth rendering
                 Canvas { context, size in
                     for stroke in strokes {
                         if stroke.count > 1 {
                             var p = Path()
                             p.move(to: stroke[0])
-                            for i in 1..<stroke.count { p.addLine(to: stroke[i]) }
-                            context.stroke(p, with: .color(.black), lineWidth: 4)
+                            // Use Catmull-Rom or simple smoothing
+                            for i in 1..<stroke.count {
+                                p.addLine(to: stroke[i])
+                            }
+                            context.stroke(p, with: .color(.black), lineWidth: 5)
                         }
                     }
                     if currentStroke.count > 1 {
                         var p = Path()
                         p.move(to: currentStroke[0])
-                        for i in 1..<currentStroke.count { p.addLine(to: currentStroke[i]) }
-                        context.stroke(p, with: .color(accent), lineWidth: 4)
+                        for i in 1..<currentStroke.count {
+                            p.addLine(to: currentStroke[i])
+                        }
+                        context.stroke(p, with: .color(accent), lineWidth: 5)
                     }
                 }
             }
@@ -763,7 +1224,7 @@ struct DrawingCanvas: View {
             )
             .onAppear { canvasSize = geo.size }
         }
-        .frame(height: layout.canvasHeight)
+        .frame(width: layout.canvasSize, height: layout.canvasSize)
     }
 }
 
@@ -850,7 +1311,7 @@ struct SampleThumbnail: View {
     
     var body: some View {
         Button(action: { showDelete = true }) {
-            GridRenderer(grid: sample.grid)
+            SmoothGridRenderer(sample: sample)
                 .frame(width: layout.thumbSize, height: layout.thumbSize)
                 .background(Color(.systemGray6))
                 .cornerRadius(layout.cornerRadius / 2)
@@ -863,18 +1324,107 @@ struct SampleThumbnail: View {
     }
 }
 
-struct GridRenderer: View {
-    let grid: [[Bool]]
+struct SmoothGridRenderer: View {
+    let sample: DrawingSample
+    
+    // Calculate bounding box of all strokes
+    private func calculateBounds(_ strokes: [[CGPoint]]) -> CGRect {
+        var minX = CGFloat.infinity, minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity, maxY = -CGFloat.infinity
+        
+        for stroke in strokes {
+            for point in stroke {
+                minX = min(minX, point.x)
+                minY = min(minY, point.y)
+                maxX = max(maxX, point.x)
+                maxY = max(maxY, point.y)
+            }
+        }
+        
+        if minX == CGFloat.infinity {
+            return CGRect.zero
+        }
+        
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
     
     var body: some View {
-        Canvas { context, size in
-            let w = size.width / 28
-            let h = size.height / 28
-            for y in 0..<28 {
-                for x in 0..<28 {
-                    if grid[y][x] {
-                        let rect = CGRect(x: CGFloat(x) * w, y: CGFloat(y) * h, width: w + 0.5, height: h + 0.5)
-                        context.fill(Path(rect), with: .color(.black))
+        GeometryReader { geo in
+            ZStack {
+                // Background
+                Color.white
+                
+                // Render using original canvas strokes with proper bounds calculation
+                if !sample.originalStrokes.isEmpty {
+                    Canvas { context, size in
+                        let bounds = calculateBounds(sample.originalStrokes)
+                        guard bounds.width > 0 && bounds.height > 0 else { return }
+                        
+                        // Add padding around the drawing
+                        let padding: CGFloat = 10
+                        let availableWidth = size.width - padding * 2
+                        let availableHeight = size.height - padding * 2
+                        
+                        // Scale to fit the thumbnail while maintaining aspect ratio
+                        let scale = min(availableWidth / bounds.width, availableHeight / bounds.height)
+                        
+                        // Center the drawing in the thumbnail
+                        let scaledWidth = bounds.width * scale
+                        let scaledHeight = bounds.height * scale
+                        let offsetX = (size.width - scaledWidth) / 2 - bounds.minX * scale
+                        let offsetY = (size.height - scaledHeight) / 2 - bounds.minY * scale
+                        
+                        for stroke in sample.originalStrokes {
+                            if stroke.count > 1 {
+                                var p = Path()
+                                p.move(to: CGPoint(
+                                    x: stroke[0].x * scale + offsetX,
+                                    y: stroke[0].y * scale + offsetY
+                                ))
+                                for i in 1..<stroke.count {
+                                    p.addLine(to: CGPoint(
+                                        x: stroke[i].x * scale + offsetX,
+                                        y: stroke[i].y * scale + offsetY
+                                    ))
+                                }
+                                context.stroke(p, with: .color(.black), lineWidth: 3)
+                            }
+                        }
+                    }
+                } else if !sample.normalizedStrokes.isEmpty {
+                    // Fallback: use normalized strokes scaled to fit
+                    Canvas { context, size in
+                        for stroke in sample.normalizedStrokes {
+                            if stroke.count > 1 {
+                                var p = Path()
+                                p.move(to: CGPoint(x: stroke[0].x * size.width, y: stroke[0].y * size.height))
+                                for i in 1..<stroke.count {
+                                    p.addLine(to: CGPoint(x: stroke[i].x * size.width, y: stroke[i].y * size.height))
+                                }
+                                context.stroke(p, with: .color(.black), lineWidth: 3)
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback to high-res grid
+                    Canvas { context, size in
+                        let grid = sample.highResGrid
+                        let cellW = size.width / CGFloat(DrawingSample.highResGridSize)
+                        let cellH = size.height / CGFloat(DrawingSample.highResGridSize)
+                        
+                        for y in 0..<DrawingSample.highResGridSize {
+                            for x in 0..<DrawingSample.highResGridSize {
+                                if grid[y][x] {
+                                    let rect = CGRect(
+                                        x: CGFloat(x) * cellW - 0.5,
+                                        y: CGFloat(y) * cellH - 0.5,
+                                        width: cellW + 1,
+                                        height: cellH + 1
+                                    )
+                                    context.fill(Path(rect), with: .color(.black))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -884,7 +1434,9 @@ struct GridRenderer: View {
 
 struct PredictionCard: View {
     let result: (label: String, confidence: Double)
+    let details: KNNClassifier.PredictionDetails?
     let layout: AdaptiveLayout
+    @State private var showDetails = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: layout.spacing) {
@@ -914,11 +1466,50 @@ struct PredictionCard: View {
                         .fill(Color(.systemGray5))
                         .frame(height: 8)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(result.confidence > 0.7 ? Color.green : Color.orange)
+                        .fill(result.confidence > 0.7 ? Color.green : (result.confidence > 0.5 ? Color.orange : Color.red))
                         .frame(width: geo.size.width * result.confidence, height: 8)
                 }
             }
             .frame(height: 8)
+            
+            if let details = details {
+                Divider()
+                
+                Button(action: { showDetails.toggle() }) {
+                    HStack {
+                        Text("Match Details")
+                            .font(.system(size: layout.fontSize - 2))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                
+                if showDetails {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(details.topMatches.prefix(5), id: \.sampleId) { match in
+                            HStack {
+                                Text(match.label)
+                                    .font(.system(size: layout.fontSize - 2))
+                                Spacer()
+                                Text(String(format: "%.3f", match.distance))
+                                    .font(.system(size: layout.fontSize - 3, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        if details.processingTime > 0 {
+                            Text("Processing: \(String(format: "%.2f", details.processingTime * 1000))ms")
+                                .font(.system(size: layout.fontSize - 4))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
         }
         .padding(layout.padding)
         .background(Color.green.opacity(0.05))
@@ -965,6 +1556,99 @@ struct StatusBadge: View {
         .padding(.vertical, 6)
         .background((status == .ready ? Color.green : Color.orange).opacity(0.1))
         .cornerRadius(layout.cornerRadius / 2)
+    }
+}
+
+struct AdvancedSettingsSection: View {
+    @ObservedObject var knn: KNNClassifier
+    let layout: AdaptiveLayout
+    @State private var showAdvanced = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: layout.spacing) {
+            Button(action: { showAdvanced.toggle() }) {
+                HStack {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: layout.fontSize - 2))
+                    Text("Training Settings")
+                        .font(.system(size: layout.fontSize - 1, weight: .medium))
+                    Spacer()
+                    Image(systemName: showAdvanced ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                }
+                .foregroundColor(.primary)
+            }
+            .buttonStyle(.plain)
+            
+            if showAdvanced {
+                VStack(spacing: 12) {
+                    // K-Neighbors
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("K-Neighbors")
+                                .font(.system(size: layout.fontSize - 2))
+                            Spacer()
+                            Text("\(knn.k)")
+                                .font(.system(size: layout.fontSize - 2, weight: .medium))
+                                .foregroundColor(.blue)
+                        }
+                        Slider(value: .init(get: { Double(knn.k) }, set: { knn.k = Int($0) }), in: 1...15, step: 1)
+                    }
+                    
+                    Divider()
+                    
+                    // Distance Metric
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Distance Metric")
+                            .font(.system(size: layout.fontSize - 2))
+                        Picker("Metric", selection: $knn.distanceMetric) {
+                            ForEach(KNNClassifier.DistanceMetric.allCases, id: \.self) { metric in
+                                Text(metric.rawValue).tag(metric)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    
+                    Divider()
+                    
+                    // Data Augmentation
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Data Augmentation", isOn: $knn.useAugmentation)
+                            .font(.system(size: layout.fontSize - 2))
+                        
+                        if knn.useAugmentation {
+                            HStack {
+                                Text("Augmentation Factor")
+                                    .font(.system(size: layout.fontSize - 3))
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(knn.augmentationFactor)")
+                                    .font(.system(size: layout.fontSize - 3))
+                            }
+                            Slider(value: .init(get: { Double(knn.augmentationFactor) }, set: { knn.augmentationFactor = Int($0) }), in: 1...10, step: 1)
+                        }
+                    }
+                    
+                    // Cross-validation score
+                    if knn.trainingSamples.count >= 5 {
+                        Divider()
+                        HStack {
+                            Text("Cross-Validation Accuracy")
+                                .font(.system(size: layout.fontSize - 2))
+                            Spacer()
+                            let accuracy = knn.crossValidation()
+                            Text("\(Int(accuracy * 100))%")
+                                .font(.system(size: layout.fontSize - 2, weight: .medium))
+                                .foregroundColor(accuracy > 0.8 ? .green : (accuracy > 0.5 ? .orange : .red))
+                        }
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(layout.padding)
+        .background(Color(.systemGray6))
+        .cornerRadius(layout.cornerRadius)
     }
 }
 
