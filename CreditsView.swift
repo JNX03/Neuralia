@@ -12,6 +12,13 @@ struct CreditsView: View {
     @State private var showContent = false
     @State private var photoFrameOffset: CGFloat = 50
     
+    // MARK: - Pointer FX State (same as LoadingView)
+    @State private var pointerLocation: CGPoint = .zero
+    @State private var pointerIsVisible: Bool = false
+    @State private var pointerIsDown: Bool = false
+    @State private var ripples: [PointerRipple] = []
+    @State private var trailPoints: [CGPoint] = []
+    
     var body: some View {
         GeometryReader { geometry in
             let layout = ResponsiveLayout(
@@ -29,6 +36,15 @@ struct CreditsView: View {
                 
                 // Back button
                 backButton(layout: layout)
+                
+                // MARK: - Pointer FX Overlay
+                PointerFXOverlay(
+                    location: pointerLocation,
+                    isDown: pointerIsDown,
+                    isVisible: pointerIsVisible,
+                    ripples: ripples,
+                    trailPoints: trailPoints
+                )
             }
         }
         .ignoresSafeArea()
@@ -42,6 +58,50 @@ struct CreditsView: View {
         .onDisappear {
             stopImageCycle()
         }
+        // MARK: - Pointer Gestures (same as LoadingView)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                .onChanged { value in
+                    pointerIsVisible = true
+                    pointerIsDown = true
+                    pointerLocation = value.location
+                    
+                    // Trail logic
+                    let p = value.location
+                    if let last = trailPoints.last {
+                        let d = hypot(p.x - last.x, p.y - last.y)
+                        if d > 3.0 {
+                            trailPoints.append(p)
+                            if trailPoints.count > 18 {
+                                trailPoints.removeFirst()
+                            }
+                        }
+                    } else {
+                        trailPoints.append(p)
+                    }
+                }
+                .onEnded { value in
+                    pointerLocation = value.location
+                    pointerIsDown = false
+                    
+                    // Tap = ripple
+                    let dist = hypot(value.translation.width, value.translation.height)
+                    let isTap = dist < 16
+                    
+                    if isTap {
+                        ripples.append(PointerRipple(id: UUID(), location: value.location))
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            ripples.removeAll { $0.location == value.location }
+                        }
+                    }
+                    
+                    // Fade out trail
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        trailPoints.removeAll()
+                        pointerIsVisible = false
+                    }
+                }
+        )
     }
     
     private func startImageCycle() {
