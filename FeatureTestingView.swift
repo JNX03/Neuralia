@@ -35,6 +35,7 @@ final class SpeechManager: ObservableObject {
             "com.apple.voice.enhanced.en-GB.Kate",
             "com.apple.voice.compact.en-US.Samantha",
             "com.apple.voice.compact.en-GB.Kate",
+            "com.apple.voice.enhanced.en-US.Noelle",
         ]
         
         for voiceId in preferredVoices {
@@ -212,7 +213,7 @@ struct FeatureTestingView: View {
                 }
             }
             .navigationDestination(isPresented: $showDialogTest) {
-                VisualNovelDialogView()
+                ResponsiveDialogView(nodes: sampleDialogNodes)
             }
         }
     }
@@ -1125,6 +1126,138 @@ extension Color {
         self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
     }
 }
+
+// MARK: - Sample Dialog Nodes
+let sampleDialogNodes: [DialogNode] = [
+    DialogNode(
+        speaker: "Ploy",
+        text: "Welcome to the new Responsive Dialog System! 👋 This has been completely redesigned to work beautifully on every device - from the smallest iPhone to the largest Mac desktop screen!",
+        emotion: .excited,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "Try resizing the window if you're on Mac, or rotating your device on iPad/iPhone. Watch how the layout automatically adapts! On large screens, you get a side-by-side view. On phones, everything stacks perfectly.",
+        emotion: .happy,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "How are you feeling about this new responsive design?",
+        emotion: .curious,
+        choices: [
+            DialogChoice(
+                text: "I love it! 😍",
+                emotion: .excited,
+                response: "That's wonderful to hear!",
+                nextNodeIndex: nil,
+                icon: "heart.fill"
+            ),
+            DialogChoice(
+                text: "Looks great! 👍",
+                emotion: .happy,
+                response: "Glad you like it!",
+                nextNodeIndex: nil,
+                icon: "hand.thumbsup.fill"
+            ),
+            DialogChoice(
+                text: "It's okay 🤔",
+                emotion: .neutral,
+                response: "I appreciate your honesty.",
+                nextNodeIndex: nil,
+                icon: "checkmark.circle.fill"
+            ),
+            DialogChoice(
+                text: "Not my style 😕",
+                emotion: .sad,
+                response: "I'll keep working on it!",
+                nextNodeIndex: nil,
+                icon: "xmark.circle.fill"
+            )
+        ],
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "I'd love to know your name! The text input also scales beautifully - larger on big screens, compact on small devices.",
+        emotion: .gentle,
+        choices: nil,
+        requiresInput: true,
+        inputPlaceholder: "Enter your name...",
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "Notice the settings button in the top right? You can adjust typing speed and background brightness - these settings persist during your session and work across all device sizes!",
+        emotion: .happy,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "The character animations respond to your interactions: tap to bounce, drag to move, long-press to wiggle. Try it out! These interactions work with mouse, trackpad, or touch.",
+        emotion: .excited,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "This dialog system features four adaptive layout modes: Stacked for phones, Side-by-Side for landscape tablets, Floating for cinematic displays, and Split for ultrawide/desktop screens!",
+        emotion: .mysterious,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "Typography automatically scales based on your device size - comfortable to read whether you're on a phone held close or a monitor across the room. Every element has been carefully considered!",
+        emotion: .gentle,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    ),
+    DialogNode(
+        speaker: "Ploy",
+        text: "Thank you for testing the new Responsive Dialog System! I hope you enjoyed seeing how it adapts to different screen sizes. The future of visual novels is here! 🎉",
+        emotion: .happy,
+        choices: nil,
+        requiresInput: false,
+        inputPlaceholder: nil,
+        backgroundImage: "507room",
+        characterImage: "char",
+        onComplete: nil
+    )
+]
 
 #Preview {
     FeatureTestingView()
