@@ -19,7 +19,7 @@ let package = Package(
             bundleIdentifier: "Jnx03.mrc.Neura",
             displayVersion: "1.0",
             bundleVersion: "1",
-            appIcon: .placeholder(icon: .camera),
+            appIcon: .placeholder(icon: .cloud),
             accentColor: .presetColor(.pink),
             supportedDeviceFamilies: [
                 .pad,
@@ -31,7 +31,7 @@ let package = Package(
                 .landscapeLeft,
                 .portraitUpsideDown(.when(deviceFamilies: [.pad]))
             ],
-            appCategory: .developerTools
+            appCategory: .education
         )
     ],
     targets: [

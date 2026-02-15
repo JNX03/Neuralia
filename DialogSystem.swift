@@ -189,7 +189,7 @@ final class DialogViewModel: ObservableObject {
 }
 
 // MARK: - Adaptive Layout Engine
-struct AdaptiveLayout {
+struct DialogAdaptiveLayout {
     let width: CGFloat
     let height: CGFloat
     let safeAreaInsets: EdgeInsets
@@ -405,7 +405,7 @@ struct ResponsiveDialogView: View {
     
     var body: some View {
         GeometryReader { geometry in
-            let layout = AdaptiveLayout(
+            let layout = DialogAdaptiveLayout(
                 width: geometry.size.width,
                 height: geometry.size.height,
                 safeAreaInsets: geometry.safeAreaInsets
@@ -453,7 +453,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Background Layer
-    private func backgroundLayer(layout: AdaptiveLayout) -> some View {
+    private func backgroundLayer(layout: DialogAdaptiveLayout) -> some View {
         ZStack {
             // Base background image or color
             if let backgroundImage = viewModel.currentNode?.backgroundImage,
@@ -496,7 +496,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Stacked Layout (Portrait/Default)
-    private func stackedLayout(layout: AdaptiveLayout, geometry: GeometryProxy) -> some View {
+    private func stackedLayout(layout: DialogAdaptiveLayout, geometry: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             // Top bar
             topBar(layout: layout)
@@ -518,7 +518,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Side by Side Layout (Landscape iPad)
-    private func sideBySideLayout(layout: AdaptiveLayout, geometry: GeometryProxy) -> some View {
+    private func sideBySideLayout(layout: DialogAdaptiveLayout, geometry: GeometryProxy) -> some View {
         HStack(spacing: 0) {
             // Left: Character
             ZStack {
@@ -550,7 +550,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Floating Layout (Cinematic)
-    private func floatingLayout(layout: AdaptiveLayout, geometry: GeometryProxy) -> some View {
+    private func floatingLayout(layout: DialogAdaptiveLayout, geometry: GeometryProxy) -> some View {
         ZStack {
             // Full screen character
             characterSection(layout: layout)
@@ -572,7 +572,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Split Layout (Ultrawide/Desktop)
-    private func splitLayout(layout: AdaptiveLayout, geometry: GeometryProxy) -> some View {
+    private func splitLayout(layout: DialogAdaptiveLayout, geometry: GeometryProxy) -> some View {
         HStack(spacing: layout.sectionSpacing * 2) {
             // Left panel: Character info & visual
             VStack {
@@ -607,7 +607,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Top Bar
-    private func topBar(layout: AdaptiveLayout) -> some View {
+    private func topBar(layout: DialogAdaptiveLayout) -> some View {
         HStack {
             if showBackButton {
                 backButton(layout: layout)
@@ -628,7 +628,7 @@ struct ResponsiveDialogView: View {
         }
     }
     
-    private func backButton(layout: AdaptiveLayout) -> some View {
+    private func backButton(layout: DialogAdaptiveLayout) -> some View {
         DialogControlButton(
             icon: "chevron.left",
             title: layout.isCompact ? nil : "Back",
@@ -637,26 +637,26 @@ struct ResponsiveDialogView: View {
         )
     }
     
-    private func settingsButton(layout: AdaptiveLayout) -> some View {
+    private func settingsButton(layout: DialogAdaptiveLayout) -> some View {
         DialogControlButton(
             icon: "gear",
-            title: nil,
+            title: nil as String?,
             action: { withAnimation(.spring()) { showSettingsPanel.toggle() } },
             layout: layout
         )
     }
     
-    private func historyButton(layout: AdaptiveLayout) -> some View {
+    private func historyButton(layout: DialogAdaptiveLayout) -> some View {
         DialogControlButton(
             icon: "clock.arrow.circlepath",
-            title: nil,
+            title: nil as String?,
             action: { /* Show history */ },
             layout: layout
         )
     }
     
     // MARK: - Character Section
-    private func characterSection(layout: AdaptiveLayout) -> some View {
+    private func characterSection(layout: DialogAdaptiveLayout) -> some View {
         ZStack(alignment: .bottom) {
             // Character shadow
             Ellipse()
@@ -680,7 +680,7 @@ struct ResponsiveDialogView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
-    private func characterImage(layout: AdaptiveLayout) -> some View {
+    private func characterImage(layout: DialogAdaptiveLayout) -> some View {
         let imageName = viewModel.currentNode?.characterImage ?? "char"
         
         return Image(imageName)
@@ -717,7 +717,7 @@ struct ResponsiveDialogView: View {
             }, perform: {})
     }
     
-    private func characterInfoBadge(layout: AdaptiveLayout) -> some View {
+    private func characterInfoBadge(layout: DialogAdaptiveLayout) -> some View {
         HStack {
             Spacer()
             VStack(alignment: .trailing, spacing: layout.elementSpacing / 2) {
@@ -746,7 +746,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Dialog Section
-    private func dialogSection(layout: AdaptiveLayout) -> some View {
+    private func dialogSection(layout: DialogAdaptiveLayout) -> some View {
         VStack(spacing: layout.sectionSpacing) {
             // Progress indicator
             if layout.isLarge || layout.isExtraLarge {
@@ -774,7 +774,7 @@ struct ResponsiveDialogView: View {
         .frame(maxWidth: layout.dialogMaxWidth)
     }
     
-    private func progressIndicator(layout: AdaptiveLayout) -> some View {
+    private func progressIndicator(layout: DialogAdaptiveLayout) -> some View {
         HStack(spacing: 4) {
             ForEach(0..<viewModel.nodes.count, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
@@ -787,7 +787,7 @@ struct ResponsiveDialogView: View {
         .frame(maxWidth: 200)
     }
     
-    private func dialogBox(layout: AdaptiveLayout) -> some View {
+    private func dialogBox(layout: DialogAdaptiveLayout) -> some View {
         VStack(alignment: .leading, spacing: layout.elementSpacing) {
             // Header with speaker name
             HStack {
@@ -864,7 +864,7 @@ struct ResponsiveDialogView: View {
         }
     }
     
-    private func choicesGrid(choices: [DialogChoice], layout: AdaptiveLayout) -> some View {
+    private func choicesGrid(choices: [DialogChoice], layout: DialogAdaptiveLayout) -> some View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: layout.choiceSpacing), count: layout.choiceColumns)
         
         return LazyVGrid(columns: columns, spacing: layout.choiceSpacing) {
@@ -879,7 +879,7 @@ struct ResponsiveDialogView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
-    private func textInputSection(layout: AdaptiveLayout) -> some View {
+    private func textInputSection(layout: DialogAdaptiveLayout) -> some View {
         HStack(spacing: layout.elementSpacing) {
             TextField(
                 viewModel.currentNode?.inputPlaceholder ?? "Type here...",
@@ -912,7 +912,7 @@ struct ResponsiveDialogView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
-    private func navigationHint(layout: AdaptiveLayout) -> some View {
+    private func navigationHint(layout: DialogAdaptiveLayout) -> some View {
         HStack {
             Spacer()
             Text("Tap to continue")
@@ -923,7 +923,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Settings Panel
-    private func settingsPanel(layout: AdaptiveLayout) -> some View {
+    private func settingsPanel(layout: DialogAdaptiveLayout) -> some View {
         ZStack {
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
@@ -993,7 +993,7 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Completion Overlay
-    private func completionOverlay(layout: AdaptiveLayout) -> some View {
+    private func completionOverlay(layout: DialogAdaptiveLayout) -> some View {
         ZStack {
             Color.black.opacity(0.7)
                 .ignoresSafeArea()
@@ -1085,7 +1085,7 @@ struct DialogControlButton: View {
     let icon: String
     let title: String?
     let action: () -> Void
-    let layout: AdaptiveLayout
+    let layout: DialogAdaptiveLayout
     
     @State private var isHovered = false
     
@@ -1123,7 +1123,7 @@ struct DialogControlButton: View {
 
 struct ChoiceButton: View {
     let choice: DialogChoice
-    let layout: AdaptiveLayout
+    let layout: DialogAdaptiveLayout
     let action: () -> Void
     
     @State private var isPressed = false
@@ -1191,7 +1191,7 @@ struct ChoiceButton: View {
 }
 
 struct TypingIndicator: View {
-    let layout: AdaptiveLayout
+    let layout: DialogAdaptiveLayout
     @State private var offset: CGFloat = 0
     
     var body: some View {

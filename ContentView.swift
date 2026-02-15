@@ -13,6 +13,9 @@ struct ContentView: View {
             )
             
             ZStack {
+                // Solid black background first to prevent white flash
+                Color.black.ignoresSafeArea()
+                
                 // Background that adapts to screen size
                 backgroundLayer(layout: layout)
                 
