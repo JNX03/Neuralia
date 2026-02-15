@@ -250,10 +250,17 @@ struct MainMenuView: View {
     // MARK: - Menu Buttons
     private func menuButtons(layout: ResponsiveLayout) -> some View {
         VStack(spacing: layout.elementSpacing * 1.5) {
-            // Primary buttons - Play and Lab (bigger)
+            // Primary buttons - Play, Select, and Lab (bigger)
             LargeMenuButton(
                 title: "Play",
                 icon: "play.fill",
+                layout: layout,
+                action: {}
+            )
+            
+            LargeMenuButton(
+                title: "Select",
+                icon: "square.grid.2x2",
                 layout: layout,
                 action: {}
             )

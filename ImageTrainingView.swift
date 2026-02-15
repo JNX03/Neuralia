@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Drawing Sample with High-Resolution Gridd
+// MARK: - Drawing Sample with High-Resolution Gridde
 struct DrawingSample: Identifiable, Codable {
     let id: UUID
     var label: String
