@@ -1,13 +1,16 @@
 import SwiftUI
 
-// MARK: - Credits View
 struct CreditsView: View {
     @Environment(\.dismiss) private var dismiss
     
-    // Available images for the memory frame (excluding char and icon)
     private let memoryImages = ["507room", "cnxaqu", "cnxgate", "lantassc", "redbus"]
     @State private var currentImageIndex = 0
     @State private var imageOpacity: Double = 1.0
+    @State private var timer: Timer? = nil
+    
+    // Simple animation states
+    @State private var showContent = false
+    @State private var photoFrameOffset: CGFloat = 50
     
     var body: some View {
         GeometryReader { geometry in
@@ -18,7 +21,7 @@ struct CreditsView: View {
             )
             
             ZStack {
-                // Background with blur
+                // Clean background
                 backgroundLayer()
                 
                 // Main content
@@ -30,17 +33,16 @@ struct CreditsView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            // Start image cycling timer
+            withAnimation(.easeOut(duration: 0.6)) {
+                showContent = true
+                photoFrameOffset = 0
+            }
             startImageCycle()
         }
         .onDisappear {
-            // Stop timer when view disappears
             stopImageCycle()
         }
     }
-    
-    // MARK: - Timer Management
-    @State private var timer: Timer? = nil
     
     private func startImageCycle() {
         timer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { _ in
@@ -55,7 +57,6 @@ struct CreditsView: View {
         timer = nil
     }
     
-    // MARK: - Background Layer
     private func backgroundLayer() -> some View {
         ZStack {
             Image("schooltopview")
@@ -63,186 +64,183 @@ struct CreditsView: View {
                 .scaledToFill()
                 .ignoresSafeArea()
             
-            // Blur and dark overlay using pure SwiftUI
-            Color.black.opacity(0.4)
+            // Subtle dark overlay
+            Color.black.opacity(0.45)
                 .ignoresSafeArea()
-        }
-        .background(
-            // Apply blur effect
+            
+            // Soft blur overlay
             Image("schooltopview")
                 .resizable()
                 .scaledToFill()
-                .blur(radius: 20)
+                .blur(radius: 40)
+                .opacity(0.15)
                 .ignoresSafeArea()
-                .opacity(0.8)
-        )
-    }
-    
-    // MARK: - Content Layer
-    private func contentLayer(layout: ResponsiveLayout) -> some View {
-        HStack(spacing: layout.sectionSpacing * 2) {
-            // Left side - Logo and Credits
-            leftPanel(layout: layout)
-            
-            // Right side - Memory Frame
-            rightPanel(layout: layout)
         }
-        .padding(layout.padding * 2)
     }
     
-    // MARK: - Left Panel (Logo + Credits)
+    private func contentLayer(layout: ResponsiveLayout) -> some View {
+        HStack(spacing: layout.sectionSpacing * 4) {
+            leftPanel(layout: layout)
+                .opacity(showContent ? 1 : 0)
+                .offset(y: showContent ? 0 : 20)
+            
+            rightPanel(layout: layout)
+                .offset(x: photoFrameOffset)
+                .opacity(showContent ? 1 : 0)
+        }
+        .padding(.horizontal, layout.padding * 3)
+    }
+    
     private func leftPanel(layout: ResponsiveLayout) -> some View {
-        VStack(spacing: layout.sectionSpacing * 1.5) {
-            // Game Logo
+        VStack(spacing: layout.sectionSpacing * 2) {
+            // Clean Logo
             Image("icon")
                 .resizable()
                 .scaledToFit()
-                .frame(width: layout.menuIconSize * 0.8, height: layout.menuIconSize * 0.8)
-                .shadow(color: .black.opacity(0.5), radius: layout.scaled(15))
+                .frame(width: layout.menuIconSize, height: layout.menuIconSize)
+                .shadow(color: .black.opacity(0.3), radius: 20)
             
-            // Credits Content
+            // Credits Card - Clean Glass Style
             VStack(spacing: layout.elementSpacing * 2) {
-                // Main credit
-                Text("Made with ❤️ by Jnx03")
-                    .font(.system(size: layout.headlineFontSize, weight: .bold))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                Text("(Chawabhon Netisingha)")
-                    .font(.system(size: layout.bodyFontSize, weight: .medium))
-                    .foregroundColor(.white.opacity(0.9))
-                
-                Text("In WWDC SSC 2026")
-                    .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.85))
-                
-                // Separator
-                Text("──────────────")
-                    .font(.system(size: layout.bodyFontSize))
-                    .foregroundColor(.white.opacity(0.5))
-                    .padding(.vertical, layout.elementSpacing)
-                
-                // Credits list
-                VStack(alignment: .center, spacing: layout.elementSpacing) {
-                    Text("Art : Chawabhon Netisingha")
+                // Title section
+                VStack(spacing: 6) {
+                    Text("Made with ❤️ by Jnx03")
+                        .font(.system(size: layout.headlineFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("Chawabhon Netisingha")
                         .font(.system(size: layout.bodyFontSize))
                         .foregroundColor(.white.opacity(0.8))
                     
-                    Text("Music : Chawabhon Netisingha")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white.opacity(0.8))
-                    
-                    Text("Story : Chawabhon Netisingha")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white.opacity(0.8))
-                    
-                    Text("Programming : Chawabhon Netisingha")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white.opacity(0.8))
+                    // Badge
+                    Text("WWDC SSC 2026")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.cyan)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.cyan.opacity(0.15))
+                        )
+                        .padding(.top, 4)
                 }
                 
-                // Separator
-                Text("──────────────")
-                    .font(.system(size: layout.bodyFontSize))
-                    .foregroundColor(.white.opacity(0.5))
+                // Simple line separator
+                Rectangle()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(height: 1)
                     .padding(.vertical, layout.elementSpacing)
                 
-                // Tools credit
-                Text("Made with MacBook and iPad")
-                    .font(.system(size: layout.bodyFontSize, weight: .medium))
-                    .foregroundColor(.white.opacity(0.75))
+                // Credits list - clean and simple
+                VStack(alignment: .leading, spacing: layout.elementSpacing * 1.5) {
+                    CreditItem(icon: "paintbrush", text: "Art")
+                    CreditItem(icon: "music.note", text: "Music")
+                    CreditItem(icon: "book.closed", text: "Story")
+                    CreditItem(icon: "chevron.left.forwardslash.chevron.right", text: "Code")
+                }
+                
+                // Simple line separator
+                Rectangle()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(height: 1)
+                    .padding(.vertical, layout.elementSpacing)
+                
+                // Footer
+                HStack(spacing: 8) {
+                    Image(systemName: "macbook")
+                    Text("Made with")
+                        .font(.system(size: layout.captionFontSize))
+                    Image(systemName: "ipad")
+                }
+                .foregroundColor(.white.opacity(0.6))
+                .font(.system(size: layout.captionFontSize))
             }
-            .padding(.top, layout.sectionSpacing)
+            .padding(layout.padding * 2)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+            )
             
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
     
-    // MARK: - Right Panel (Memory Frame)
     private func rightPanel(layout: ResponsiveLayout) -> some View {
         VStack {
             Spacer()
             
-            // Memory Frame
+            // Clean Photo Frame
             ZStack {
-                // Frame background
-                RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: layout.scaled(300), height: layout.scaled(380))
-                    .shadow(color: .black.opacity(0.4), radius: layout.scaled(20), x: 0, y: layout.scaled(10))
+                // Shadow
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.black.opacity(0.2))
+                    .frame(width: layout.scaled(280), height: layout.scaled(360))
+                    .offset(x: 8, y: 8)
+                    .blur(radius: 20)
                 
-                // Inner frame (white border like a photo frame)
-                RoundedRectangle(cornerRadius: layout.cornerRadius * 0.7)
-                    .fill(Color.white.opacity(0.9))
+                // Frame
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
                     .frame(width: layout.scaled(280), height: layout.scaled(360))
                 
-                // Image container
-                RoundedRectangle(cornerRadius: layout.cornerRadius * 0.5)
-                    .fill(Color.black.opacity(0.1))
-                    .frame(width: layout.scaled(260), height: layout.scaled(340))
+                // Photo
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(width: layout.scaled(250), height: layout.scaled(330))
                     .overlay(
-                        Group {
-                            if currentImageIndex < memoryImages.count {
-                                Image(memoryImages[currentImageIndex])
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: layout.scaled(260), height: layout.scaled(340))
-                                    .clipShape(RoundedRectangle(cornerRadius: layout.cornerRadius * 0.5))
-                                    .opacity(imageOpacity)
-                            }
-                        }
+                        Image(memoryImages[currentImageIndex])
+                            .resizable()
+                            .scaledToFill()
+                            .opacity(imageOpacity)
                     )
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 
-                // Photo corner decorations (like a polaroid/memory effect)
-                VStack {
-                    HStack {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: layout.scaled(24)))
-                            .foregroundColor(.red.opacity(0.8))
-                            .rotationEffect(.degrees(-45))
-                            .offset(x: -layout.scaled(10), y: -layout.scaled(130))
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .frame(width: layout.scaled(280), height: layout.scaled(360))
+                // Pin
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(.red.opacity(0.9))
+                    .rotationEffect(.degrees(-35))
+                    .offset(y: -layout.scaled(155))
+                    .shadow(color: .black.opacity(0.2), radius: 2)
             }
             
-            // Image indicator dots
-            HStack(spacing: layout.elementSpacing) {
+            // Clean dots indicator
+            HStack(spacing: 8) {
                 ForEach(0..<memoryImages.count, id: \.self) { index in
                     Circle()
-                        .fill(index == currentImageIndex ? Color.white : Color.white.opacity(0.4))
-                        .frame(width: layout.scaled(8), height: layout.scaled(8))
-                        .scaleEffect(index == currentImageIndex ? 1.2 : 1.0)
+                        .fill(index == currentImageIndex ? Color.white : Color.white.opacity(0.3))
+                        .frame(width: index == currentImageIndex ? 20 : 8, height: 8)
                         .animation(.easeInOut(duration: 0.3), value: currentImageIndex)
                 }
             }
-            .padding(.top, layout.elementSpacing * 2)
+            .padding(.top, 24)
             
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .center)
     }
     
-    // MARK: - Back Button
     private func backButton(layout: ResponsiveLayout) -> some View {
         VStack {
             HStack {
                 Button(action: { dismiss() }) {
-                    HStack(spacing: layout.elementSpacing) {
+                    HStack(spacing: 6) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                         Text("Back")
-                            .font(.system(size: layout.bodyFontSize, weight: .medium))
+                            .font(.system(size: 15, weight: .medium))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, layout.padding)
-                    .padding(.vertical, layout.scaled(10))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
                     .background(
                         Capsule()
-                            .fill(Color.white.opacity(0.15))
+                            .fill(.ultraThinMaterial)
                     )
                 }
                 .buttonStyle(.plain)
@@ -255,7 +253,6 @@ struct CreditsView: View {
         }
     }
     
-    // MARK: - Cycle Image
     private func cycleImage() {
         withAnimation(.easeInOut(duration: 0.5)) {
             imageOpacity = 0
@@ -270,7 +267,33 @@ struct CreditsView: View {
     }
 }
 
-// MARK: - Preview
+// Simple credit row
+struct CreditItem: View {
+    let icon: String
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.7))
+                .frame(width: 20)
+            
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundColor(.white.opacity(0.9))
+            
+            Text(":")
+                .font(.system(size: 15))
+                .foregroundColor(.white.opacity(0.5))
+            
+            Text("Chawabhon Netisingha")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.white)
+        }
+    }
+}
+
 #Preview {
     CreditsView()
         .preferredColorScheme(.dark)
