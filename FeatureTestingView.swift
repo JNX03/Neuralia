@@ -121,6 +121,7 @@ struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showDialogTest = false
     @State private var showAIHallucination = false
+    @State private var showImageTraining = false
     
     var body: some View {
         NavigationStack {
@@ -160,9 +161,20 @@ struct FeatureTestingView: View {
                                     icon: "brain.head.profile",
                                     color: .purple,
                                     layout: layout,
-                                    isNew: true
+                                    isNew: false
                                 ) {
                                     showAIHallucination = true
+                                }
+                                
+                                FeatureCard(
+                                    title: "Image Training Lab",
+                                    subtitle: "Learn how AI models work! Train with emojis and hand-drawn digits. Adjust epochs, learning rate, and dataset splits!",
+                                    icon: "brain.head.profile",
+                                    color: .cyan,
+                                    layout: layout,
+                                    isNew: true
+                                ) {
+                                    showImageTraining = true
                                 }
                                 
                                 FeatureCard(
@@ -212,6 +224,9 @@ struct FeatureTestingView: View {
             }
             .navigationDestination(isPresented: $showAIHallucination) {
                 AIHallucinationView()
+            }
+            .navigationDestination(isPresented: $showImageTraining) {
+                ImageTrainingView()
             }
         }
     }
@@ -1738,7 +1753,6 @@ struct AIHallucinationView: View {
                 Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .font(.system(size: layout.scaled(64)))
                     .foregroundColor(isCorrect ? .green : .red)
-                    .symbolEffect(.bounce, value: isCorrect)
                 
                 Text(isCorrect ? "Correct!" : "Oops! AI was Confused")
                     .font(.system(size: layout.headlineFontSize, weight: .bold))
@@ -2199,12 +2213,12 @@ struct GlitchOverlay: View {
         TimelineView(.animation(minimumInterval: 0.05, paused: false)) { _ in
             Canvas { context, size in
                 // Random glitch lines
-                for i in 0..<5 {
+                for _ in 0..<5 {
                     let y = CGFloat.random(in: 0...size.height)
                     let height = CGFloat.random(in: 2...8)
                     let offset = CGFloat.random(in: -20...20)
                     
-                    var rect = Path(
+                    let rect = Path(
                         CGRect(x: 0, y: y, width: size.width, height: height)
                     )
                     
