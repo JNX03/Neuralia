@@ -483,7 +483,11 @@ struct VisualNovelDialogView: View {
     
     var body: some View {
         GeometryReader { geo in
-            let layout = ResponsiveLayout(width: geo.size.width, height: geo.size.height)
+            let layout = ResponsiveLayout(
+                width: geo.size.width,
+                height: geo.size.height,
+                safeAreaInsets: geo.safeAreaInsets
+            )
             
             ZStack {
                 // Background
@@ -507,23 +511,23 @@ struct VisualNovelDialogView: View {
                 .ignoresSafeArea()
                 
                 // Main content
-                if layout.isLandscape && layout.isIPad {
+                if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
                     // iPad Landscape: Side by side layout
                     HStack(spacing: 0) {
                         // Left: Character
-                        characterSection(layout: layout)
+                        characterSection(layout: layout, geo: geo)
                             .frame(width: geo.size.width * 0.5)
                         
                         // Right: Dialog
                         dialogSection(layout: layout)
                             .frame(width: geo.size.width * 0.5)
-                            .padding(.bottom, 40)
+                            .padding(.bottom, layout.padding)
                     }
                 } else {
                     // Portrait or iPhone: Stacked layout
                     VStack(spacing: 0) {
                         // Top: Character
-                        characterSection(layout: layout)
+                        characterSection(layout: layout, geo: geo)
                         
                         // Bottom: Dialog
                         dialogSection(layout: layout)
@@ -538,25 +542,33 @@ struct VisualNovelDialogView: View {
     }
     
     // MARK: - Character Section
-    private func characterSection(layout: ResponsiveLayout) -> some View {
-        ZStack(alignment: .bottom) {
+    private func characterSection(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        // Calculate character height based on layout
+        let characterHeight: CGFloat = {
+            if layout.isLarge || layout.isExtraLarge {
+                return layout.isLandscape ? geo.size.height * 0.55 : geo.size.height * 0.4
+            }
+            return layout.isLandscape ? geo.size.height * 0.5 : geo.size.height * 0.35
+        }()
+        
+        return ZStack(alignment: .bottom) {
             // Character shadow
             Ellipse()
                 .fill(Color.black.opacity(0.3))
-                .frame(width: 150, height: 40)
-                .blur(radius: 10)
-                .offset(y: -10)
+                .frame(width: layout.scaled(120), height: layout.scaled(32))
+                .blur(radius: layout.scaled(8))
+                .offset(y: -layout.scaled(8))
             
             // Character image with all interactions
             Image("char")
                 .resizable()
                 .scaledToFit()
-                .frame(height: layout.characterHeight)
+                .frame(height: characterHeight)
                 .scaleEffect(charScale * (isPressed ? 0.95 : 1.0))
-                .offset(y: charOffset + (isPressed ? 10 : 0))
+                .offset(y: charOffset + (isPressed ? layout.scaled(8) : 0))
                 .rotationEffect(.degrees(charRotation))
                 .opacity(charOpacity)
-                .shadow(color: getEmotionColor().opacity(0.3), radius: 20, x: 0, y: 10)
+                .shadow(color: getEmotionColor().opacity(0.3), radius: layout.scaled(16), x: 0, y: layout.scaled(8))
                 .onTapGesture {
                     impactFeedback.impactOccurred()
                     triggerAnimation(.bounce)
@@ -586,33 +598,31 @@ struct VisualNovelDialogView: View {
             // Character name & emotion badge
             HStack {
                 Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: layout.elementSpacing / 2) {
                     Text("Ploy")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.system(size: layout.bodyFontSize, weight: .bold))
                         .foregroundColor(.white)
                     
                     HStack(spacing: 4) {
                         Circle()
                             .fill(getEmotionColor())
-                            .frame(width: 6, height: 6)
+                            .frame(width: layout.scaled(6), height: layout.scaled(6))
                         Text(currentEmotion.rawValue.capitalized)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: layout.captionFontSize, weight: .medium))
                             .foregroundColor(.white.opacity(0.8))
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    .ultraThinMaterial
-                )
-                .cornerRadius(12)
+                .padding(.horizontal, layout.scaled(12))
+                .padding(.vertical, layout.scaled(8))
+                .background(.ultraThinMaterial)
+                .cornerRadius(layout.cornerRadius)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
             }
-            .padding(.trailing, 24)
-            .padding(.bottom, 30)
+            .padding(.trailing, layout.padding)
+            .padding(.bottom, layout.scaled(24))
             
             // Speech indicator
             if speechManager.isSpeaking {
@@ -622,7 +632,7 @@ struct VisualNovelDialogView: View {
                         ForEach(0..<4) { i in
                             RoundedRectangle(cornerRadius: 1.5)
                                 .fill(Color.green)
-                                .frame(width: 3, height: CGFloat.random(in: 8...20))
+                                .frame(width: layout.scaled(3), height: CGFloat.random(in: layout.scaled(6)...layout.scaled(16)))
                                 .animation(
                                     .easeInOut(duration: 0.25)
                                     .repeatForever()
@@ -631,9 +641,9 @@ struct VisualNovelDialogView: View {
                                 )
                         }
                     }
-                    .frame(height: 24)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .frame(height: layout.scaled(20))
+                    .padding(.horizontal, layout.scaled(10))
+                    .padding(.vertical, layout.scaled(6))
                     .background(
                         Capsule()
                             .fill(.ultraThinMaterial)
@@ -643,8 +653,8 @@ struct VisualNovelDialogView: View {
                             )
                     )
                 }
-                .padding(.trailing, 24)
-                .padding(.bottom, 100)
+                .padding(.trailing, layout.padding)
+                .padding(.bottom, layout.scaled(80))
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
@@ -676,7 +686,7 @@ struct VisualNovelDialogView: View {
                     speaker: nodes[currentNode].speaker,
                     text: displayedText,
                     isTyping: isTyping,
-                    fontSize: layout.fontSize,
+                    layout: layout,
                     onTap: {
                         if isTyping {
                             skipTyping()
@@ -688,20 +698,23 @@ struct VisualNovelDialogView: View {
                 
                 // Choice buttons
                 if showChoices {
-                    VStack(spacing: 10) {
+                    VStack(spacing: layout.elementSpacing) {
                         ChoiceButtonEnhanced(
                             text: "I'm feeling great! 😊",
                             color: .green,
+                            layout: layout,
                             action: { selectChoice("great", emotion: .happy) }
                         )
                         ChoiceButtonEnhanced(
                             text: "Just okay 🤔",
                             color: .yellow,
+                            layout: layout,
                             action: { selectChoice("okay", emotion: .neutral) }
                         )
                         ChoiceButtonEnhanced(
                             text: "Not so good 😔",
                             color: .blue,
+                            layout: layout,
                             action: { selectChoice("not good", emotion: .sad) }
                         )
                     }
@@ -712,6 +725,7 @@ struct VisualNovelDialogView: View {
                 if showTextInput {
                     EnhancedTextInput(
                         text: $userInput,
+                        layout: layout,
                         onSubmit: submitInput,
                         isEnabled: !userInput.isEmpty
                     )
@@ -875,17 +889,17 @@ struct DialogTextBox: View {
     let speaker: String
     let text: String
     let isTyping: Bool
-    let fontSize: CGFloat
+    let layout: ResponsiveLayout
     let onTap: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: layout.elementSpacing) {
             HStack {
                 Text(speaker)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: layout.captionFontSize + 2, weight: .bold))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, layout.scaled(12))
+                    .padding(.vertical, layout.scaled(6))
                     .background(
                         Capsule()
                             .fill(Color.pink)
@@ -894,23 +908,23 @@ struct DialogTextBox: View {
                 Spacer()
                 
                 if isTyping {
-                    EnhancedTypingIndicator()
+                    EnhancedTypingIndicator(layout: layout)
                 }
             }
             
             Text(text)
-                .font(.system(size: fontSize))
+                .font(.system(size: layout.bodyFontSize))
                 .foregroundColor(.white)
-                .lineSpacing(6)
+                .lineSpacing(layout.scaled(4))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(.easeInOut(duration: 0.1), value: text)
         }
-        .padding()
+        .padding(layout.padding)
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
         )
@@ -922,6 +936,7 @@ struct DialogTextBox: View {
 struct ChoiceButtonEnhanced: View {
     let text: String
     let color: Color
+    let layout: ResponsiveLayout
     let action: () -> Void
     
     @State private var isPressed = false
@@ -930,19 +945,19 @@ struct ChoiceButtonEnhanced: View {
         Button(action: action) {
             HStack {
                 Text(text)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: layout.bodyFontSize, weight: .medium))
                     .foregroundColor(.white)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
+                    .font(.system(size: layout.captionFontSize))
                     .foregroundColor(color)
             }
-            .padding()
+            .padding(layout.padding)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
                     .fill(Color.white.opacity(0.08))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
                             .stroke(color.opacity(0.5), lineWidth: 1)
                     )
             )
@@ -960,20 +975,21 @@ struct ChoiceButtonEnhanced: View {
 // MARK: - Enhanced Text Input
 struct EnhancedTextInput: View {
     @Binding var text: String
+    let layout: ResponsiveLayout
     let onSubmit: () -> Void
     let isEnabled: Bool
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: layout.elementSpacing) {
             TextField("Your name...", text: $text)
-                .font(.system(size: 16))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .font(.system(size: layout.bodyFontSize))
+                .padding(.horizontal, layout.padding)
+                .padding(.vertical, layout.scaled(10))
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
                         .fill(Color.white.opacity(0.1))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: layout.cornerRadius)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
                 )
@@ -984,7 +1000,7 @@ struct EnhancedTextInput: View {
             
             Button(action: onSubmit) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 44))
+                    .font(.system(size: layout.scaled(40)))
                     .foregroundColor(isEnabled ? .pink : .gray)
                     .scaleEffect(isEnabled ? 1.0 : 0.9)
             }
@@ -1044,14 +1060,15 @@ struct SpeechToggleButton: View {
 
 // MARK: - Enhanced Typing Indicator
 struct EnhancedTypingIndicator: View {
+    let layout: ResponsiveLayout
     @State private var offset: CGFloat = 0
     
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: layout.elementSpacing / 2) {
             ForEach(0..<3) { i in
                 Circle()
                     .fill(Color.white.opacity(0.6))
-                    .frame(width: 6, height: 6)
+                    .frame(width: layout.scaled(6), height: layout.scaled(6))
                     .offset(y: offset)
                     .animation(
                         .easeInOut(duration: 0.35)
@@ -1061,7 +1078,7 @@ struct EnhancedTypingIndicator: View {
                     )
             }
         }
-        .onAppear { offset = -4 }
+        .onAppear { offset = -layout.scaled(4) }
     }
 }
 
