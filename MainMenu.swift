@@ -75,6 +75,9 @@ class MainMenuViewModel: ObservableObject {
 struct MainMenuView: View {
     @StateObject private var viewModel = MainMenuViewModel()
     @State private var showFeatureTesting = false
+    @State private var showGallery = false
+    @State private var showSettings = false
+    @State private var showAbout = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -119,6 +122,15 @@ struct MainMenuView: View {
             .fullScreenCover(isPresented: $showFeatureTesting) {
                 FeatureTestingView()
             }
+            .fullScreenCover(isPresented: $showGallery) {
+                GalleryView()
+            }
+            .fullScreenCover(isPresented: $showSettings) {
+                SettingsView()
+            }
+            .fullScreenCover(isPresented: $showAbout) {
+                AboutView()
+            }
         }
     }
     
@@ -141,14 +153,14 @@ struct MainMenuView: View {
     private func compactLayout(layout: ResponsiveLayout) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: layout.sectionSpacing) {
-                // Icon
+                // Icon - Much bigger
                 HStack {
                     Spacer()
                     Image("icon")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(10))
+                        .frame(width: layout.menuIconSize * 1.5, height: layout.menuIconSize * 1.5)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(15))
                     Spacer()
                 }
                 .padding(.top, layout.safeAreaInsets.top + 10)
@@ -163,8 +175,6 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
-            .background(Color.black.opacity(0.4))
-            .cornerRadius(layout.cornerRadius)
             .padding(layout.padding)
             
             Spacer()
@@ -181,8 +191,8 @@ struct MainMenuView: View {
                     Image("icon")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(10))
+                        .frame(width: layout.menuIconSize * 1.6, height: layout.menuIconSize * 1.6)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(18))
                     Spacer()
                 }
                 .padding(.top, layout.safeAreaInsets.top + 20)
@@ -195,8 +205,6 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
-            .background(Color.black.opacity(0.4))
-            .cornerRadius(layout.cornerRadius)
             .padding(layout.padding)
             
             Spacer()
@@ -213,8 +221,8 @@ struct MainMenuView: View {
                     Image("icon")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(12))
+                        .frame(width: layout.menuIconSize * 1.8, height: layout.menuIconSize * 1.8)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(20))
                     Spacer()
                 }
                 .padding(.top, layout.safeAreaInsets.top + 30)
@@ -227,8 +235,6 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
-            .background(Color.black.opacity(0.4))
-            .cornerRadius(layout.cornerRadius)
             .padding(layout.padding * 1.5)
             
             Spacer()
@@ -243,33 +249,56 @@ struct MainMenuView: View {
     
     // MARK: - Menu Buttons
     private func menuButtons(layout: ResponsiveLayout) -> some View {
-        VStack(spacing: layout.elementSpacing) {
-            ResponsiveMenuButton(
+        VStack(spacing: layout.elementSpacing * 1.5) {
+            // Primary buttons - Play and Lab (bigger)
+            LargeMenuButton(
                 title: "Play",
                 icon: "play.fill",
                 layout: layout,
                 action: {}
             )
-            ResponsiveMenuButton(
-                title: "Load Game",
-                icon: "square.and.arrow.down.fill",
-                layout: layout,
-                action: {}
-            )
-            ResponsiveMenuButton(
-                title: "Gallery",
-                icon: "photo.on.rectangle.angled",
-                layout: layout,
-                action: {}
-            )
-            ResponsiveMenuButton(
-                title: "Feature Testing",
+            
+            LargeMenuButton(
+                title: "Lab",
+                subtitle: "Playground",
                 icon: "testtube.2",
                 layout: layout,
                 action: {
                     showFeatureTesting = true
                 }
             )
+            
+            // Small action buttons row
+            HStack(spacing: layout.elementSpacing) {
+                SmallIconButton(
+                    title: "Gallery",
+                    subtitle: "Memory",
+                    icon: "photo.on.rectangle.angled",
+                    layout: layout,
+                    action: {
+                        showGallery = true
+                    }
+                )
+                
+                SmallIconButton(
+                    title: "Settings",
+                    icon: "gearshape.fill",
+                    layout: layout,
+                    action: {
+                        showSettings = true
+                    }
+                )
+                
+                SmallIconButton(
+                    title: "About",
+                    subtitle: "Credit",
+                    icon: "info.circle.fill",
+                    layout: layout,
+                    action: {
+                        showAbout = true
+                    }
+                )
+            }
         }
     }
     
@@ -301,9 +330,10 @@ struct MainMenuView: View {
     }
 }
 
-// MARK: - Responsive Menu Button
-struct ResponsiveMenuButton: View {
+// MARK: - Large Menu Button (Primary Actions)
+struct LargeMenuButton: View {
     let title: String
+    var subtitle: String? = nil
     let icon: String
     let layout: ResponsiveLayout
     let action: () -> Void
@@ -313,29 +343,35 @@ struct ResponsiveMenuButton: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: layout.elementSpacing) {
-                Image(systemName: icon)
-                    .font(.system(size: layout.iconSize))
-                    .frame(width: layout.scaled(30))
-                
-                Text(title)
-                    .font(.system(size: layout.bodyFontSize, weight: .medium))
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+            VStack(spacing: 4) {
+                HStack(spacing: layout.elementSpacing * 1.5) {
+                    Image(systemName: icon)
+                        .font(.system(size: layout.iconSize * 1.3))
+                        .frame(width: layout.scaled(40))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.system(size: layout.bodyFontSize * 1.3, weight: .semibold))
+                        
+                        if let subtitle = subtitle {
+                            Text(subtitle)
+                                .font(.system(size: layout.captionFontSize, weight: .regular))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                }
             }
             .foregroundColor(.white)
             .padding(.horizontal, layout.padding)
-            .padding(.vertical, layout.scaled(12))
+            .padding(.vertical, layout.scaled(18))
             .background(
                 RoundedRectangle(cornerRadius: layout.cornerRadius)
                     .fill(Color.white.opacity(isHovered ? 0.15 : 0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .stroke(Color.white.opacity(isHovered ? 0.3 : 0.2), lineWidth: 1)
             )
             .scaleEffect(isPressed ? 0.97 : 1.0)
             .shadow(
@@ -357,6 +393,187 @@ struct ResponsiveMenuButton: View {
             isPressed = false
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+}
+
+// MARK: - Small Icon Button (Secondary Actions)
+struct SmallIconButton: View {
+    let title: String
+    var subtitle: String? = nil
+    let icon: String
+    let layout: ResponsiveLayout
+    let action: () -> Void
+    
+    @State private var isPressed = false
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: layout.iconSize))
+                
+                VStack(spacing: 0) {
+                    Text(title)
+                        .font(.system(size: layout.captionFontSize, weight: .medium))
+                    
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, layout.scaled(10))
+            .background(
+                RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
+                    .fill(Color.white.opacity(isHovered ? 0.15 : 0.08))
+            )
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+        }
+        .buttonStyle(.plain)
+        #if os(macOS)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        #endif
+        .pressEvents {
+            isPressed = true
+        } onRelease: {
+            isPressed = false
+        }
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+}
+
+// MARK: - Gallery View (Blank Page)
+struct GalleryView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        HStack {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.white)
+                        .padding()
+                    }
+                    Spacer()
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white.opacity(0.5))
+                    
+                    Text("Gallery (Memory)")
+                        .font(.title)
+                        .foregroundColor(.white)
+                    
+                    Text("Coming Soon")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                Spacer()
+            }
+        }
+    }
+}
+
+// MARK: - Settings View (Blank Page)
+struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        HStack {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.white)
+                        .padding()
+                    }
+                    Spacer()
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 16) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white.opacity(0.5))
+                    
+                    Text("Settings")
+                        .font(.title)
+                        .foregroundColor(.white)
+                    
+                    Text("Coming Soon")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                Spacer()
+            }
+        }
+    }
+}
+
+// MARK: - About View (Blank Page)
+struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                HStack {
+                    Button(action: { dismiss() }) {
+                        HStack {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.white)
+                        .padding()
+                    }
+                    Spacer()
+                }
+                
+                Spacer()
+                
+                VStack(spacing: 16) {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white.opacity(0.5))
+                    
+                    Text("About / Credit")
+                        .font(.title)
+                        .foregroundColor(.white)
+                    
+                    Text("Coming Soon")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                
+                Spacer()
+            }
+        }
     }
 }
 
