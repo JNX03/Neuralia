@@ -120,6 +120,7 @@ enum CharacterAnimation {
 struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showDialogTest = false
+    @State private var showAIHallucination = false
     
     var body: some View {
         NavigationStack {
@@ -148,9 +149,20 @@ struct FeatureTestingView: View {
                                     icon: "bubble.left.and.bubble.right.fill",
                                     color: .pink,
                                     layout: layout,
-                                    isNew: true
+                                    isNew: false
                                 ) {
                                     showDialogTest = true
+                                }
+                                
+                                FeatureCard(
+                                    title: "AI Hallucination Test",
+                                    subtitle: "Can you spot when the AI makes mistakes? Help train Ploy by identifying correct objects!",
+                                    icon: "brain.head.profile",
+                                    color: .purple,
+                                    layout: layout,
+                                    isNew: true
+                                ) {
+                                    showAIHallucination = true
                                 }
                                 
                                 FeatureCard(
@@ -197,6 +209,9 @@ struct FeatureTestingView: View {
             }
             .navigationDestination(isPresented: $showDialogTest) {
                 ResponsiveDialogView(nodes: sampleDialogNodes)
+            }
+            .navigationDestination(isPresented: $showAIHallucination) {
+                AIHallucinationView()
             }
         }
     }
@@ -1270,6 +1285,943 @@ let sampleDialogNodes: [DialogNode] = [
         onComplete: nil
     )
 ]
+
+// MARK: - AI Hallucination Data Models
+struct HallucinationRound: Identifiable {
+    let id = UUID()
+    let imageName: String
+    let correctAnswer: String
+    let hallucinatedAnswer: String
+    let wrongOptions: [String]
+    let trainingDataHint: String
+    
+    var allOptions: [String] {
+        ([correctAnswer, hallucinatedAnswer] + wrongOptions).shuffled()
+    }
+}
+
+// MARK: - AI Hallucination View
+struct AIHallucinationView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var speechManager = SpeechManager()
+    
+    // Game State
+    @State private var currentRoundIndex = 0
+    @State private var selectedAnswer: String? = nil
+    @State private var showResult = false
+    @State private var isCorrect = false
+    @State private var showTrainingData = false
+    @State private var score = 0
+    @State private var showScoreSummary = false
+    @State private var displayedText = ""
+    @State private var isTyping = false
+    @State private var characterEmotion: Emotion = .curious
+    
+    // Character animation
+    @State private var charScale: CGFloat = 1.0
+    @State private var charOffset: CGFloat = 0
+    @State private var charRotation: Double = 0
+    @State private var showGlitch = false
+    
+    // Rounds data
+    let rounds: [HallucinationRound] = [
+        HallucinationRound(
+            imageName: "cnxaqu",
+            correctAnswer: "Aquatic Animals",
+            hallucinatedAnswer: "Freshwater Aquarium",
+            wrongOptions: ["Ocean Life", "Pond Ecosystem", "Marine Biology"],
+            trainingDataHint: "Training Data: 45% aquariums, 30% ocean documentaries, 25% pet fish photos"
+        ),
+        HallucinationRound(
+            imageName: "cnxgate",
+            correctAnswer: "University Gate",
+            hallucinatedAnswer: "Ancient Temple Entrance",
+            wrongOptions: ["Park Entrance", "Museum Gate", "Historical Monument"],
+            trainingDataHint: "Training Data: 38% temples, 35% Asian landmarks, 27% educational institutions"
+        ),
+        HallucinationRound(
+            imageName: "redbus",
+            correctAnswer: "Red School Bus",
+            hallucinatedAnswer: "Vintage London Double-Decker",
+            wrongOptions: ["Fire Truck", "Tour Bus", "Public Transit"],
+            trainingDataHint: "Training Data: 42% London buses, 28% American school buses, 30% other vehicles"
+        ),
+        HallucinationRound(
+            imageName: "lantassc",
+            correctAnswer: "School Building",
+            hallucinatedAnswer: "Modern Art Gallery",
+            wrongOptions: ["Office Complex", "Community Center", "Library"],
+            trainingDataHint: "Training Data: 35% art galleries, 33% educational buildings, 32% modern architecture"
+        ),
+        HallucinationRound(
+            imageName: "schooltopview",
+            correctAnswer: "Campus Aerial View",
+            hallucinatedAnswer: "Residential Neighborhood",
+            wrongOptions: ["Sports Complex", "Industrial Zone", "Shopping District"],
+            trainingDataHint: "Training Data: 40% residential areas, 35% campuses, 25% commercial zones"
+        )
+    ]
+    
+    var currentRound: HallucinationRound {
+        rounds[currentRoundIndex]
+    }
+    
+    var body: some View {
+        GeometryReader { geo in
+            let layout = ResponsiveLayout(
+                width: geo.size.width,
+                height: geo.size.height,
+                safeAreaInsets: geo.safeAreaInsets
+            )
+            
+            ZStack {
+                // Animated background
+                MeshGradientBackground()
+                
+                // Main content
+                if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
+                    // iPad Landscape layout
+                    HStack(spacing: 0) {
+                        leftPanel(layout: layout, geo: geo)
+                            .frame(width: geo.size.width * 0.5)
+                        
+                        rightPanel(layout: layout)
+                            .frame(width: geo.size.width * 0.5)
+                    }
+                } else {
+                    // Portrait layout
+                    VStack(spacing: 0) {
+                        topBar(layout: layout)
+                        
+                        ScrollView {
+                            VStack(spacing: layout.sectionSpacing) {
+                                imageSection(layout: layout, geo: geo)
+                                characterDialogSection(layout: layout)
+                                Spacer(minLength: layout.sectionSpacing)
+                            }
+                            .padding(.horizontal, layout.padding)
+                        }
+                    }
+                }
+                
+                // Overlays
+                if showResult {
+                    resultOverlay(layout: layout)
+                }
+                
+                if showTrainingData {
+                    trainingDataOverlay(layout: layout)
+                }
+                
+                if showScoreSummary {
+                    scoreSummaryOverlay(layout: layout)
+                }
+            }
+        }
+        .onAppear {
+            startRound()
+        }
+    }
+    
+    // MARK: - Left Panel (iPad)
+    private func leftPanel(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            topBar(layout: layout)
+                .padding(.horizontal, layout.padding)
+                .padding(.top, geo.safeAreaInsets.top + 10)
+            
+            ScrollView {
+                VStack(spacing: layout.sectionSpacing) {
+                    imageSection(layout: layout, geo: geo)
+                    characterSection(layout: layout, geo: geo)
+                    Spacer(minLength: layout.sectionSpacing)
+                }
+                .padding(.horizontal, layout.padding)
+            }
+        }
+    }
+    
+    // MARK: - Right Panel (iPad)
+    private func rightPanel(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.sectionSpacing) {
+            Spacer()
+            
+            // Dialog box with AI message
+            dialogBox(layout: layout)
+            
+            // Answer choices
+            if !showResult && !showTrainingData {
+                choicesSection(layout: layout)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, layout.padding)
+        .padding(.bottom, layout.padding)
+    }
+    
+    // MARK: - Top Bar
+    private func topBar(layout: ResponsiveLayout) -> some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                    Text("Back")
+                }
+                .font(.system(size: layout.bodyFontSize, weight: .medium))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            
+            Spacer()
+            
+            // Score badge
+            HStack(spacing: 4) {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(.purple)
+                Text("\(score)/\(rounds.count)")
+                    .font(.system(size: layout.bodyFontSize, weight: .bold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.purple.opacity(0.5), lineWidth: 1)
+                    )
+            )
+            
+            // Round indicator
+            Text("\(currentRoundIndex + 1)/\(rounds.count)")
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.6))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                )
+        }
+    }
+    
+    // MARK: - Image Section
+    private func imageSection(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ZStack {
+            // Image frame
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                .fill(Color.black.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                )
+            
+            // The image
+            Image(currentRound.imageName)
+                .resizable()
+                .scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: layout.cornerRadius - 4))
+                .padding(4)
+                .overlay(
+                    // Glitch effect when AI is "hallucinating"
+                    Group {
+                        if showGlitch {
+                            GlitchOverlay()
+                                .clipShape(RoundedRectangle(cornerRadius: layout.cornerRadius))
+                        }
+                    }
+                )
+            
+            // AI Analysis label
+            VStack {
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "eye.fill")
+                            .font(.system(size: 10))
+                        Text("AI Vision Analysis")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.purple)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.black.opacity(0.7))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.purple.opacity(0.5), lineWidth: 1)
+                            )
+                    )
+                    .padding(8)
+                    
+                    Spacer()
+                }
+                
+                Spacer()
+            }
+        }
+        .frame(
+            height: layout.isLandscape ? geo.size.height * 0.4 : geo.size.height * 0.3
+        )
+    }
+    
+    // MARK: - Character Section
+    private func characterSection(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ZStack(alignment: .bottom) {
+            // Character shadow
+            Ellipse()
+                .fill(Color.black.opacity(0.3))
+                .frame(width: layout.scaled(100), height: layout.scaled(25))
+                .blur(radius: layout.scaled(8))
+                .offset(y: -layout.scaled(8))
+            
+            // Character
+            Image("char")
+                .resizable()
+                .scaledToFit()
+                .frame(height: layout.isLandscape ? geo.size.height * 0.3 : geo.size.height * 0.2)
+                .scaleEffect(charScale)
+                .offset(y: charOffset)
+                .rotationEffect(.degrees(charRotation))
+                .shadow(
+                    color: getEmotionColor(characterEmotion).opacity(0.3),
+                    radius: layout.scaled(16),
+                    x: 0,
+                    y: layout.scaled(8)
+                )
+                .overlay(
+                    // Glitch effect on character when confused
+                    Group {
+                        if characterEmotion == .surprised {
+                            GlitchOverlay()
+                        }
+                    }
+                )
+            
+            // Character badge
+            HStack {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Ploy")
+                        .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(getEmotionColor(characterEmotion))
+                            .frame(width: 6, height: 6)
+                        Text(characterEmotion.rawValue.capitalized)
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial)
+                .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+            }
+            .padding(.trailing, 8)
+            .padding(.bottom, 8)
+        }
+    }
+    
+    // MARK: - Character Dialog Section
+    private func characterDialogSection(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.elementSpacing) {
+            // Dialog box
+            dialogBox(layout: layout)
+            
+            // Answer choices
+            if !showResult && !showTrainingData {
+                choicesSection(layout: layout)
+            }
+        }
+    }
+    
+    // MARK: - Dialog Box
+    private func dialogBox(layout: ResponsiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+            // Header
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "brain.head.profile")
+                        .foregroundColor(.purple)
+                    Text("Ploy (AI)")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color.purple.opacity(0.3))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.purple.opacity(0.5), lineWidth: 1)
+                        )
+                )
+                
+                Spacer()
+                
+                if isTyping {
+                    EnhancedTypingIndicator(layout: layout)
+                }
+            }
+            
+            // AI message
+            Text(displayedText)
+                .font(.system(size: layout.bodyFontSize))
+                .foregroundColor(.white)
+                .lineSpacing(layout.scaled(4))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(layout.padding)
+        .background(
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
+                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+    
+    // MARK: - Choices Section
+    private func choicesSection(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.elementSpacing) {
+            Text("What is the correct identification?")
+                .font(.system(size: layout.bodyFontSize, weight: .medium))
+                .foregroundColor(.white.opacity(0.8))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            ForEach(currentRound.allOptions, id: \.self) { option in
+                ChoiceButtonEnhanced(
+                    text: option,
+                    color: selectedAnswer == option ? .purple : .cyan,
+                    layout: layout,
+                    action: { selectAnswer(option) }
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
+                        .stroke(
+                            selectedAnswer == option ? Color.purple : Color.clear,
+                            lineWidth: 2
+                        )
+                )
+            }
+        }
+    }
+    
+    // MARK: - Result Overlay
+    private func resultOverlay(layout: ResponsiveLayout) -> some View {
+        ZStack {
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+            
+            VStack(spacing: layout.sectionSpacing) {
+                Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: layout.scaled(64)))
+                    .foregroundColor(isCorrect ? .green : .red)
+                    .symbolEffect(.bounce, value: isCorrect)
+                
+                Text(isCorrect ? "Correct!" : "Oops! AI was Confused")
+                    .font(.system(size: layout.headlineFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text(isCorrect 
+                    ? "You identified the object correctly!"
+                    : "The AI incorrectly identified this as '\(currentRound.hallucinatedAnswer)'")
+                    .font(.system(size: layout.bodyFontSize))
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Correct Answer:")
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.6))
+                        Spacer()
+                    }
+                    Text(currentRound.correctAnswer)
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                        .foregroundColor(.green)
+                }
+                .padding(layout.padding)
+                .background(
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
+                        .fill(Color.green.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                
+                if !isCorrect {
+                    Button(action: { 
+                        withAnimation(.spring()) {
+                            showTrainingData = true
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "wand.and.stars")
+                            Text("View Training Data")
+                        }
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(layout.cornerRadius)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button(action: { nextRound() }) {
+                    Text(currentRoundIndex < rounds.count - 1 ? "Next Round →" : "See Results")
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(layout.cornerRadius)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(layout.padding * 1.5)
+            .background(
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, layout.padding)
+            .frame(maxWidth: 500)
+        }
+    }
+    
+    // MARK: - Training Data Overlay
+    private func trainingDataOverlay(layout: ResponsiveLayout) -> some View {
+        ZStack {
+            Color.black.opacity(0.85)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring()) {
+                        showTrainingData = false
+                    }
+                }
+            
+            VStack(spacing: layout.sectionSpacing) {
+                // Header
+                HStack {
+                    Image(systemName: "cpu")
+                        .font(.system(size: layout.scaled(32)))
+                        .foregroundColor(.cyan)
+                    
+                    Text("AI Training Data Analysis")
+                        .font(.system(size: layout.headlineFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                
+                Divider()
+                    .background(Color.white.opacity(0.2))
+                
+                // Training data visualization
+                VStack(alignment: .leading, spacing: layout.elementSpacing) {
+                    Text("Why did the AI make this mistake?")
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text(currentRound.trainingDataHint)
+                        .font(.system(size: layout.bodyFontSize - 1))
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineSpacing(4)
+                }
+                
+                // Data visualization bars
+                VStack(spacing: layout.elementSpacing) {
+                    Text("Training Data Distribution")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // Visual bars
+                    dataBar(label: "Related Category A", percentage: 0.45, color: .pink, layout: layout)
+                    dataBar(label: "Related Category B", percentage: 0.30, color: .purple, layout: layout)
+                    dataBar(label: "Correct Category", percentage: 0.25, color: .green, layout: layout)
+                }
+                
+                // Explanation
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("The AI confused '\(currentRound.correctAnswer)' with '\(currentRound.hallucinatedAnswer)'", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: layout.captionFontSize + 1))
+                        .foregroundColor(.yellow)
+                    
+                    Text("This is a classic example of AI hallucination where insufficient training data for the correct category leads to misclassification into a more common but incorrect category.")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineSpacing(4)
+                }
+                .padding(layout.padding)
+                .background(
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
+                        .fill(Color.yellow.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                                .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
+                        )
+                )
+                
+                Button(action: { 
+                    withAnimation(.spring()) {
+                        showTrainingData = false
+                    }
+                }) {
+                    Text("Close Analysis")
+                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.cyan)
+                        .cornerRadius(layout.cornerRadius)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(layout.padding * 1.5)
+            .background(
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
+                    .fill(Color(hex: "1a1a2e"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
+                            .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, layout.padding)
+            .frame(maxWidth: 500)
+        }
+    }
+    
+    // MARK: - Data Bar
+    private func dataBar(label: String, percentage: Double, color: Color, layout: ResponsiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.7))
+                Spacer()
+                Text("\(Int(percentage * 100))%")
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(color)
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(0.1))
+                        .frame(height: 8)
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(color)
+                        .frame(width: geo.size.width * percentage, height: 8)
+                        .animation(.easeInOut(duration: 0.8), value: percentage)
+                }
+            }
+            .frame(height: 8)
+        }
+    }
+    
+    // MARK: - Score Summary Overlay
+    private func scoreSummaryOverlay(layout: ResponsiveLayout) -> some View {
+        ZStack {
+            MeshGradientBackground()
+            
+            VStack(spacing: layout.sectionSpacing) {
+                Spacer()
+                
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.system(size: layout.scaled(80)))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                Text("Training Complete!")
+                    .font(.system(size: layout.headlineFontSize + 4, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("You've helped identify AI hallucination patterns")
+                    .font(.system(size: layout.bodyFontSize))
+                    .foregroundColor(.white.opacity(0.7))
+                
+                // Score display
+                ZStack {
+                    Circle()
+                        .stroke(
+                            Color.purple.opacity(0.3),
+                            lineWidth: 8
+                        )
+                        .frame(width: layout.scaled(150), height: layout.scaled(150))
+                    
+                    Circle()
+                        .trim(from: 0, to: CGFloat(score) / CGFloat(rounds.count))
+                        .stroke(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                        )
+                        .frame(width: layout.scaled(150), height: layout.scaled(150))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 1), value: score)
+                    
+                    VStack {
+                        Text("\(score)/\(rounds.count)")
+                            .font(.system(size: layout.scaled(36), weight: .bold))
+                            .foregroundColor(.white)
+                        Text("Correct")
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                
+                // Feedback based on score
+                Text(scoreFeedback)
+                    .font(.system(size: layout.bodyFontSize, weight: .medium))
+                    .foregroundColor(feedbackColor)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                Spacer()
+                
+                VStack(spacing: layout.elementSpacing) {
+                    Button(action: { 
+                        resetGame()
+                    }) {
+                        Text("Train Again")
+                            .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [.purple, .pink],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(layout.cornerRadius)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: { dismiss() }) {
+                        Text("Back to Menu")
+                            .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.white.opacity(0.2))
+                            .cornerRadius(layout.cornerRadius)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, layout.padding)
+            }
+            .padding(.vertical, layout.padding)
+        }
+    }
+    
+    // MARK: - Helper Properties
+    private var scoreFeedback: String {
+        let percentage = Double(score) / Double(rounds.count)
+        switch percentage {
+        case 1.0: return "Perfect! You're an expert at spotting AI hallucinations! 🎉"
+        case 0.8..<1.0: return "Great job! You have a keen eye for detail! ⭐"
+        case 0.6..<0.8: return "Good work! Keep practicing to spot more errors! 👍"
+        default: return "Keep training! AI hallucinations can be tricky! 💪"
+        }
+    }
+    
+    private var feedbackColor: Color {
+        let percentage = Double(score) / Double(rounds.count)
+        switch percentage {
+        case 1.0: return .green
+        case 0.8..<1.0: return .mint
+        case 0.6..<0.8: return .yellow
+        default: return .orange
+        }
+    }
+    
+    // MARK: - Helper Methods
+    private func startRound() {
+        selectedAnswer = nil
+        showResult = false
+        showTrainingData = false
+        characterEmotion = .curious
+        showGlitch = true
+        
+        // Type out AI's hallucinated statement
+        let text = "Hmm, I'm analyzing this image... I believe this is a \(currentRound.hallucinatedAnswer)! What do you think?"
+        typeText(text, emotion: .curious)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeInOut(duration: 0.3).repeatCount(3)) {
+                showGlitch = false
+            }
+        }
+    }
+    
+    private func typeText(_ text: String, emotion: Emotion) {
+        displayedText = ""
+        isTyping = true
+        characterEmotion = emotion
+        
+        speechManager.speak(text, emotion: emotion)
+        
+        let chars = Array(text)
+        Task { @MainActor in
+            for i in 0..<chars.count {
+                displayedText.append(chars[i])
+                let delay: UInt64 = ",.;!?".contains(chars[i]) ? 120_000_000 : 25_000_000
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            isTyping = false
+        }
+    }
+    
+    private func selectAnswer(_ answer: String) {
+        selectedAnswer = answer
+        isCorrect = (answer == currentRound.correctAnswer)
+        
+        if isCorrect {
+            score += 1
+            characterEmotion = .happy
+            triggerBounce()
+        } else {
+            characterEmotion = .surprised
+            triggerGlitch()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.spring()) {
+                showResult = true
+            }
+        }
+    }
+    
+    private func nextRound() {
+        withAnimation(.spring()) {
+            showResult = false
+            showTrainingData = false
+        }
+        
+        if currentRoundIndex < rounds.count - 1 {
+            currentRoundIndex += 1
+            startRound()
+        } else {
+            showScoreSummary = true
+        }
+    }
+    
+    private func resetGame() {
+        currentRoundIndex = 0
+        score = 0
+        showScoreSummary = false
+        startRound()
+    }
+    
+    private func triggerBounce() {
+        withAnimation(.interpolatingSpring(stiffness: 300, damping: 10)) {
+            charScale = 1.15
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.interpolatingSpring(stiffness: 300, damping: 10)) {
+                charScale = 1.0
+            }
+        }
+    }
+    
+    private func triggerGlitch() {
+        withAnimation(.easeInOut(duration: 0.05).repeatCount(10, autoreverses: true)) {
+            charRotation = 5
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            charRotation = 0
+        }
+    }
+    
+    private func getEmotionColor(_ emotion: Emotion) -> Color {
+        switch emotion {
+        case .happy: return .green
+        case .excited: return .orange
+        case .sad, .concerned: return .blue
+        case .angry: return .red
+        case .mysterious: return .purple
+        case .surprised: return .pink
+        case .gentle, .curious: return .mint
+        case .neutral: return .cyan
+        }
+    }
+}
+
+// MARK: - Glitch Overlay Effect
+struct GlitchOverlay: View {
+    @State private var phase = 0
+    
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.05, paused: false)) { _ in
+            Canvas { context, size in
+                // Random glitch lines
+                for i in 0..<5 {
+                    let y = CGFloat.random(in: 0...size.height)
+                    let height = CGFloat.random(in: 2...8)
+                    let offset = CGFloat.random(in: -20...20)
+                    
+                    var rect = Path(
+                        CGRect(x: 0, y: y, width: size.width, height: height)
+                    )
+                    
+                    // RGB shift effect
+                    context.addFilter(.colorMultiply(.red.opacity(0.3)))
+                    context.fill(rect, with: .color(.red.opacity(0.3)))
+                    
+                    context.translateBy(x: offset, y: 0)
+                    context.addFilter(.colorMultiply(.cyan.opacity(0.3)))
+                    context.fill(rect, with: .color(.cyan.opacity(0.3)))
+                }
+            }
+        }
+        .opacity(0.5)
+        .allowsHitTesting(false)
+    }
+}
 
 #Preview {
     FeatureTestingView()
