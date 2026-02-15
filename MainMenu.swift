@@ -268,7 +268,7 @@ struct MainMenuView: View {
                 }
             )
             
-            // Small action buttons row
+            // Small action buttons row - equal sizes
             HStack(spacing: layout.elementSpacing) {
                 SmallIconButton(
                     title: "Gallery",
@@ -279,15 +279,18 @@ struct MainMenuView: View {
                         showGallery = true
                     }
                 )
+                .frame(maxWidth: .infinity)
                 
                 SmallIconButton(
                     title: "Settings",
+                    subtitle: nil,
                     icon: "gearshape.fill",
                     layout: layout,
                     action: {
                         showSettings = true
                     }
                 )
+                .frame(maxWidth: .infinity)
                 
                 SmallIconButton(
                     title: "About",
@@ -298,7 +301,9 @@ struct MainMenuView: View {
                         showAbout = true
                     }
                 )
+                .frame(maxWidth: .infinity)
             }
+            .frame(height: layout.scaled(80))
         }
     }
     
@@ -409,28 +414,36 @@ struct SmallIconButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: layout.iconSize))
-                
-                VStack(spacing: 0) {
-                    Text(title)
-                        .font(.system(size: layout.captionFontSize, weight: .medium))
-                    
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                }
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, layout.scaled(10))
-            .background(
+            ZStack {
+                // Background fills entire button
                 RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
                     .fill(Color.white.opacity(isHovered ? 0.15 : 0.08))
-            )
+                
+                // Content centered
+                VStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: layout.iconSize))
+                        .frame(height: layout.iconSize)
+                    
+                    // Fixed height container for text to ensure consistency
+                    VStack(spacing: 2) {
+                        Text(title)
+                            .font(.system(size: layout.captionFontSize, weight: .medium))
+                        
+                        // Always reserve space for subtitle (show if exists, or invisible spacer)
+                        if let subtitle = subtitle {
+                            Text(subtitle)
+                                .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
+                                .foregroundColor(.white.opacity(0.6))
+                        } else {
+                            Text(" ")
+                                .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
+                        }
+                    }
+                    .frame(height: layout.captionFontSize * 2.2)
+                }
+                .foregroundColor(.white)
+            }
             .scaleEffect(isPressed ? 0.95 : 1.0)
         }
         .buttonStyle(.plain)
