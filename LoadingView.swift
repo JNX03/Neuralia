@@ -1,26 +1,33 @@
 import SwiftUI
 import Foundation
 
-// MARK: - 16:9 Stage Wrapper (Letterbox)
+// MARK: - 16:9 Stage Wrapper (Letterbox) with Responsive Support
 struct Stage16x9<Content: View>: View {
-    private let content: (CGSize) -> Content
+    private let content: (CGSize, ResponsiveLayout) -> Content
     
-    init(@ViewBuilder content: @escaping (CGSize) -> Content) {
+    init(@ViewBuilder content: @escaping (CGSize, ResponsiveLayout) -> Content) {
         self.content = content
     }
     
     var body: some View {
         GeometryReader { geo in
+            let layout = ResponsiveLayout(
+                width: geo.size.width,
+                height: geo.size.height,
+                safeAreaInsets: geo.safeAreaInsets
+            )
+            
             let screen = geo.size
             let targetRatio: CGFloat = 16.0 / 9.0
             
+            // Responsive stage sizing - larger on big screens
             let stageWidth = min(screen.width, screen.height * targetRatio)
             let stageHeight = stageWidth / targetRatio
             let stageSize = CGSize(width: stageWidth, height: stageHeight)
             
             ZStack {
                 Color.black.ignoresSafeArea()
-                content(stageSize)
+                content(stageSize, layout)
                     .frame(width: stageWidth, height: stageHeight)
                     .clipped()
                     .background(Color.black)
@@ -163,7 +170,6 @@ final class LoadingViewModel: ObservableObject {
                 
                 panOffset = start
                 
-                // Check cancellation before animation
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: stayDuration)) { panOffset = end }
                 
@@ -174,7 +180,6 @@ final class LoadingViewModel: ObservableObject {
                 await sleepSeconds(0.5)
                 if Task.isCancelled { return }
                 
-                // Safely update index
                 let nextIndex = (currentImageIndex + 1) % backgroundImages.count
                 currentImageIndex = nextIndex
                 panLeftToRight.toggle()
@@ -345,16 +350,12 @@ private extension String {
     }
 }
 
-// MARK: - LoadingView (16:9 + Pointer FX + Touch Anywhere in Main)
+// MARK: - Loading View with Responsive Layout
 struct LoadingView: View {
     @StateObject private var vm = LoadingViewModel()
     
     var onStart: () -> Void = {}
     private let versionString = "Ver: 1.19.182"
-    
-    // sizes
-    private let hudIconSize: CGFloat = 220
-    private let hudSide: CGFloat = 18
     
     // Pointer / touch FX
     @State private var pointerLocation: CGPoint = .zero
@@ -368,14 +369,17 @@ struct LoadingView: View {
     @State private var trailClearTask: Task<Void, Never>?
     @State private var hasStarted = false
 
-    
     var body: some View {
         ZStack {
-            Stage16x9 { stage in
-                // move UI away from top/bottom edges inside the 16:9 stage
-                let topHUDDown = max(40, stage.height * 0.10)
-                let loadingBarUp = max(28, stage.height * 0.06)
-                let mainRaise = max(120, stage.height * 0.26)
+            Stage16x9 { stage, layout in
+                // Responsive positioning based on stage size
+                let topHUDDown = max(layout.scaled(30), stage.height * 0.08)
+                let loadingBarUp = max(layout.scaled(20), stage.height * 0.05)
+                let mainRaise = max(layout.scaled(80), stage.height * 0.22)
+                
+                // Responsive HUD sizing
+                let hudIconSize = layout.hudIconSize
+                let hudSide = layout.scaled(14)
                 
                 ZStack {
                     Color.black
@@ -391,24 +395,29 @@ struct LoadingView: View {
                     
                     switch vm.phase {
                     case .intro:
-                        introContent
+                        introContent(layout: layout)
                     case .loading:
                         Color.clear
                     case .main:
-                        mainContent(mainRaise: mainRaise)
+                        mainContent(mainRaise: mainRaise, layout: layout)
                     }
                     
-                    // HUD only for loading+main (moved DOWN)
+                    // HUD for loading + main
                     if vm.phase != .intro {
-                        hudLayer(topPadding: topHUDDown)
+                        hudLayer(
+                            topPadding: topHUDDown,
+                            hudIconSize: hudIconSize,
+                            hudSide: hudSide,
+                            layout: layout
+                        )
                     }
                     
-                    // Loading bar only during loading (moved UP)
+                    // Loading bar
                     if vm.phase == .loading {
                         VStack {
                             Spacer()
-                            loadingBar
-                                .padding(.horizontal, 18)
+                            loadingBar(layout: layout)
+                                .padding(.horizontal, layout.padding)
                                 .padding(.bottom, loadingBarUp)
                                 .offset(y: vm.loadingBarOffset)
                                 .opacity(vm.loadingBarOpacity)
@@ -419,7 +428,7 @@ struct LoadingView: View {
                 .onDisappear { vm.cleanup() }
             }
             
-            // FX overlay above everything (full-screen coordinates)
+            // FX overlay (full-screen)
             PointerFXOverlay(
                 location: pointerLocation,
                 isDown: pointerIsDown,
@@ -442,7 +451,6 @@ struct LoadingView: View {
     private var pointerGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named("screen"))
             .onChanged { value in
-                // Skip if already transitioning
                 guard !hasStarted else { return }
                 
                 pointerHideTask?.cancel()
@@ -452,7 +460,6 @@ struct LoadingView: View {
                 pointerIsDown = true
                 pointerLocation = value.location
                 
-                // Trail tracking
                 let p = value.location
                 if let last = trailPoints.last {
                     let d = hypot(p.x - last.x, p.y - last.y)
@@ -476,13 +483,11 @@ struct LoadingView: View {
                 
                 if isTap { spawnRipple(at: value.location) }
                 
-                // Only trigger onStart if in main phase and not already started
                 if vm.phase == .main, isTap, !hasStarted {
                     hasStarted = true
                     onStart()
                 }
                 
-                // Trail fade
                 trailClearTask?.cancel()
                 trailClearTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 80_000_000)
@@ -491,7 +496,6 @@ struct LoadingView: View {
                     }
                 }
                 
-                // Cursor fade
                 pointerHideTask?.cancel()
                 pointerHideTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 140_000_000)
@@ -509,7 +513,7 @@ struct LoadingView: View {
         ripples.append(PointerRipple(id: id, location: point))
         
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 950_000_000) // longer fade
+            try? await Task.sleep(nanoseconds: 950_000_000)
             ripples.removeAll { $0.id == id }
         }
     }
@@ -529,31 +533,36 @@ struct LoadingView: View {
         }
     }
     
-    private func hudLayer(topPadding: CGFloat) -> some View {
+    private func hudLayer(
+        topPadding: CGFloat,
+        hudIconSize: CGFloat,
+        hudSide: CGFloat,
+        layout: ResponsiveLayout
+    ) -> some View {
         VStack {
             HStack(alignment: .top) {
                 Image("icon")
                     .resizable()
                     .scaledToFit()
                     .frame(width: hudIconSize, height: hudIconSize)
-                    .shadow(radius: 18)
+                    .shadow(radius: layout.scaled(12))
                 
                 Spacer()
                 
                 Text(versionString)
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: layout.captionFontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.95))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
+                    .padding(.horizontal, layout.scaled(10))
+                    .padding(.vertical, layout.scaled(8))
                     .background(
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
                             .fill(Color.black.opacity(0.38))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14)
+                                RoundedRectangle(cornerRadius: layout.cornerRadius)
                                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
                             )
                     )
-                    .shadow(radius: 10)
+                    .shadow(radius: layout.scaled(8))
             }
             .padding(.leading, hudSide)
             .padding(.trailing, hudSide)
@@ -564,21 +573,21 @@ struct LoadingView: View {
         .allowsHitTesting(false)
     }
     
-    private var introContent: some View {
-        VStack(spacing: 14) {
+    private func introContent(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.elementSpacing) {
             Spacer()
             
             Text(vm.displayText)
-                .font(.system(size: 28, weight: .bold))
+                .font(.system(size: layout.introTextSize, weight: .bold))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 22)
+                .padding(.horizontal, layout.padding)
                 .opacity(vm.introTextOpacity)
             
             Text("PRESENT")
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: layout.scaled(18), weight: .bold))
                 .foregroundColor(.white)
-                .tracking(8)
+                .tracking(layout.scaled(8))
                 .opacity(vm.presentOpacity)
             
             Spacer()
@@ -587,24 +596,24 @@ struct LoadingView: View {
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 let dots = String(repeating: ".", count: Int(t * 2).quotientAndRemainder(dividingBy: 4).remainder)
                 Text("010101  LOADING\(dots)")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: layout.captionFontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.35))
-                    .padding(.bottom, 14)
+                    .padding(.bottom, layout.padding)
             }
         }
     }
     
-    private var loadingBar: some View {
-        VStack(spacing: 12) {
+    private func loadingBar(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.elementSpacing) {
             HStack {
                 Text("LOADING")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.95))
                 
                 Spacer()
                 
                 Text("\(Int(vm.loadingProgress * 100))%")
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.white.opacity(0.95))
             }
             
@@ -617,39 +626,39 @@ struct LoadingView: View {
                     Capsule()
                         .fill(Color.white.opacity(0.92))
                         .frame(width: max(8, geo.size.width * vm.loadingProgress))
-                        .shadow(radius: 6)
+                        .shadow(radius: layout.scaled(4))
                 }
             }
-            .frame(height: 12)
+            .frame(height: layout.scaled(10))
             
             Text("booting… 010101")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: layout.captionFontSize, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white.opacity(0.72))
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, layout.padding)
+        .padding(.vertical, layout.scaled(12))
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
                 .fill(Color.black.opacity(0.40))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
                         .stroke(Color.white.opacity(0.14), lineWidth: 1)
                 )
         )
-        .shadow(radius: 14)
+        .shadow(radius: layout.scaled(10))
     }
     
-    private func mainContent(mainRaise: CGFloat) -> some View {
+    private func mainContent(mainRaise: CGFloat, layout: ResponsiveLayout) -> some View {
         VStack {
             Spacer()
             
-            VStack(spacing: 12) {
+            VStack(spacing: layout.elementSpacing) {
                 Text("TOUCH TO START")
-                    .font(.system(size: 20, weight: .bold))
-                    .tracking(3)
+                    .font(.system(size: layout.touchToStartSize, weight: .bold))
+                    .tracking(layout.scaled(3))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 34)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, layout.scaled(30))
+                    .padding(.vertical, layout.scaled(10))
                     .background(
                         Capsule()
                             .fill(Color.white.opacity(0.18))
@@ -660,12 +669,17 @@ struct LoadingView: View {
                     )
                 
                 Text("made with love by chawabhon netisingha")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
                     .foregroundColor(.white.opacity(0.85))
             }
             .opacity(vm.touchToStartOpacity)
             .padding(.bottom, mainRaise)
         }
-        .allowsHitTesting(false) // ✅ gestures handled at root (touch anywhere)
+        .allowsHitTesting(false)
     }
+}
+
+#Preview {
+    LoadingView()
+        .preferredColorScheme(.dark)
 }

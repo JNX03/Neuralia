@@ -114,34 +114,7 @@ enum CharacterAnimation {
     case idle, bounce, shake, pulse, wiggle, hop, nod
 }
 
-// MARK: - Responsive Layout Helper
-struct ResponsiveLayout {
-    let width: CGFloat
-    let height: CGFloat
-    
-    var isIPad: Bool { width > 768 }
-    var isLandscape: Bool { width > height }
-    var isSmallPhone: Bool { width < 375 }
-    
-    var dialogBoxWidth: CGFloat {
-        isIPad ? min(width * 0.6, 500) : width - 32
-    }
-    
-    var characterHeight: CGFloat {
-        if isIPad {
-            return isLandscape ? height * 0.55 : height * 0.4
-        }
-        return isLandscape ? height * 0.5 : height * 0.35
-    }
-    
-    var fontSize: CGFloat {
-        isIPad ? 19 : (isSmallPhone ? 15 : 17)
-    }
-    
-    var padding: CGFloat {
-        isIPad ? 40 : 20
-    }
-}
+// FeatureTestingView uses the shared ResponsiveLayout from ResponsiveLayout.swift
 
 // MARK: - Feature Testing Menu
 struct FeatureTestingView: View {
@@ -151,23 +124,30 @@ struct FeatureTestingView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
+                let layout = ResponsiveLayout(
+                    width: geo.size.width,
+                    height: geo.size.height,
+                    safeAreaInsets: geo.safeAreaInsets
+                )
+                
                 ZStack {
                     // Animated mesh gradient background
                     MeshGradientBackground()
                     
                     ScrollView {
-                        VStack(spacing: geo.size.height > 700 ? 28 : 20) {
+                        VStack(spacing: layout.sectionSpacing) {
                             // Animated header
-                            FeatureHeader()
-                                .padding(.top, geo.safeAreaInsets.top + 30)
+                            FeatureHeader(layout: layout)
+                                .padding(.top, geo.safeAreaInsets.top + layout.scaled(20))
                             
                             // Feature cards
-                            VStack(spacing: 16) {
+                            VStack(spacing: layout.elementSpacing) {
                                 FeatureCard(
                                     title: "Visual Novel Dialog",
                                     subtitle: "Interactive dialog with Ploy featuring voice, choices, and touch interactions",
                                     icon: "bubble.left.and.bubble.right.fill",
                                     color: .pink,
+                                    layout: layout,
                                     isNew: true
                                 ) {
                                     showDialogTest = true
@@ -178,6 +158,7 @@ struct FeatureTestingView: View {
                                     subtitle: "Character animations and visual effects",
                                     icon: "film.fill",
                                     color: .blue,
+                                    layout: layout,
                                     disabled: true,
                                     action: {}
                                 )
@@ -187,6 +168,7 @@ struct FeatureTestingView: View {
                                     subtitle: "Sound effects and voice synthesis",
                                     icon: "speaker.wave.2.fill",
                                     color: .green,
+                                    layout: layout,
                                     disabled: true,
                                     action: {}
                                 )
@@ -196,18 +178,19 @@ struct FeatureTestingView: View {
                                     subtitle: "Buttons, cards, and interface elements",
                                     icon: "rectangle.grid.2x2.fill",
                                     color: .orange,
+                                    layout: layout,
                                     disabled: true,
                                     action: {}
                                 )
                             }
-                            .padding(.horizontal, ResponsiveLayout(width: geo.size.width, height: geo.size.height).padding)
+                            .padding(.horizontal, layout.padding)
                             
-                            Spacer(minLength: 40)
+                            Spacer(minLength: layout.scaled(40))
                             
                             // Back button
-                            BackButton(action: { dismiss() })
-                                .padding(.horizontal, ResponsiveLayout(width: geo.size.width, height: geo.size.height).padding)
-                                .padding(.bottom, 30)
+                            BackButton(action: { dismiss() }, layout: layout)
+                                .padding(.horizontal, layout.padding)
+                                .padding(.bottom, layout.padding)
                         }
                     }
                 }
@@ -283,20 +266,21 @@ struct MeshGradientBackground: View {
 
 // MARK: - Feature Header
 struct FeatureHeader: View {
+    let layout: ResponsiveLayout
     @State private var scale: CGFloat = 0.8
     @State private var opacity: Double = 0
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: layout.elementSpacing) {
             ZStack {
                 // Glow effect
                 Circle()
                     .fill(Color.pink.opacity(0.3))
-                    .frame(width: 120, height: 120)
-                    .blur(radius: 30)
+                    .frame(width: layout.scaled(100), height: layout.scaled(100))
+                    .blur(radius: layout.scaled(25))
                 
                 Image(systemName: "testtube.2")
-                    .font(.system(size: 56, weight: .semibold))
+                    .font(.system(size: layout.scaled(48), weight: .semibold))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [.pink, .purple],
@@ -308,11 +292,11 @@ struct FeatureHeader: View {
             }
             
             Text("Feature Testing")
-                .font(.system(size: 32, weight: .bold))
+                .font(.system(size: layout.headlineFontSize + 4, weight: .bold))
                 .foregroundColor(.white)
             
             Text("Developer Tools & Prototypes")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: layout.bodyFontSize - 1, weight: .medium))
                 .foregroundColor(.white.opacity(0.6))
         }
         .scaleEffect(scale)
@@ -332,6 +316,7 @@ struct FeatureCard: View {
     let subtitle: String
     let icon: String
     let color: Color
+    let layout: ResponsiveLayout
     var disabled: Bool = false
     var isNew: Bool = false
     let action: () -> Void
@@ -341,31 +326,31 @@ struct FeatureCard: View {
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
+            HStack(spacing: layout.elementSpacing) {
                 // Icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: layout.cornerRadius)
                         .fill(color.opacity(disabled ? 0.1 : 0.2))
-                        .frame(width: 64, height: 64)
+                        .frame(width: layout.scaled(56), height: layout.scaled(56))
                     
                     Image(systemName: icon)
-                        .font(.system(size: 28))
+                        .font(.system(size: layout.scaled(24)))
                         .foregroundColor(disabled ? .gray : color)
                     
                     if isNew && !disabled {
-                        NewBadge()
-                            .offset(x: 22, y: -22)
+                        NewBadge(layout: layout)
+                            .offset(x: layout.scaled(20), y: -layout.scaled(20))
                     }
                 }
                 
                 // Content
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: layout.elementSpacing / 2) {
                     Text(title)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: layout.bodyFontSize + 2, weight: .semibold))
                         .foregroundColor(disabled ? .gray : .white)
                     
                     Text(subtitle)
-                        .font(.system(size: 13))
+                        .font(.system(size: layout.captionFontSize + 1))
                         .foregroundColor(.white.opacity(disabled ? 0.3 : 0.6))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -375,21 +360,26 @@ struct FeatureCard: View {
                 
                 // Arrow
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: layout.captionFontSize + 2, weight: .semibold))
                     .foregroundColor(color.opacity(isHovered ? 1 : 0.5))
                     .offset(x: isHovered ? 4 : 0)
             }
-            .padding()
+            .padding(layout.padding)
             .background(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
                     .fill(.ultraThinMaterial)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20)
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
                             .stroke(color.opacity(disabled ? 0 : (isHovered ? 0.5 : 0.3)), lineWidth: 1)
                     )
             )
             .scaleEffect(isPressed ? 0.97 : 1.0)
-            .shadow(color: color.opacity(disabled ? 0 : (isHovered ? 0.3 : 0.1)), radius: isHovered ? 20 : 10, x: 0, y: isHovered ? 10 : 5)
+            .shadow(
+                color: color.opacity(disabled ? 0 : (isHovered ? 0.3 : 0.1)),
+                radius: isHovered ? layout.scaled(16) : layout.scaled(8),
+                x: 0,
+                y: isHovered ? layout.scaled(8) : layout.scaled(4)
+            )
         }
         .disabled(disabled)
         .buttonStyle(.plain)
@@ -406,12 +396,14 @@ struct FeatureCard: View {
 
 // MARK: - New Badge
 struct NewBadge: View {
+    let layout: ResponsiveLayout
+    
     var body: some View {
         Text("NEW")
-            .font(.system(size: 8, weight: .bold))
+            .font(.system(size: layout.scaled(8), weight: .bold))
             .foregroundColor(.white)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, layout.scaled(6))
+            .padding(.vertical, layout.scaled(2))
             .background(
                 LinearGradient(
                     colors: [.pink, .red],
@@ -419,35 +411,38 @@ struct NewBadge: View {
                     endPoint: .trailing
                 )
             )
-            .cornerRadius(4)
+            .cornerRadius(layout.scaled(4))
     }
 }
 
 // MARK: - Back Button
 struct BackButton: View {
     let action: () -> Void
+    let layout: ResponsiveLayout
     @State private var isHovered = false
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: layout.elementSpacing) {
                 Image(systemName: "arrow.left")
+                    .font(.system(size: layout.bodyFontSize))
                 Text("Back to Main Menu")
+                    .font(.system(size: layout.bodyFontSize, weight: .semibold))
             }
-            .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.white)
-            .padding()
+            .padding(layout.padding)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
                     .fill(.ultraThinMaterial)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
                             .stroke(Color.white.opacity(0.2), lineWidth: 1)
                     )
             )
             .scaleEffect(isHovered ? 1.02 : 1.0)
         }
+        .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
     }

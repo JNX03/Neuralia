@@ -77,6 +77,53 @@ struct MainMenuView: View {
     @State private var showFeatureTesting = false
     
     var body: some View {
+        GeometryReader { geometry in
+            let layout = ResponsiveLayout(
+                width: geometry.size.width,
+                height: geometry.size.height,
+                safeAreaInsets: geometry.safeAreaInsets
+            )
+            
+            ZStack {
+                // Background
+                backgroundLayer(layout: layout)
+                
+                // Content based on layout mode
+                switch layout.layoutMode {
+                case .compact, .regular:
+                    compactLayout(layout: layout)
+                case .expanded:
+                    expandedLayout(layout: layout)
+                case .desktop:
+                    desktopLayout(layout: layout)
+                }
+                
+                // Version info - always at bottom
+                versionLabel(layout: layout)
+            }
+            .onAppear {
+                viewModel.start()
+            }
+            .onDisappear {
+                viewModel.stop()
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        viewModel.handleTouch(translation: value.translation)
+                    }
+                    .onEnded { _ in
+                        viewModel.touchEnded()
+                    }
+            )
+            .fullScreenCover(isPresented: $showFeatureTesting) {
+                FeatureTestingView()
+            }
+        }
+    }
+    
+    // MARK: - Background
+    private func backgroundLayer(layout: ResponsiveLayout) -> some View {
         ZStack {
             Image("cnxaqu")
                 .resizable()
@@ -87,100 +134,229 @@ struct MainMenuView: View {
             
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 20) {
-                    HStack {
-                        Spacer()
-                        Image("icon")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 140, height: 140)
-                            .shadow(color: .black.opacity(0.5), radius: 10)
-                        Spacer()
-                    }
-                    .padding(.top, 10)
-                    
-                    VStack(spacing: 12) {
-                        MenuButton(title: "Play", icon: "play.fill", action: {})
-                        MenuButton(title: "Load Game", icon: "square.and.arrow.down.fill", action: {})
-                        MenuButton(title: "Gallery", icon: "photo.on.rectangle.angled", action: {})
-                        MenuButton(title: "Feature Testing", icon: "testtube.2", action: {
-                            showFeatureTesting = true
-                        })
-                    }
-                    
-                    Spacer()
-                    
-                    HStack {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 8, height: 8)
-                        Text("Ready to Play")
-                            .foregroundColor(.white.opacity(0.7))
-                        Spacer()
-                    }
-                }
-                .padding(20)
-                .frame(width: 280)
-                .background(Color.black.opacity(0.4))
-                .cornerRadius(20)
-                .padding(20)
-                
-                Spacer()
-            }
-            
-            VStack {
-                Spacer()
+        }
+    }
+    
+    // MARK: - Compact Layout (iPhone Portrait/Small)
+    private func compactLayout(layout: ResponsiveLayout) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
+                // Icon
                 HStack {
                     Spacer()
-                    Text("Ver 1.0")
-                        .foregroundColor(.white.opacity(0.5))
-                        .padding()
+                    Image("icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(10))
+                    Spacer()
                 }
+                .padding(.top, layout.safeAreaInsets.top + 10)
+                
+                // Menu buttons
+                menuButtons(layout: layout)
+                
+                Spacer()
+                
+                // Status
+                statusIndicator(layout: layout)
             }
+            .padding(layout.padding)
+            .frame(width: layout.menuWidth)
+            .background(Color.black.opacity(0.4))
+            .cornerRadius(layout.cornerRadius)
+            .padding(layout.padding)
+            
+            Spacer()
         }
-        .onAppear {
-            viewModel.start()
-        }
-        .onDisappear {
-            viewModel.stop()
-        }
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    viewModel.handleTouch(translation: value.translation)
+    }
+    
+    // MARK: - Expanded Layout (iPad)
+    private func expandedLayout(layout: ResponsiveLayout) -> some View {
+        HStack(spacing: 0) {
+            // Left panel with menu
+            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
+                HStack {
+                    Spacer()
+                    Image("icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(10))
+                    Spacer()
                 }
-                .onEnded { _ in
-                    viewModel.touchEnded()
+                .padding(.top, layout.safeAreaInsets.top + 20)
+                
+                menuButtons(layout: layout)
+                
+                Spacer()
+                
+                statusIndicator(layout: layout)
+            }
+            .padding(layout.padding)
+            .frame(width: layout.menuWidth)
+            .background(Color.black.opacity(0.4))
+            .cornerRadius(layout.cornerRadius)
+            .padding(layout.padding)
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - Desktop Layout (Mac/Ultrawide)
+    private func desktopLayout(layout: ResponsiveLayout) -> some View {
+        HStack(spacing: 0) {
+            // Left sidebar
+            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
+                HStack {
+                    Spacer()
+                    Image("icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: layout.menuIconSize, height: layout.menuIconSize)
+                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(12))
+                    Spacer()
                 }
-        )
-        .fullScreenCover(isPresented: $showFeatureTesting) {
-            FeatureTestingView()
+                .padding(.top, layout.safeAreaInsets.top + 30)
+                
+                menuButtons(layout: layout)
+                
+                Spacer()
+                
+                statusIndicator(layout: layout)
+            }
+            .padding(layout.padding)
+            .frame(width: layout.menuWidth)
+            .background(Color.black.opacity(0.4))
+            .cornerRadius(layout.cornerRadius)
+            .padding(layout.padding * 1.5)
+            
+            Spacer()
+            
+            // Right side - could add additional content here
+            VStack {
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+    
+    // MARK: - Menu Buttons
+    private func menuButtons(layout: ResponsiveLayout) -> some View {
+        VStack(spacing: layout.elementSpacing) {
+            ResponsiveMenuButton(
+                title: "Play",
+                icon: "play.fill",
+                layout: layout,
+                action: {}
+            )
+            ResponsiveMenuButton(
+                title: "Load Game",
+                icon: "square.and.arrow.down.fill",
+                layout: layout,
+                action: {}
+            )
+            ResponsiveMenuButton(
+                title: "Gallery",
+                icon: "photo.on.rectangle.angled",
+                layout: layout,
+                action: {}
+            )
+            ResponsiveMenuButton(
+                title: "Feature Testing",
+                icon: "testtube.2",
+                layout: layout,
+                action: {
+                    showFeatureTesting = true
+                }
+            )
+        }
+    }
+    
+    // MARK: - Status Indicator
+    private func statusIndicator(layout: ResponsiveLayout) -> some View {
+        HStack(spacing: layout.elementSpacing) {
+            Circle()
+                .fill(Color.green)
+                .frame(width: layout.scaled(8), height: layout.scaled(8))
+            Text("Ready to Play")
+                .font(.system(size: layout.bodyFontSize))
+                .foregroundColor(.white.opacity(0.7))
+            Spacer()
+        }
+    }
+    
+    // MARK: - Version Label
+    private func versionLabel(layout: ResponsiveLayout) -> some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Text("Ver 1.0")
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding()
+            }
         }
     }
 }
 
-struct MenuButton: View {
+// MARK: - Responsive Menu Button
+struct ResponsiveMenuButton: View {
     let title: String
     let icon: String
+    let layout: ResponsiveLayout
     let action: () -> Void
+    
+    @State private var isPressed = false
+    @State private var isHovered = false
     
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: layout.elementSpacing) {
                 Image(systemName: icon)
-                    .frame(width: 30)
+                    .font(.system(size: layout.iconSize))
+                    .frame(width: layout.scaled(30))
+                
                 Text(title)
+                    .font(.system(size: layout.bodyFontSize, weight: .medium))
+                
                 Spacer()
+                
                 Image(systemName: "chevron.right")
-                    .font(.caption)
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
             }
             .foregroundColor(.white)
-            .padding()
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(12)
+            .padding(.horizontal, layout.padding)
+            .padding(.vertical, layout.scaled(12))
+            .background(
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
+                    .fill(Color.white.opacity(isHovered ? 0.15 : 0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
+                    .stroke(Color.white.opacity(isHovered ? 0.3 : 0.2), lineWidth: 1)
+            )
+            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .shadow(
+                color: Color.white.opacity(isHovered ? 0.1 : 0),
+                radius: layout.scaled(8),
+                x: 0,
+                y: layout.scaled(4)
+            )
         }
+        .buttonStyle(.plain)
+        #if os(macOS)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        #endif
+        .pressEvents {
+            isPressed = true
+        } onRelease: {
+            isPressed = false
+        }
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
 }
 
