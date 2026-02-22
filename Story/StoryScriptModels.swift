@@ -19,6 +19,7 @@ struct DialogShowcaseMedia: Sendable {
 
 enum DialogEventType: String, Sendable {
     case mobileChat
+    case promptWorkshop
     case hallucinationBias
     case memoryTraining
 }
@@ -160,4 +161,3 @@ enum StoryChapterRepository {
         chapterThreeStory
     ]
 }
-

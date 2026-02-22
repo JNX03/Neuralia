@@ -85,7 +85,7 @@ struct StoryChapterHubView: View {
             HStack(spacing: layout.scaled(10)) {
                 statPill(title: "Chapters", value: "\(chapters.count)")
                 statPill(title: "Events", value: "\(chapters.reduce(0) { $0 + $1.eventCount })")
-                statPill(title: "Mode", value: "Prototype")
+                statPill(title: "Mode", value: "Playable")
             }
         }
         .padding(.horizontal, layout.padding)
