@@ -339,7 +339,6 @@ struct DrawingSample: Identifiable, Codable {
         let size = DrawingSample.gridSize
         
         for _ in 0..<count {
-            var newGrid = grid
             // Random small shifts
             let shiftX = Int.random(in: -1...1)
             let shiftY = Int.random(in: -1...1)

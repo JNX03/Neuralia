@@ -83,11 +83,13 @@ final class DialogViewModel: ObservableObject {
     @Published var showChoices = false
     @Published var showTextInput = false
     @Published var userInput = ""
+    @Published var lastSubmittedInput = ""
     @Published var isCompleted = false
     @Published var typingSpeed: Double = 1.0
     
     private var typingTask: Task<Void, Never>?
     private var currentEmotion: Emotion = .neutral
+    private var unlockedRequiredInputNodeIDs: Set<UUID> = []
     
     var currentNode: DialogNode? {
         guard currentNodeIndex < nodes.count else { return nil }
@@ -105,6 +107,10 @@ final class DialogViewModel: ObservableObject {
     func loadNodes(_ newNodes: [DialogNode]) {
         nodes = newNodes
         currentNodeIndex = 0
+        displayedText = ""
+        userInput = ""
+        lastSubmittedInput = ""
+        unlockedRequiredInputNodeIDs.removeAll()
         isCompleted = false
         startTyping()
     }
@@ -161,6 +167,14 @@ final class DialogViewModel: ObservableObject {
             skipTyping()
             return
         }
+
+        // Prevent skipping required choice/input nodes by tapping the dialog box.
+        guard !showChoices && !showTextInput else { return }
+        if let node = currentNode,
+           node.requiresInput,
+           !unlockedRequiredInputNodeIDs.contains(node.id) {
+            return
+        }
         
         if currentNodeIndex < nodes.count - 1 {
             currentNodeIndex += 1
@@ -189,10 +203,21 @@ final class DialogViewModel: ObservableObject {
     }
     
     func submitInput() {
-        guard !userInput.isEmpty else { return }
+        guard let node = currentNode else { return }
+        let trimmed = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        lastSubmittedInput = trimmed
+        unlockedRequiredInputNodeIDs.insert(node.id)
         showTextInput = false
         userInput = ""
-        advance()
+
+        if currentNodeIndex < nodes.count - 1 {
+            currentNodeIndex += 1
+            startTyping()
+        } else {
+            isCompleted = true
+        }
     }
     
     func setTypingSpeed(_ speed: Double) {
@@ -227,6 +252,21 @@ struct DialogAdaptiveLayout {
         case isLarge: return isLandscape ? 520 : min(width - 64, 550)
         case isExtraLarge: return isLandscape ? 600 : 550
         default: return width - 32
+        }
+    }
+
+    var visualNovelDialogMaxWidth: CGFloat {
+        switch true {
+        case isCompact:
+            return width - 24
+        case isRegular:
+            return min(width - 28, 700)
+        case isLarge:
+            return min(width - 56, 980)
+        case isExtraLarge:
+            return min(width - 80, 1180)
+        default:
+            return width - 32
         }
     }
     
@@ -381,6 +421,53 @@ struct DialogAdaptiveLayout {
         default: return 1
         }
     }
+
+    // MARK: - VN Positioning
+    var dialogLiftFromBottom: CGFloat {
+        switch true {
+        case isCompact:
+            return isLandscape ? 64 : 128
+        case isRegular:
+            return isLandscape ? 74 : 118
+        case isLarge:
+            return isLandscape ? 108 : 96
+        case isExtraLarge:
+            return 132
+        default:
+            return 96
+        }
+    }
+
+    var topBarTopInset: CGFloat {
+        switch true {
+        case isCompact:
+            return isLandscape ? 22 : 26
+        case isRegular:
+            return 24
+        case isLarge:
+            return 26
+        case isExtraLarge:
+            return 28
+        default:
+            return 24
+        }
+    }
+}
+
+enum VNCharacterPlacement: String, CaseIterable, Identifiable {
+    case left
+    case center
+    case right
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .left: return "Left"
+        case .center: return "Center"
+        case .right: return "Right"
+        }
+    }
 }
 
 // MARK: - Responsive Dialog View
@@ -402,6 +489,9 @@ struct ResponsiveDialogView: View {
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
     @State private var backgroundOpacity: Double = 1.0
+    @State private var characterPlacement: VNCharacterPlacement = .center
+    @State private var completedEventPayloadIDs: Set<UUID> = []
+    @State private var sceneContentOpacity: Double = 1.0
     
     init(
         nodes: [DialogNode],
@@ -413,6 +503,31 @@ struct ResponsiveDialogView: View {
         self.showBackButton = showBackButton
         self.showSettings = showSettings
         self.onComplete = onComplete
+    }
+
+    private var currentEventPayload: DialogEventPayload? {
+        viewModel.currentNode?.eventPayload
+    }
+
+    private var isCurrentEventCompleted: Bool {
+        guard let payload = currentEventPayload else { return true }
+        return completedEventPayloadIDs.contains(payload.id)
+    }
+
+    private var isEventBlockingProgress: Bool {
+        currentEventPayload != nil && !isCurrentEventCompleted
+    }
+
+    private var canAdvanceFromDialogTap: Bool {
+        !viewModel.isTyping && !viewModel.showChoices && !viewModel.showTextInput && !isEventBlockingProgress
+    }
+
+    private func updateEventCompletion(_ isCompleted: Bool, for payload: DialogEventPayload) {
+        if isCompleted {
+            completedEventPayloadIDs.insert(payload.id)
+        } else {
+            completedEventPayloadIDs.remove(payload.id)
+        }
     }
     
     var body: some View {
@@ -427,17 +542,17 @@ struct ResponsiveDialogView: View {
                 // Background
                 backgroundLayer(layout: layout)
                 
-                // Main content based on layout mode
-                switch layout.layoutMode {
-                case .stacked:
-                    stackedLayout(layout: layout, geometry: geometry)
-                case .sideBySide:
-                    sideBySideLayout(layout: layout, geometry: geometry)
-                case .floating:
-                    floatingLayout(layout: layout, geometry: geometry)
-                case .split:
-                    splitLayout(layout: layout, geometry: geometry)
+                // Main content based on scene type
+                if let eventPayload = currentEventPayload {
+                    eventFocusedLayout(layout: layout, geometry: geometry, eventPayload: eventPayload)
+                } else {
+                    visualNovelLayout(layout: layout, geometry: geometry)
                 }
+                
+                Color.black
+                    .opacity(1.0 - sceneContentOpacity)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
                 
                 // Settings overlay
                 if showSettingsPanel {
@@ -452,6 +567,7 @@ struct ResponsiveDialogView: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .onAppear {
+            completedEventPayloadIDs.removeAll()
             viewModel.loadNodes(nodes)
         }
         .onChange(of: viewModel.isCompleted) { completed in
@@ -459,11 +575,47 @@ struct ResponsiveDialogView: View {
                 onComplete?()
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 600, minHeight: 400)
-        #endif
+        .onChange(of: viewModel.currentNodeIndex) { _ in
+            sceneContentOpacity = 0.18
+            withAnimation(.easeOut(duration: 0.28)) {
+                sceneContentOpacity = 1.0
+            }
+        }
+        .dialogMacOSMinWindowFrame()
     }
     
+    // MARK: - Visual Novel Layout (Character Center / Dialog Bottom)
+    private func visualNovelLayout(layout: DialogAdaptiveLayout, geometry: GeometryProxy) -> some View {
+        ZStack {
+            VStack {
+                topBar(layout: layout)
+                    .padding(.horizontal, layout.dialogPadding)
+                    .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
+                Spacer()
+            }
+
+            VStack {
+                Spacer(minLength: layout.safeAreaInsets.top + 52)
+
+                characterSection(layout: layout)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: min(layout.height * (layout.isCompact ? 0.45 : 0.58), layout.characterMaxHeight + 80)
+                    )
+                    .padding(.horizontal, layout.dialogPadding)
+
+                Spacer(minLength: 0)
+            }
+
+            VStack {
+                Spacer()
+                dialogSection(layout: layout, maxWidth: layout.visualNovelDialogMaxWidth)
+                    .padding(.horizontal, layout.dialogPadding)
+                    .padding(.bottom, layout.safeAreaInsets.bottom + layout.dialogLiftFromBottom)
+            }
+        }
+    }
+
     // MARK: - Background Layer
     private func backgroundLayer(layout: DialogAdaptiveLayout) -> some View {
         ZStack {
@@ -516,7 +668,7 @@ struct ResponsiveDialogView: View {
             // Top bar
             topBar(layout: layout)
                 .padding(.horizontal, layout.dialogPadding)
-                .padding(.top, layout.safeAreaInsets.top + 10)
+                .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
             
             // Character section
             characterSection(layout: layout)
@@ -551,7 +703,7 @@ struct ResponsiveDialogView: View {
                             }
                         }
                         .padding(.horizontal, layout.dialogPadding)
-                        .padding(.top, layout.safeAreaInsets.top + 10)
+                        .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
                         Spacer()
                     }
                 }
@@ -584,7 +736,7 @@ struct ResponsiveDialogView: View {
             // Top controls
             topBar(layout: layout)
                 .padding(.horizontal, layout.dialogPadding)
-                .padding(.top, layout.safeAreaInsets.top + 10)
+                .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
         }
     }
     
@@ -621,6 +773,157 @@ struct ResponsiveDialogView: View {
             .padding(.horizontal, layout.dialogPadding)
         }
         .padding(.vertical, layout.safeAreaInsets.top + 20)
+    }
+
+    // MARK: - Event Focused Layout (Character Left / Mini Game Right)
+    private func eventFocusedLayout(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        eventPayload: DialogEventPayload
+    ) -> some View {
+        Group {
+            if layout.isCompact {
+                VStack(spacing: layout.sectionSpacing) {
+                    topBar(layout: layout)
+                        .padding(.horizontal, layout.dialogPadding)
+                        .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
+
+                    characterSection(layout: layout, forcedPlacement: .left)
+                        .frame(height: min(layout.height * 0.23, 180))
+                        .padding(.horizontal, layout.dialogPadding)
+
+                    eventSceneDialogPanel(layout: layout)
+                        .padding(.horizontal, layout.dialogPadding)
+
+                    DialogEventPanel(
+                        eventPayload: eventPayload,
+                        layout: layout,
+                        showsEventChrome: eventPayload.type != .mobileChat,
+                        onCompletionChanged: { isCompleted in
+                            updateEventCompletion(isCompleted, for: eventPayload)
+                        }
+                    )
+                    .id(eventPayload.id)
+                    .padding(.horizontal, layout.dialogPadding)
+
+                    Spacer(minLength: 0)
+                }
+            } else {
+                VStack(spacing: layout.sectionSpacing) {
+                    topBar(layout: layout)
+                        .padding(.horizontal, layout.dialogPadding)
+                        .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
+
+                    HStack(alignment: .top, spacing: layout.sectionSpacing) {
+                        VStack(spacing: layout.sectionSpacing) {
+                            characterSection(layout: layout, forcedPlacement: .left)
+                                .frame(height: min(layout.height * 0.34, 300))
+
+                            eventSceneDialogPanel(layout: layout)
+
+                            Spacer(minLength: 0)
+                        }
+                        .frame(width: max(240, geometry.size.width * 0.28))
+
+                        DialogEventPanel(
+                            eventPayload: eventPayload,
+                            layout: layout,
+                            showsEventChrome: eventPayload.type != .mobileChat,
+                            onCompletionChanged: { isCompleted in
+                                updateEventCompletion(isCompleted, for: eventPayload)
+                            }
+                        )
+                        .id(eventPayload.id)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    }
+                    .padding(.horizontal, layout.dialogPadding)
+                    .padding(.bottom, layout.safeAreaInsets.bottom + 20)
+                }
+            }
+        }
+    }
+
+    private func eventSceneDialogPanel(layout: DialogAdaptiveLayout) -> some View {
+        let isEventRunning = !isCurrentEventCompleted
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(viewModel.currentNode?.speaker ?? "Scene")
+                    .font(.system(size: layout.speakerFontSize, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.pink.opacity(0.9), in: Capsule())
+
+                Spacer()
+
+                Text(isCurrentEventCompleted ? "Event Complete" : "Event Running")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(isCurrentEventCompleted ? .mint : .orange)
+            }
+
+            if let subtitle = viewModel.currentNode?.cutsceneSubtitle, !subtitle.isEmpty {
+                Text(subtitle.uppercased())
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.55))
+                    .tracking(1)
+                    .lineLimit(2)
+            }
+
+            if isEventRunning {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "iphone.gen3.radiowaves.left.and.right")
+                        .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                        .foregroundColor(.pink.opacity(0.95))
+                        .padding(.top, 1)
+
+                    Text("Mini game is active. Use the phone panel to finish the event first. Story dialog is hidden until the event is complete.")
+                        .font(.system(size: layout.bodyFontSize - 2, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.86))
+                        .lineSpacing(3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(viewModel.displayedText)
+                    .font(.system(size: layout.bodyFontSize - 1, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.92))
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if isCurrentEventCompleted {
+                HStack {
+                    Spacer()
+                    Text("Tap this panel to continue")
+                        .font(.system(size: layout.captionFontSize, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.orange)
+                    Text("Finish the mini game first. Story progression is locked.")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.72))
+                }
+            }
+        }
+        .padding(layout.isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 16, style: .continuous)
+                .fill(Color.black.opacity(0.76))
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+        .onTapGesture {
+            guard isCurrentEventCompleted else { return }
+            viewModel.advance()
+        }
     }
     
     // MARK: - Top Bar
@@ -691,21 +994,34 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Character Section
-    private func characterSection(layout: DialogAdaptiveLayout) -> some View {
-        ZStack(alignment: .bottom) {
+    private func characterSection(
+        layout: DialogAdaptiveLayout,
+        forcedPlacement: VNCharacterPlacement? = nil
+    ) -> some View {
+        let placement = forcedPlacement ?? characterPlacement
+
+        return ZStack(alignment: .bottom) {
             // Character shadow
-            Ellipse()
-                .fill(Color.black.opacity(0.3))
-                .frame(
-                    width: layout.isCompact ? 120 : (layout.isRegular ? 140 : 180),
-                    height: layout.isCompact ? 30 : (layout.isRegular ? 35 : 45)
-                )
-                .blur(radius: 8)
-                .offset(y: -10)
+            HStack {
+                if placement != .left { Spacer() }
+                Ellipse()
+                    .fill(Color.black.opacity(0.3))
+                    .frame(
+                        width: layout.isCompact ? 120 : (layout.isRegular ? 140 : 180),
+                        height: layout.isCompact ? 30 : (layout.isRegular ? 35 : 45)
+                    )
+                    .blur(radius: 8)
+                    .offset(y: -10)
+                if placement != .right { Spacer() }
+            }
             
             // Character image
-            characterImage(layout: layout)
-                .frame(maxWidth: layout.characterMaxWidth, maxHeight: layout.characterMaxHeight)
+            HStack {
+                if placement != .left { Spacer(minLength: 0) }
+                characterImage(layout: layout)
+                    .frame(maxWidth: layout.characterMaxWidth, maxHeight: layout.characterMaxHeight)
+                if placement != .right { Spacer(minLength: 0) }
+            }
             
             // Character info badge
             characterInfoBadge(layout: layout)
@@ -783,51 +1099,11 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Dialog Section
-    private func dialogSection(layout: DialogAdaptiveLayout) -> some View {
-        VStack(spacing: layout.sectionSpacing) {
-            // Progress indicator
-            if layout.isLarge || layout.isExtraLarge {
-                progressIndicator(layout: layout)
-            }
-
-            if let node = viewModel.currentNode,
-               (node.cutsceneTitle != nil || node.cutsceneSubtitle != nil) {
-                DialogCutsceneBanner(
-                    title: node.cutsceneTitle ?? "Scene",
-                    subtitle: node.cutsceneSubtitle,
-                    layout: layout
-                )
-            }
-
-            if let showcase = viewModel.currentNode?.showcaseMedia {
-                DialogShowcaseCard(showcase: showcase, layout: layout)
-                    .id(showcase.imageName + (showcase.badge ?? ""))
-            }
-
-            if let eventPayload = viewModel.currentNode?.eventPayload {
-                DialogEventPanel(eventPayload: eventPayload, layout: layout)
-                    .id(eventPayload.id)
-            }
-            
-            // Main dialog box
+    private func dialogSection(layout: DialogAdaptiveLayout, maxWidth: CGFloat? = nil) -> some View {
+        VStack(spacing: 0) {
             dialogBox(layout: layout)
-            
-            // Choice buttons
-            if viewModel.showChoices, let choices = viewModel.currentNode?.choices {
-                choicesGrid(choices: choices, layout: layout)
-            }
-            
-            // Text input
-            if viewModel.showTextInput {
-                textInputSection(layout: layout)
-            }
-            
-            // Navigation hint
-            if !viewModel.showChoices && !viewModel.showTextInput && !viewModel.isTyping {
-                navigationHint(layout: layout)
-            }
         }
-        .frame(maxWidth: layout.dialogMaxWidth)
+        .frame(maxWidth: maxWidth ?? layout.dialogMaxWidth)
     }
     
     private func progressIndicator(layout: DialogAdaptiveLayout) -> some View {
@@ -850,7 +1126,9 @@ struct ResponsiveDialogView: View {
     }
     
     private func dialogBox(layout: DialogAdaptiveLayout) -> some View {
-        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+        let isShowingInteractivePanel = viewModel.showChoices || viewModel.showTextInput
+
+        return VStack(alignment: .leading, spacing: layout.elementSpacing) {
             HStack(alignment: .center) {
                 Text(viewModel.currentNode?.speaker ?? "")
                     .font(.system(size: layout.speakerFontSize + 1, weight: .black, design: .rounded))
@@ -878,7 +1156,8 @@ struct ResponsiveDialogView: View {
                 }
             }
 
-            if let sceneSubtitle = viewModel.currentNode?.cutsceneSubtitle {
+            if !isShowingInteractivePanel,
+               let sceneSubtitle = viewModel.currentNode?.cutsceneSubtitle {
                 HStack(spacing: 8) {
                     Rectangle()
                         .fill(Color.pink.opacity(0.7))
@@ -892,62 +1171,102 @@ struct ResponsiveDialogView: View {
                 }
             }
             
-            Text(viewModel.displayedText)
-                .font(.system(size: layout.bodyFontSize, weight: .regular, design: .rounded))
-                .foregroundColor(.white.opacity(0.98))
-                .lineSpacing(layout.isCompact ? 5 : 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .multilineTextAlignment(.leading)
-                .minimumScaleFactor(0.85)
-                .padding(.top, 2)
+            if viewModel.showChoices, let choices = viewModel.currentNode?.choices {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Choose an option")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.7))
 
-            HStack {
-                Text(viewModel.showChoices ? "Choose an option" : (viewModel.showTextInput ? "Write your answer" : "Tap to continue"))
-                    .font(.system(size: layout.captionFontSize, weight: .medium))
-                    .foregroundColor(.white.opacity(0.48))
-
-                Spacer()
-
-                if !viewModel.isTyping && !viewModel.showChoices && !viewModel.showTextInput {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.right")
-                        Image(systemName: "chevron.right")
+                    VStack(spacing: 8) {
+                        ForEach(choices) { choice in
+                            ChoiceButton(
+                                choice: choice,
+                                layout: layout,
+                                action: { viewModel.selectChoice(choice) }
+                            )
+                        }
                     }
-                    .font(.system(size: layout.captionFontSize))
-                    .foregroundColor(.white.opacity(0.45))
+                }
+                .padding(.top, 2)
+            } else if viewModel.showTextInput {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Enter a name to continue")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.7))
+                    textInputSection(layout: layout)
+                }
+                .padding(.top, 2)
+            } else {
+                Text(viewModel.displayedText)
+                    .font(.system(size: layout.bodyFontSize, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.98))
+                    .lineSpacing(layout.isCompact ? 5 : 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .minimumScaleFactor(0.85)
+                    .padding(.top, 2)
+
+                HStack {
+                    Text(canAdvanceFromDialogTap ? "Tap to continue" : "Complete this part first")
+                        .font(.system(size: layout.captionFontSize, weight: .medium))
+                        .foregroundColor(.white.opacity(0.48))
+
+                    Spacer()
+
+                    if canAdvanceFromDialogTap {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.right")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.45))
+                    }
                 }
             }
         }
         .padding(layout.isCompact ? 14 : 18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(
+            minHeight: isShowingInteractivePanel
+                ? (layout.isCompact ? 188 : 210)
+                : (layout.isCompact ? 160 : 180),
+            alignment: .topLeading
+        )
         .background(
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.78))
+                    .fill(Color.black.opacity(0.82))
                 RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.04), Color.clear],
+                            colors: [Color.white.opacity(0.06), Color.clear],
                             startPoint: .top,
                             endPoint: .bottom
                         )
                     )
+                RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
+                    .stroke(Color.pink.opacity(0.12), lineWidth: 2)
+                    .padding(1)
                 RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
             }
         )
         .shadow(color: Color.black.opacity(0.28), radius: 10, x: 0, y: 6)
         .onTapGesture {
+            guard canAdvanceFromDialogTap else { return }
             viewModel.advance()
         }
-        .onHover { hovering in
-            #if os(macOS)
-            if hovering {
-                NSCursor.pointingHand.push()
-            } else {
-                NSCursor.pop()
-            }
-            #endif
+        .dialogHoverIfAvailable(perform: handleDialogBoxHover)
+    }
+
+    private func handleDialogBoxHover(_ hovering: Bool) {
+        #if os(macOS)
+        if hovering {
+            NSCursor.pointingHand.push()
+        } else {
+            NSCursor.pop()
         }
+        #endif
     }
     
     private func choicesGrid(choices: [DialogChoice], layout: DialogAdaptiveLayout) -> some View {
@@ -1066,6 +1385,40 @@ struct ResponsiveDialogView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Character Position")
+                        .font(.system(size: layout.bodyFontSize))
+                        .foregroundColor(.white)
+
+                    HStack(spacing: 8) {
+                        ForEach(VNCharacterPlacement.allCases) { placement in
+                            Button {
+                                characterPlacement = placement
+                            } label: {
+                                Text(placement.label)
+                                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                    .foregroundColor(characterPlacement == placement ? .white : .white.opacity(0.75))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        characterPlacement == placement
+                                            ? Color.pink.opacity(0.85)
+                                            : Color.white.opacity(0.08),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(
+                                                characterPlacement == placement ? Color.pink.opacity(0.25) : Color.white.opacity(0.08),
+                                                lineWidth: 1
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
                 
                 // Typing speed
                 VStack(alignment: .leading, spacing: 8) {
@@ -1113,10 +1466,10 @@ struct ResponsiveDialogView: View {
             .padding(layout.dialogPadding)
             .background(
                 RoundedRectangle(cornerRadius: layout.dialogCornerRadius)
-                    .fill(.ultraThinMaterial)
+                    .fill(Color.black.opacity(0.88))
                     .overlay(
                         RoundedRectangle(cornerRadius: layout.dialogCornerRadius)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
                     )
             )
             .frame(maxWidth: min(layout.dialogMaxWidth, 400))
@@ -1246,9 +1599,7 @@ struct DialogControlButton: View {
             .scaleEffect(isHovered ? 1.05 : 1.0)
         }
         .buttonStyle(.plain)
-        #if os(macOS)
-        .onHover { isHovered = $0 }
-        #endif
+        .dialogHoverIfAvailable { isHovered = $0 }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
 }
@@ -1302,9 +1653,7 @@ struct ChoiceButton: View {
             .shadow(color: Color.black.opacity(0.16), radius: 4, x: 0, y: 3)
         }
         .buttonStyle(.plain)
-        #if os(macOS)
-        .onHover { isHovered = $0 }
-        #endif
+        .dialogHoverIfAvailable { isHovered = $0 }
         .pressEvents {
             isPressed = true
         } onRelease: {
@@ -1451,6 +1800,8 @@ struct DialogShowcaseCard: View {
 struct DialogEventPanel: View {
     let eventPayload: DialogEventPayload
     let layout: DialogAdaptiveLayout
+    var showsEventChrome: Bool = true
+    var onCompletionChanged: (Bool) -> Void = { _ in }
 
     @State private var didTrigger = false
     @State private var phoneMessages: [String] = [
@@ -1458,6 +1809,10 @@ struct DialogEventPanel: View {
         "Ploy: Link is noisy. Say something simple."
     ]
     @State private var phoneDraft = ""
+    @State private var phoneStability: Double = 0.08
+    @State private var phonePulseCount = 0
+    @State private var phoneGlitchSeed = 0
+    @State private var phoneNoiseLevel: Double = 0.82
     @State private var memoryProgress: Double = 0.18
     @State private var selectedBiasCard = 0
     @State private var chatStarted = false
@@ -1475,6 +1830,22 @@ struct DialogEventPanel: View {
     @State private var selectedPromptCategory: String = "Goal"
 
     var body: some View {
+        Group {
+            if eventPayload.type == .mobileChat && !showsEventChrome {
+                mobileChatPhoneCard
+            } else {
+                eventChromeBody
+            }
+        }
+        .onAppear {
+            onCompletionChanged(actionCompleted)
+        }
+        .onChange(of: actionCompleted) { isCompleted in
+            onCompletionChanged(isCompleted)
+        }
+    }
+
+    private var eventChromeBody: some View {
         VStack(alignment: .leading, spacing: layout.elementSpacing) {
             HStack(alignment: .top, spacing: layout.elementSpacing) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -1642,195 +2013,353 @@ struct DialogEventPanel: View {
     }
 
     private var mobileChatPreview: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Group {
-                if layout.isCompact {
-                    VStack(spacing: 10) {
-                        mobileChatPhoneCard
-                        mobileChatHelpCard
-                    }
-                } else {
-                    HStack(alignment: .top, spacing: 12) {
-                        mobileChatPhoneCard
-                            .frame(maxWidth: 290)
-                        mobileChatHelpCard
-                    }
-                }
-            }
-        }
+        mobileChatPhoneCard
     }
 
     private var mobileChatPhoneCard: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(red: 0.08, green: 0.09, blue: 0.12))
+        let currentPulse = min(phonePulseCount, 2)
+        let targetPhoneHeight: CGFloat = {
+            if layout.isCompact {
+                return min(max(layout.height * 0.54, 440), 620)
+            } else if layout.isRegular {
+                return min(max(layout.height * 0.62, 540), 740)
+            } else {
+                return min(max(layout.height * 0.74, 660), 860)
+            }
+        }()
+        let targetPhoneWidth: CGFloat = {
+            let ratioWidth = targetPhoneHeight * 0.56
+            let minWidth: CGFloat = layout.isCompact ? 290 : (layout.isRegular ? 340 : 400)
+            let maxWidth: CGFloat = layout.isCompact ? min(layout.width - 24, 360) : (layout.isRegular ? 440 : 560)
+            return min(max(ratioWidth, minWidth), maxWidth)
+        }()
+
+        return ZStack {
+            RoundedRectangle(cornerRadius: layout.isCompact ? 30 : 34, style: .continuous)
+                .fill(Color(red: 0.03, green: 0.03, blue: 0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1.2)
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 30 : 34, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1.2)
                 )
-                .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 8)
+                .shadow(color: Color.black.opacity(0.4), radius: 16, x: 0, y: 10)
 
             VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color.white.opacity(0.22))
-                    .frame(width: 60, height: 5)
-                    .padding(.top, 8)
-                    .padding(.bottom, 6)
+                HStack {
+                    Circle()
+                        .fill(Color.black.opacity(0.8))
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
 
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(chatObjectiveComplete ? Color.green : (chatStarted ? Color.yellow : Color.gray))
-                            .frame(width: 10, height: 10)
+                    Spacer()
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Ploy (Secure)")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                            Text(chatObjectiveComplete ? "Link stable" : (chatStarted ? "Handshake in progress" : "Offline"))
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white.opacity(0.7))
+                    Capsule()
+                        .fill(Color.black.opacity(0.7))
+                        .frame(width: layout.isCompact ? 84 : 110, height: 18)
+                        .overlay(
+                            Text("NEURA PHONE")
+                                .font(.system(size: 8, weight: .black, design: .rounded))
+                                .foregroundColor(.white.opacity(0.35))
+                                .tracking(1)
+                        )
+
+                    Spacer()
+
+                    Circle()
+                        .fill(Color.black.opacity(0.8))
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 20 : 24, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: chatObjectiveComplete
+                                    ? [Color(red: 0.06, green: 0.14, blue: 0.12), Color(red: 0.03, green: 0.09, blue: 0.08)]
+                                    : [Color(red: 0.09, green: 0.02, blue: 0.08), Color(red: 0.02, green: 0.03, blue: 0.07), Color(red: 0.06, green: 0.01, blue: 0.03)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: layout.isCompact ? 20 : 24, style: .continuous)
+                                .stroke(chatObjectiveComplete ? Color.green.opacity(0.35) : Color.pink.opacity(0.24), lineWidth: 1)
+                        )
+
+                    VStack(spacing: 6) {
+                        ForEach(0..<5, id: \.self) { index in
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(
+                                    (index + phoneGlitchSeed).isMultiple(of: 2)
+                                        ? Color.cyan.opacity(chatObjectiveComplete ? 0.05 : 0.12)
+                                        : Color.pink.opacity(chatObjectiveComplete ? 0.04 : 0.10)
+                                )
+                                .frame(width: phoneAccentLineWidth(index), height: 2)
+                                .offset(x: phoneAccentLineOffset(index))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, layout.isCompact ? 16 : 20)
+                    .allowsHitTesting(false)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text(chatStarted ? "SIGNAL // UNSTABLE" : "PHONE // OFFLINE")
+                                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .black, design: .rounded))
+                                .foregroundColor(.white.opacity(0.92))
+                                .tracking(1)
+
+                            Spacer()
+
+                            HStack(spacing: 6) {
+                                Text(chatObjectiveComplete ? "LOCKED" : "\(Int(phoneNoiseLevel * 100))% GLITCH")
+                                    .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .bold, design: .monospaced))
+                                    .foregroundColor(chatObjectiveComplete ? .green.opacity(0.9) : .pink.opacity(0.9))
+                                Image(systemName: chatObjectiveComplete ? "wifi" : "wifi.exclamationmark")
+                                    .font(.system(size: layout.captionFontSize))
+                                    .foregroundColor(chatObjectiveComplete ? .green : .orange)
+                            }
                         }
 
-                        Spacer()
+                        ZStack {
+                            Image(systemName: "iphone")
+                                .font(.system(size: layout.isCompact ? 42 : 52, weight: .thin))
+                                .foregroundColor(.white.opacity(0.22))
 
-                        Image(systemName: "shield.lefthalf.filled")
-                            .foregroundColor(.cyan)
-                        Image(systemName: "wifi")
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 0.12, green: 0.13, blue: 0.17))
+                            Image(systemName: "dot.radiowaves.left.and.right")
+                                .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
+                                .foregroundColor(chatObjectiveComplete ? .green.opacity(0.9) : .pink.opacity(0.9))
+                                .shadow(color: chatObjectiveComplete ? .green.opacity(0.35) : .pink.opacity(0.35), radius: 6)
 
-                    ScrollView {
+                            if !chatObjectiveComplete {
+                                Image(systemName: "dot.radiowaves.left.and.right")
+                                    .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
+                                    .foregroundColor(.cyan.opacity(0.45))
+                                    .offset(
+                                        x: CGFloat((phoneGlitchSeed % 3) - 1) * 4,
+                                        y: CGFloat((phoneGlitchSeed % 5) - 2) * 1.5
+                                    )
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 4)
+                        .padding(.bottom, 2)
+
+                        Text(
+                            chatObjectiveComplete
+                                ? "Signal stabilized. Event unlocked."
+                                : (!chatStarted
+                                    ? "Power on the phone, then stabilize the glitch signal."
+                                    : "Tap STABILIZE twice. You cannot continue until the phone link locks.")
+                        )
+                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.88))
+                        .fixedSize(horizontal: false, vertical: true)
+
                         VStack(alignment: .leading, spacing: 8) {
-                            ForEach(phoneMessages.indices, id: \.self) { index in
-                                let message = phoneMessages[index]
-                                let isUser = message.hasPrefix("You:")
+                            HStack(spacing: 8) {
+                                Text("STABILITY")
+                                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white.opacity(0.55))
+                                Spacer()
+                                Text("\(Int(phoneStability * 100))%")
+                                    .font(.system(size: layout.captionFontSize, weight: .bold, design: .monospaced))
+                                    .foregroundColor(chatObjectiveComplete ? .green : .cyan)
+                            }
 
-                                HStack {
-                                    if isUser { Spacer(minLength: 24) }
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.white.opacity(0.08))
+                                    .frame(height: 10)
+                                GeometryReader { geo in
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: chatObjectiveComplete
+                                                    ? [Color.green.opacity(0.95), Color.mint.opacity(0.8)]
+                                                    : [Color.pink.opacity(0.95), Color.cyan.opacity(0.85)],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(
+                                            width: max(8, geo.size.width * phoneStability),
+                                            height: 10
+                                        )
+                                }
+                            }
+                            .frame(height: 10)
 
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        if !isUser {
-                                            Text("Ploy")
-                                                .font(.system(size: 9, weight: .bold))
-                                                .foregroundColor(Color(red: 0.32, green: 0.44, blue: 0.72))
-                                        }
-                                        Text(message.replacingOccurrences(of: "You: ", with: ""))
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(isUser ? .white : Color.black.opacity(0.85))
-                                            .fixedSize(horizontal: false, vertical: true)
+                            HStack(spacing: 8) {
+                                ForEach(0..<2, id: \.self) { idx in
+                                    HStack(spacing: 5) {
+                                        Circle()
+                                            .fill(idx < currentPulse ? Color.green : Color.white.opacity(0.15))
+                                            .frame(width: 8, height: 8)
+                                        Text("Pulse \(idx + 1)")
+                                            .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .semibold))
+                                            .foregroundColor(.white.opacity(idx < currentPulse ? 0.95 : 0.55))
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                                }
+                            }
+                        }
+
+                        VStack(spacing: 8) {
+                            if !chatStarted {
+                                Button(action: startPhoneEvent) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "power")
+                                        Text("POWER ON PHONE")
+                                    }
+                                    .font(.system(size: layout.captionFontSize + 1, weight: .black, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
                                     .background(
-                                        isUser
-                                        ? Color(red: 0.93, green: 0.33, blue: 0.55)
-                                        : Color(red: 0.94, green: 0.95, blue: 0.98),
+                                        LinearGradient(
+                                            colors: [Color.pink.opacity(0.95), Color.orange.opacity(0.85)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        ),
                                         in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .stroke(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
-                                    )
-
-                                    if !isUser { Spacer(minLength: 24) }
                                 }
-                            }
-                        }
-                        .padding(10)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: layout.isCompact ? 150 : 175)
-                    .background(Color(red: 0.90, green: 0.92, blue: 0.96))
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Quick Reply Options")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white.opacity(0.85))
-                            .padding(.horizontal, 12)
-                            .padding(.top, 10)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(chatQuickReplies, id: \.self) { option in
-                                    Button {
-                                        sendChatReply(option)
-                                    } label: {
-                                        HStack(spacing: 6) {
-                                            if selectedChatOption == option {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .font(.system(size: 11, weight: .bold))
-                                            }
-                                            Text(option)
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .lineLimit(1)
-                                        }
-                                        .foregroundColor(selectedChatOption == option ? .white : .white.opacity(0.9))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 7)
-                                        .background(
-                                            selectedChatOption == option
-                                            ? Color.cyan.opacity(0.4)
-                                            : Color.white.opacity(0.09),
-                                            in: Capsule()
-                                        )
-                                        .overlay(
-                                            Capsule()
-                                                .stroke(
-                                                    selectedChatOption == option ? Color.cyan.opacity(0.75) : Color.white.opacity(0.12),
-                                                    lineWidth: 1
-                                                )
-                                        )
+                                .buttonStyle(.plain)
+                            } else {
+                                HStack(spacing: 8) {
+                                    Button(action: scramblePhoneScreen) {
+                                        Label("GLITCH", systemImage: "waveform.path.ecg")
+                                            .font(.system(size: layout.captionFontSize, weight: .bold))
+                                            .foregroundColor(.white.opacity(0.9))
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 9)
+                                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                            )
                                     }
                                     .buttonStyle(.plain)
+                                    .disabled(chatObjectiveComplete)
+                                    .opacity(chatObjectiveComplete ? 0.5 : 1.0)
+
+                                    Button(action: stabilizePhonePulse) {
+                                        Label(chatObjectiveComplete ? "LOCKED" : "STABILIZE", systemImage: "dot.radiowaves.left.and.right")
+                                            .font(.system(size: layout.captionFontSize, weight: .black))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 9)
+                                            .background(
+                                                chatObjectiveComplete ? Color.green.opacity(0.55) : Color.cyan.opacity(0.35),
+                                                in: RoundedRectangle(cornerRadius: 10)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(
+                                                        chatObjectiveComplete ? Color.green.opacity(0.45) : Color.cyan.opacity(0.5),
+                                                        lineWidth: 1
+                                                    )
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(chatObjectiveComplete)
+                                    .opacity(chatObjectiveComplete ? 0.88 : 1.0)
                                 }
                             }
-                            .padding(.horizontal, 12)
                         }
-
-                        HStack(spacing: 6) {
-                            TextField("Type a custom reply...", text: $phoneDraft)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 11))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(red: 0.12, green: 0.13, blue: 0.16))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                        )
-                                )
-
-                            Button(action: {
-                                selectedChatOption = nil
-                                sendPhoneMessage()
-                            }) {
-                                Image(systemName: "paperplane.fill")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 34, height: 34)
-                                    .background(Color(red: 0.93, green: 0.33, blue: 0.55), in: Circle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .opacity(phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1.0)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
                     }
-                    .background(Color(red: 0.10, green: 0.11, blue: 0.14))
+                    .padding(layout.isCompact ? 14 : 16)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .padding(8)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+                .onTapGesture {
+                    guard chatStarted && !chatObjectiveComplete else { return }
+                    didTrigger = true
+                    phoneGlitchSeed += 1
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        phoneStability = min(0.92, phoneStability + 0.03)
+                        phoneNoiseLevel = max(0.28, phoneNoiseLevel - 0.03)
+                    }
+                }
+
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: layout.isCompact ? 92 : 112, height: 4)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
             }
         }
+        .frame(width: targetPhoneWidth, height: targetPhoneHeight)
         .frame(maxWidth: .infinity)
+    }
+
+    private func phoneAccentLineWidth(_ index: Int) -> CGFloat {
+        let base = 74 + CGFloat(((index * 17) + (phoneGlitchSeed * 9)) % 72)
+        return base
+    }
+
+    private func phoneAccentLineOffset(_ index: Int) -> CGFloat {
+        let raw = ((index * 11) + (phoneGlitchSeed * 3) + (phonePulseCount * 5)) % 17
+        return CGFloat(raw - 8)
+    }
+
+    private func startPhoneEvent() {
+        didTrigger = true
+        guard !chatStarted else { return }
+
+        chatStarted = true
+        phoneGlitchSeed += 2
+        withAnimation(.easeInOut(duration: 0.2)) {
+            phoneStability = max(phoneStability, 0.18)
+            phoneNoiseLevel = min(0.95, max(0.62, phoneNoiseLevel))
+        }
+    }
+
+    private func stabilizePhonePulse() {
+        didTrigger = true
+        if !chatStarted {
+            startPhoneEvent()
+            return
+        }
+
+        guard !chatObjectiveComplete else { return }
+
+        phonePulseCount += 1
+        phoneGlitchSeed += 3
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            phoneStability = min(1.0, phoneStability + (phonePulseCount >= 2 ? 0.45 : 0.32))
+            phoneNoiseLevel = max(0.08, phoneNoiseLevel - 0.30)
+        }
+
+        if phonePulseCount >= 2 {
+            chatObjectiveComplete = true
+            phoneStability = 1.0
+            phoneNoiseLevel = 0.04
+        }
+    }
+
+    private func scramblePhoneScreen() {
+        didTrigger = true
+        if !chatStarted {
+            startPhoneEvent()
+            return
+        }
+
+        guard !chatObjectiveComplete else { return }
+
+        phoneGlitchSeed += 5
+        withAnimation(.easeInOut(duration: 0.15)) {
+            phoneNoiseLevel = min(0.98, phoneNoiseLevel + 0.08)
+            phoneStability = max(0.10, phoneStability - 0.04)
+        }
     }
 
     private var mobileChatHelpCard: some View {
@@ -2194,10 +2723,9 @@ struct DialogEventPanel: View {
         case .mobileChat:
             didTrigger = true
             if !chatStarted {
-                chatStarted = true
-                phoneMessages.append("Ploy: Handshake window is open. Send your first reply.")
+                startPhoneEvent()
             } else if !chatObjectiveComplete {
-                phoneMessages.append("System: Link unstable. Send another short reply to stabilize.")
+                stabilizePhonePulse()
             }
         case .promptWorkshop:
             didTrigger = true
@@ -2227,9 +2755,9 @@ struct DialogEventPanel: View {
     private var actionButtonLabel: String {
         switch eventPayload.type {
         case .mobileChat:
-            if chatObjectiveComplete { return "Handshake Complete" }
-            if !chatStarted { return eventPayload.ctaTitle }
-            return "Nudge Link"
+            if chatObjectiveComplete { return "Phone Signal Locked" }
+            if !chatStarted { return "Power On Phone" }
+            return "Stabilize Signal"
         case .promptWorkshop:
             return promptWorkshopPassed ? "Prompt Plan Ready" : eventPayload.ctaTitle
         case .hallucinationBias:
@@ -2258,13 +2786,12 @@ struct DialogEventPanel: View {
         switch eventPayload.type {
         case .mobileChat:
             if chatObjectiveComplete {
-                return "Handshake complete. Secure chat link is stable and ready for the next scene."
+                return "Phone signal stabilized. Event complete. Return to the story dialog panel to continue."
             }
             if chatStarted {
-                let replyCount = phoneMessages.filter { $0.hasPrefix("You:") }.count
-                return "Chat active. Send replies to stabilize the link (\(replyCount)/2 sent)."
+                return "Phone minigame active. Stabilize the glitch signal (\(min(phonePulseCount, 2))/2 pulses locked)."
             }
-            return "Tap the action button to open the secure chat session."
+            return "Open the phone first, then stabilize the glitch signal. Story progression stays locked until completion."
         case .promptWorkshop:
             if promptWorkshopPassed {
                 return "Prompt plan is complete. You included goal, context, format, and an ethical rule."
@@ -2295,7 +2822,7 @@ struct DialogEventPanel: View {
     private var statusIcon: String {
         switch eventPayload.type {
         case .mobileChat:
-            return chatObjectiveComplete ? "checkmark.shield.fill" : "message.fill"
+            return chatObjectiveComplete ? "checkmark.shield.fill" : "iphone.gen3.radiowaves.left.and.right"
         case .promptWorkshop:
             return promptWorkshopPassed ? "checkmark.seal.fill" : "text.badge.plus"
         case .hallucinationBias:
@@ -2558,6 +3085,24 @@ struct DialogEventPanel: View {
         default:
             return biasResolved ? "Dataset rebalance queued" : "Temple-heavy labels"
         }
+    }
+}
+
+private extension View {
+    func dialogMacOSMinWindowFrame() -> some View {
+        #if os(macOS)
+        return self.frame(minWidth: 600, minHeight: 400)
+        #else
+        return self
+        #endif
+    }
+
+    func dialogHoverIfAvailable(perform action: @escaping (Bool) -> Void) -> some View {
+        #if os(macOS)
+        return self.onHover(perform: action)
+        #else
+        return self
+        #endif
     }
 }
 

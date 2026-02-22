@@ -53,6 +53,7 @@ final class LoadingViewModel: ObservableObject {
     @Published var currentImageIndex: Int = 0
     @Published var imageOpacity: Double = 0.0
     @Published var panOffset: CGFloat = 0.0
+    @Published var imageScale: CGFloat = 1.08
     
     // Loading bar
     @Published var loadingProgress: CGFloat = 0.0
@@ -106,6 +107,7 @@ final class LoadingViewModel: ObservableObject {
         currentImageIndex = 0
         imageOpacity = 0.0
         panOffset = 0.0
+        imageScale = 1.08
         panLeftToRight = true
         
         loadingProgress = 0.0
@@ -150,7 +152,8 @@ final class LoadingViewModel: ObservableObject {
     private func startLoading() {
         phase = .loading
         panOffset = panLeftToRight ? -90 : 90
-        withAnimation(.easeIn(duration: 0.6)) { imageOpacity = 1.0 }
+        imageScale = 1.06
+        withAnimation(.easeOut(duration: 0.75)) { imageOpacity = 1.0 }
         
         startSlideshowLoop()
         startLoadingBar(duration: 5.0)
@@ -167,11 +170,17 @@ final class LoadingViewModel: ObservableObject {
                 
                 let start: CGFloat = panLeftToRight ? -90 : 90
                 let end: CGFloat = panLeftToRight ? 90 : -90
+                let startScale = CGFloat.random(in: 1.05...1.10)
+                let endScale = CGFloat.random(in: 1.13...1.18)
                 
                 panOffset = start
+                imageScale = startScale
                 
                 guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut(duration: stayDuration)) { panOffset = end }
+                withAnimation(.easeInOut(duration: stayDuration)) {
+                    panOffset = end
+                    imageScale = endScale
+                }
                 
                 await sleepSeconds(stayDuration)
                 if Task.isCancelled { return }
@@ -185,6 +194,7 @@ final class LoadingViewModel: ObservableObject {
                 panLeftToRight.toggle()
                 
                 panOffset = panLeftToRight ? -90 : 90
+                imageScale = CGFloat.random(in: 1.05...1.09)
                 withAnimation(.easeInOut(duration: 0.5)) { imageOpacity = 1.0 }
             }
         }
@@ -374,7 +384,11 @@ struct LoadingView: View {
             Stage16x9 { stage, layout in
                 // Responsive positioning based on stage size
                 let topHUDDown = max(layout.scaled(30), stage.height * 0.08)
-                let loadingBarUp = max(layout.scaled(20), stage.height * 0.05)
+                let loadingBarBase = max(layout.scaled(56), stage.height * 0.14)
+                let loadingBarUp = max(loadingBarBase, layout.safeAreaInsets.bottom + layout.scaled(24))
+                let loadingBarMaxWidth = layout.isCompact
+                    ? max(0, stage.width - (layout.padding * 2))
+                    : min(max(layout.scaled(420), stage.width * 0.48), stage.width - (layout.padding * 2))
                 let mainRaise = max(layout.scaled(80), stage.height * 0.22)
                 
                 // Responsive HUD sizing
@@ -417,6 +431,7 @@ struct LoadingView: View {
                         VStack {
                             Spacer()
                             loadingBar(layout: layout)
+                                .frame(maxWidth: loadingBarMaxWidth)
                                 .padding(.horizontal, layout.padding)
                                 .padding(.bottom, loadingBarUp)
                                 .offset(y: vm.loadingBarOffset)
@@ -524,12 +539,51 @@ struct LoadingView: View {
                 Image(vm.backgroundImages[vm.currentImageIndex])
                     .resizable()
                     .scaledToFill()
-                    .scaleEffect(1.15)
+                    .scaleEffect(vm.imageScale)
                     .offset(x: vm.panOffset)
                     .opacity(vm.imageOpacity)
                 
-                Color.black.opacity(0.35)
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(vm.phase == .loading ? 0.18 : 0.26),
+                        Color.black.opacity(0.10),
+                        Color.black.opacity(vm.phase == .loading ? 0.52 : 0.38)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                if vm.phase == .loading {
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.70), Color.clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 76)
+                        
+                        Spacer()
+                        
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.78)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 120)
+                    }
+                    .allowsHitTesting(false)
+                }
             }
+        }
+    }
+
+    private var loadingStatusText: String {
+        switch vm.loadingProgress {
+        case ..<0.20: return "Preparing engine"
+        case ..<0.45: return "Loading assets"
+        case ..<0.75: return "Streaming scene"
+        case ..<0.98: return "Finalizing"
+        default: return "Ready"
         }
     }
     
@@ -604,48 +658,153 @@ struct LoadingView: View {
     }
     
     private func loadingBar(layout: ResponsiveLayout) -> some View {
-        VStack(spacing: layout.elementSpacing) {
-            HStack {
-                Text("LOADING")
-                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.95))
-                
-                Spacer()
-                
-                Text("\(Int(vm.loadingProgress * 100))%")
-                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.95))
-            }
-            
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.14))
-                        .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
-                    
-                    Capsule()
-                        .fill(Color.white.opacity(0.92))
-                        .frame(width: max(8, geo.size.width * vm.loadingProgress))
-                        .shadow(radius: layout.scaled(4))
-                }
-            }
-            .frame(height: layout.scaled(10))
-            
-            Text("booting… 010101")
-                .font(.system(size: layout.captionFontSize, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.72))
+        let normalizedProgress = min(max(vm.loadingProgress, 0), 1)
+        let currentPercent = Int(normalizedProgress * 100)
+        let slideCount = max(1, vm.backgroundImages.count)
+        let slideIndex = min(vm.currentImageIndex + 1, slideCount)
+        
+        return VStack(alignment: .leading, spacing: layout.scaled(8)) {
+            loadingHeader(
+                layout: layout,
+                currentPercent: currentPercent,
+                slideIndex: slideIndex,
+                slideCount: slideCount
+            )
+            loadingProgressTrack(layout: layout, progress: normalizedProgress)
+            loadingFooter(layout: layout)
         }
-        .padding(.horizontal, layout.padding)
-        .padding(.vertical, layout.scaled(12))
+        .padding(.horizontal, layout.scaled(12))
+        .padding(.vertical, layout.scaled(10))
         .background(
-            RoundedRectangle(cornerRadius: layout.cornerRadius)
-                .fill(Color.black.opacity(0.40))
+            RoundedRectangle(cornerRadius: max(layout.scaled(12), 12), style: .continuous)
+                .fill(Color.black.opacity(0.64))
                 .overlay(
-                    RoundedRectangle(cornerRadius: layout.cornerRadius)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: max(layout.scaled(12), 12), style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
                 )
         )
-        .shadow(radius: layout.scaled(10))
+        .overlay(
+            RoundedRectangle(cornerRadius: max(layout.scaled(12), 12), style: .continuous)
+                .stroke(
+                    Color.white.opacity(0.04),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: Color.black.opacity(0.34), radius: layout.scaled(10), y: layout.scaled(6))
+    }
+
+    private func loadingHeader(
+        layout: ResponsiveLayout,
+        currentPercent: Int,
+        slideIndex: Int,
+        slideCount: Int
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: layout.scaled(10)) {
+            VStack(alignment: .leading, spacing: layout.scaled(1)) {
+                Text("Loading")
+                    .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.96))
+
+                Text("Showcase \(slideIndex) / \(slideCount)")
+                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                    .foregroundColor(.white.opacity(0.52))
+            }
+
+            Spacer(minLength: layout.scaled(8))
+
+            Text("\(currentPercent)%")
+                .font(.system(size: layout.bodyFontSize + 3, weight: .bold))
+                .monospacedDigit()
+                .foregroundColor(.white.opacity(0.95))
+        }
+    }
+
+    private func loadingFooter(layout: ResponsiveLayout) -> some View {
+        HStack(spacing: layout.scaled(8)) {
+            loadingStatusTicker(layout: layout)
+            
+            Spacer(minLength: layout.scaled(8))
+            
+            Text("NEURA")
+                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .semibold))
+                .foregroundColor(.white.opacity(0.34))
+        }
+    }
+
+    private func loadingStatusTicker(layout: ResponsiveLayout) -> some View {
+        TimelineView(.animation(minimumInterval: 0.25)) { timeline in
+            let step = Int(timeline.date.timeIntervalSinceReferenceDate * 2)
+            let dots = String(repeating: ".", count: step % 4)
+            Text("\(loadingStatusText)\(dots)")
+                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                .foregroundColor(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+    }
+
+    private func loadingProgressTrack(layout: ResponsiveLayout, progress: CGFloat) -> some View {
+        GeometryReader { geo in
+            let barWidth = max(0, geo.size.width * progress)
+            let barCorner = max(layout.scaled(3), 3)
+            
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: barCorner, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: barCorner, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                
+                if barWidth > 0 {
+                    RoundedRectangle(cornerRadius: barCorner, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.92),
+                                    Color(red: 0.76, green: 0.90, blue: 0.97),
+                                    Color(red: 0.63, green: 0.85, blue: 0.94)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(layout.scaled(6), barWidth))
+                        .shadow(color: Color.cyan.opacity(0.12), radius: layout.scaled(4))
+                        .overlay(alignment: .topLeading) {
+                            RoundedRectangle(cornerRadius: barCorner, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.18), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                        .overlay(alignment: .trailing) {
+                            RoundedRectangle(cornerRadius: layout.scaled(2), style: .continuous)
+                                .fill(Color.white.opacity(0.70))
+                                .frame(width: 1.5, height: layout.scaled(8))
+                                .padding(.trailing, layout.scaled(2))
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: barCorner, style: .continuous))
+                }
+
+                HStack(spacing: 0) {
+                    ForEach(0..<12, id: \.self) { index in
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                        if index < 11 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.035))
+                                .frame(width: 1)
+                        }
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        .frame(height: max(layout.scaled(8), 8))
     }
     
     private func mainContent(mainRaise: CGFloat, layout: ResponsiveLayout) -> some View {
