@@ -119,7 +119,7 @@ enum CharacterAnimation {
 // MARK: - Feature Testing Menu
 struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var showDialogTest = false
+    @State private var showStoryChapters = false
     @State private var showAIHallucination = false
     @State private var showImageTraining = false
     
@@ -145,14 +145,14 @@ struct FeatureTestingView: View {
                             // Feature cards
                             VStack(spacing: layout.elementSpacing) {
                                 FeatureCard(
-                                    title: "Visual Novel Dialog",
-                                    subtitle: "Interactive dialog with Ploy featuring voice, choices, and touch interactions",
+                                    title: "Story Chapters (Dialog System)",
+                                    subtitle: "3 chapter data-driven story with cutscene metadata, character emotions, image showcase, and event hooks",
                                     icon: "bubble.left.and.bubble.right.fill",
                                     color: .pink,
                                     layout: layout,
-                                    isNew: false
+                                    isNew: true
                                 ) {
-                                    showDialogTest = true
+                                    showStoryChapters = true
                                 }
                                 
                                 FeatureCard(
@@ -219,8 +219,8 @@ struct FeatureTestingView: View {
                     }
                 }
             }
-            .navigationDestination(isPresented: $showDialogTest) {
-                ResponsiveDialogView(nodes: sampleDialogNodes)
+            .navigationDestination(isPresented: $showStoryChapters) {
+                StoryChapterHubView()
             }
             .navigationDestination(isPresented: $showAIHallucination) {
                 AIHallucinationView()

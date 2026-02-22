@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "char_gentle.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

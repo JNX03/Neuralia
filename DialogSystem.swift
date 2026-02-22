@@ -13,6 +13,10 @@ struct DialogNode: Identifiable, Sendable {
     let inputPlaceholder: String?
     let backgroundImage: String?
     let characterImage: String?
+    let cutsceneTitle: String?
+    let cutsceneSubtitle: String?
+    let showcaseMedia: DialogShowcaseMedia?
+    let eventPayload: DialogEventPayload?
     
     init(
         speaker: String,
@@ -23,6 +27,10 @@ struct DialogNode: Identifiable, Sendable {
         inputPlaceholder: String? = nil,
         backgroundImage: String? = nil,
         characterImage: String? = nil,
+        cutsceneTitle: String? = nil,
+        cutsceneSubtitle: String? = nil,
+        showcaseMedia: DialogShowcaseMedia? = nil,
+        eventPayload: DialogEventPayload? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.id = UUID()
@@ -34,6 +42,10 @@ struct DialogNode: Identifiable, Sendable {
         self.inputPlaceholder = inputPlaceholder
         self.backgroundImage = backgroundImage
         self.characterImage = characterImage
+        self.cutsceneTitle = cutsceneTitle
+        self.cutsceneSubtitle = cutsceneSubtitle
+        self.showcaseMedia = showcaseMedia
+        self.eventPayload = eventPayload
     }
 }
 
@@ -681,7 +693,9 @@ struct ResponsiveDialogView: View {
     }
     
     private func characterImage(layout: DialogAdaptiveLayout) -> some View {
-        let imageName = viewModel.currentNode?.characterImage ?? "char"
+        let imageName =
+            viewModel.currentNode?.characterImage ??
+            "char_\(viewModel.currentNode?.emotion.rawValue ?? Emotion.neutral.rawValue)"
         
         return Image(imageName)
             .resizable()
@@ -752,6 +766,25 @@ struct ResponsiveDialogView: View {
             if layout.isLarge || layout.isExtraLarge {
                 progressIndicator(layout: layout)
             }
+
+            if let node = viewModel.currentNode,
+               (node.cutsceneTitle != nil || node.cutsceneSubtitle != nil) {
+                DialogCutsceneBanner(
+                    title: node.cutsceneTitle ?? "Scene",
+                    subtitle: node.cutsceneSubtitle,
+                    layout: layout
+                )
+            }
+
+            if let showcase = viewModel.currentNode?.showcaseMedia {
+                DialogShowcaseCard(showcase: showcase, layout: layout)
+                    .id(showcase.imageName + (showcase.badge ?? ""))
+            }
+
+            if let eventPayload = viewModel.currentNode?.eventPayload {
+                DialogEventPanel(eventPayload: eventPayload, layout: layout)
+                    .id(eventPayload.id)
+            }
             
             // Main dialog box
             dialogBox(layout: layout)
@@ -818,6 +851,13 @@ struct ResponsiveDialogView: View {
                     .buttonStyle(.plain)
                     .padding(.leading, 8)
                 }
+            }
+
+            if let sceneSubtitle = viewModel.currentNode?.cutsceneSubtitle {
+                Text(sceneSubtitle.uppercased())
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+                    .tracking(1.0)
             }
             
             // Dialog text
@@ -1210,6 +1250,470 @@ struct TypingIndicator: View {
             }
         }
         .onAppear { offset = -4 }
+    }
+}
+
+struct DialogCutsceneBanner: View {
+    let title: String
+    let subtitle: String?
+    let layout: DialogAdaptiveLayout
+
+    var body: some View {
+        HStack(alignment: .center, spacing: layout.elementSpacing) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title.uppercased())
+                    .font(.system(size: layout.captionFontSize + 1, weight: .heavy))
+                    .foregroundColor(.white)
+                    .tracking(1.2)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.65))
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            Image(systemName: "film.stack.fill")
+                .font(.system(size: layout.captionFontSize + 8))
+                .foregroundColor(.pink.opacity(0.85))
+        }
+        .padding(layout.isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 16)
+                .fill(Color.black.opacity(0.22))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 16)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct DialogShowcaseCard: View {
+    let showcase: DialogShowcaseMedia
+    let layout: DialogAdaptiveLayout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+            ZStack(alignment: .topLeading) {
+                Image(showcase.imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: layout.isCompact ? 140 : 180)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .overlay(
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color.black.opacity(0.2),
+                                Color.black.opacity(0.65)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                if let badge = showcase.badge {
+                    Text(badge)
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.black.opacity(0.55), in: Capsule())
+                        .padding(10)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(showcase.title)
+                    .font(.system(size: layout.bodyFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                Text(showcase.subtitle)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.72))
+                    .lineLimit(2)
+            }
+        }
+        .padding(layout.isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18)
+                .fill(Color.white.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct DialogEventPanel: View {
+    let eventPayload: DialogEventPayload
+    let layout: DialogAdaptiveLayout
+
+    @State private var didTrigger = false
+    @State private var phoneMessages: [String] = [
+        "Unknown: ...you there?",
+        "Ploy: Link is noisy. Say something simple."
+    ]
+    @State private var phoneDraft = ""
+    @State private var memoryProgress: Double = 0.18
+    @State private var selectedBiasCard = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+            HStack(alignment: .top, spacing: layout.elementSpacing) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(eventPayload.title)
+                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(eventPayload.subtitle)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.72))
+                }
+                Spacer()
+                Text(eventPayload.type.rawValue.uppercased())
+                    .font(.system(size: layout.captionFontSize - 1, weight: .black))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+            }
+
+            eventContent
+
+            if !eventPayload.metrics.isEmpty {
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: layout.choiceSpacing
+                ) {
+                    ForEach(eventPayload.metrics) { metric in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(metric.label.uppercased())
+                                .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .bold))
+                                .foregroundColor(.white.opacity(0.45))
+                            Text(metric.value)
+                                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                .foregroundColor(metric.accentHex.map { Color(hex: $0) } ?? .white)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                }
+            }
+
+            if !eventPayload.tags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(eventPayload.tags, id: \.self) { tag in
+                            Text("#\(tag)")
+                                .font(.system(size: layout.captionFontSize, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.82))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.06), in: Capsule())
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button(action: triggerEventHook) {
+                    HStack(spacing: 8) {
+                        Image(systemName: didTrigger ? "checkmark.circle.fill" : "play.circle.fill")
+                        Text(didTrigger ? "Hook Triggered" : eventPayload.ctaTitle)
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(
+                        LinearGradient(
+                            colors: didTrigger
+                                ? [Color.green.opacity(0.9), Color.mint.opacity(0.85)]
+                                : [Color.pink.opacity(0.95), Color.orange.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Text(eventPayload.hookName)
+                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.68))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+        .padding(layout.isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private var eventContent: some View {
+        switch eventPayload.type {
+        case .mobileChat:
+            mobileChatPreview
+        case .hallucinationBias:
+            hallucinationBiasPreview
+        case .memoryTraining:
+            memoryTrainingPreview
+        }
+    }
+
+    private var mobileChatPreview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(Color.black.opacity(0.42))
+                    .overlay(
+                        VStack(spacing: 8) {
+                            HStack {
+                                Circle().fill(Color.green).frame(width: 8, height: 8)
+                                Text("Secure Chat")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Image(systemName: "wifi")
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.top, 10)
+
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(phoneMessages.indices, id: \.self) { index in
+                                        let message = phoneMessages[index]
+                                        HStack {
+                                            if index.isMultiple(of: 2) { Spacer() }
+                                            Text(message)
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    (index.isMultiple(of: 2) ? Color.pink : Color.white.opacity(0.08)),
+                                                    in: RoundedRectangle(cornerRadius: 10)
+                                                )
+                                            if !index.isMultiple(of: 2) { Spacer() }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.bottom, 6)
+                            }
+
+                            HStack(spacing: 6) {
+                                TextField("Type...", text: $phoneDraft)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 8)
+                                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+
+                                Button {
+                                    guard !phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                                    phoneMessages.append("You: \(phoneDraft)")
+                                    phoneDraft = ""
+                                } label: {
+                                    Image(systemName: "paperplane.fill")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.pink, in: Circle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.bottom, 10)
+                        }
+                    )
+                    .frame(height: layout.isCompact ? 180 : 220)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Phone Layout (Temp)")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Use this as the first contact mini game placeholder. Replace the hook with your real chat scene or networking flow.")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.7))
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Touch-ready", systemImage: "hand.tap.fill")
+                        Label("Landscape-friendly", systemImage: "rectangle.split.2x1.fill")
+                        Label("Input + send action", systemImage: "text.bubble.fill")
+                    }
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.82))
+                }
+            }
+        }
+    }
+
+    private var hallucinationBiasPreview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let imageName = eventPayload.imageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: layout.isCompact ? 120 : 150)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            HStack(spacing: 10) {
+                ForEach(Array(["Prediction", "Ground Truth", "Bias Source"].enumerated()), id: \.offset) { index, title in
+                    let selected = selectedBiasCard == index
+                    Button {
+                        selectedBiasCard = index
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(title)
+                                .font(.system(size: layout.captionFontSize, weight: .bold))
+                                .foregroundColor(.white)
+                            Text(biasCardValue(index))
+                                .font(.system(size: layout.captionFontSize))
+                                .foregroundColor(.white.opacity(0.74))
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.white.opacity(selected ? 0.12 : 0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(selected ? Color.purple.opacity(0.7) : Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(0.05))
+                    .frame(height: 10)
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.yellow, Color.orange, Color.red],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: (layout.dialogMaxWidth - 32) * 0.72, height: 10)
+            }
+            Text("Bias pressure: 72% (prototype visualization)")
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.68))
+        }
+    }
+
+    private var memoryTrainingPreview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Replay Queue")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                    ForEach(0..<4, id: \.self) { row in
+                        HStack {
+                            Circle()
+                                .fill(row < 2 ? Color.cyan : Color.white.opacity(0.3))
+                                .frame(width: 6, height: 6)
+                            Text("Memory sample #\(row + 1)")
+                                .font(.system(size: layout.captionFontSize))
+                                .foregroundColor(.white.opacity(0.75))
+                            Spacer()
+                            Text(row < 2 ? "ready" : "queued")
+                                .font(.system(size: layout.captionFontSize - 1, weight: .bold))
+                                .foregroundColor(row < 2 ? .mint : .white.opacity(0.45))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Trainer")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Progress")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.65))
+                    ProgressView(value: memoryProgress)
+                        .tint(.cyan)
+                    Text("\(Int(memoryProgress * 100))%")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.cyan)
+                    Button("Simulate Step") {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            memoryProgress = min(1.0, memoryProgress + 0.12)
+                        }
+                    }
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.cyan.opacity(0.22), in: Capsule())
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+    }
+
+    private func triggerEventHook() {
+        if eventPayload.type == .memoryTraining {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                memoryProgress = min(1.0, memoryProgress + 0.2)
+            }
+        }
+        didTrigger = true
+    }
+
+    private func biasCardValue(_ index: Int) -> String {
+        switch index {
+        case 0: return "Ancient Temple (92%)"
+        case 1: return "University Gate"
+        default: return "Temple-heavy labels"
+        }
     }
 }
 

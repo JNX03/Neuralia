@@ -79,6 +79,22 @@ enum MenuDestination: Hashable {
     case settings
     case about
     case chapterSelect
+    case playChapterOne
+    case selectMenu
+}
+
+extension MenuDestination: Identifiable {
+    var id: String {
+        switch self {
+        case .featureTesting: return "featureTesting"
+        case .gallery: return "gallery"
+        case .settings: return "settings"
+        case .about: return "about"
+        case .chapterSelect: return "chapterSelect"
+        case .playChapterOne: return "playChapterOne"
+        case .selectMenu: return "selectMenu"
+        }
+    }
 }
 
 struct MainMenuView: View {
@@ -116,10 +132,7 @@ struct MainMenuView: View {
             .onDisappear {
                 viewModel.stop()
             }
-            .fullScreenCover(isPresented: Binding(
-                get: { destination != nil },
-                set: { if !$0 { destination = nil } }
-            )) {
+            .fullScreenCover(item: $destination) { destination in
                 switch destination {
                 case .featureTesting:
                     FeatureTestingView()
@@ -130,9 +143,20 @@ struct MainMenuView: View {
                 case .about:
                     AboutView()
                 case .chapterSelect:
+                    NavigationStack {
+                        StoryChapterHubView()
+                    }
+                case .playChapterOne:
+                    NavigationStack {
+                        if let firstChapter = StoryChapterRepository.all.first {
+                            ResponsiveDialogView(nodes: firstChapter.nodes)
+                                .navigationBarBackButtonHidden(true)
+                        } else {
+                            StoryChapterHubView()
+                        }
+                    }
+                case .selectMenu:
                     ChapterSelectView()
-                case .none:
-                    EmptyView()
                 }
             }
         }
@@ -259,7 +283,9 @@ struct MainMenuView: View {
                 title: "Play",
                 icon: "play.fill",
                 layout: layout,
-                action: {}
+                action: {
+                    destination = .playChapterOne
+                }
             )
             
             LargeMenuButton(
@@ -1037,6 +1063,7 @@ struct ChapterDetailView: View {
     let chapter: Chapter
     @Environment(\.dismiss) private var dismiss
     @State private var showContent = false
+    @State private var selectedStoryChapter: StoryChapter?
     
     var body: some View {
         ZStack {
@@ -1122,7 +1149,7 @@ struct ChapterDetailView: View {
                 // Action buttons
                 VStack(spacing: 16) {
                     Button(action: {
-                        // Start chapter
+                        selectedStoryChapter = mappedStoryChapter
                     }) {
                         HStack(spacing: 12) {
                             Image(systemName: "play.fill")
@@ -1143,6 +1170,8 @@ struct ChapterDetailView: View {
                         .shadow(color: Color.red.opacity(0.4), radius: 10, x: 0, y: 5)
                     }
                     .buttonStyle(.plain)
+                    .disabled(mappedStoryChapter == nil)
+                    .opacity(mappedStoryChapter == nil ? 0.5 : 1.0)
                     
                     Button(action: { dismiss() }) {
                         Text("CLOSE")
@@ -1162,6 +1191,17 @@ struct ChapterDetailView: View {
                 showContent = true
             }
         }
+        .fullScreenCover(item: $selectedStoryChapter) { storyChapter in
+            NavigationStack {
+                ResponsiveDialogView(nodes: storyChapter.nodes)
+                    .navigationBarBackButtonHidden(true)
+            }
+        }
+    }
+
+    private var mappedStoryChapter: StoryChapter? {
+        let index = chapter.number - 1
+        guard StoryChapterRepository.all.indices.contains(index) else { return nil }
+        return StoryChapterRepository.all[index]
     }
 }
-
