@@ -441,15 +441,15 @@ struct DialogAdaptiveLayout {
     var topBarTopInset: CGFloat {
         switch true {
         case isCompact:
-            return isLandscape ? 22 : 26
+            return isLandscape ? 62 : 72
         case isRegular:
-            return 24
+            return 68
         case isLarge:
-            return 26
+            return 78
         case isExtraLarge:
-            return 28
+            return 86
         default:
-            return 24
+            return 68
         }
     }
 }
@@ -492,6 +492,7 @@ struct ResponsiveDialogView: View {
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var completedEventPayloadIDs: Set<UUID> = []
     @State private var sceneContentOpacity: Double = 1.0
+    @State private var lastSceneVisualKey: String = ""
     
     init(
         nodes: [DialogNode],
@@ -528,6 +529,12 @@ struct ResponsiveDialogView: View {
         } else {
             completedEventPayloadIDs.remove(payload.id)
         }
+    }
+
+    private var sceneVisualKey: String {
+        let background = viewModel.currentNode?.backgroundImage ?? "none"
+        let mode = currentEventPayload?.type.rawValue ?? "dialog"
+        return "\(background)|\(mode)"
     }
     
     var body: some View {
@@ -569,6 +576,7 @@ struct ResponsiveDialogView: View {
         .onAppear {
             completedEventPayloadIDs.removeAll()
             viewModel.loadNodes(nodes)
+            lastSceneVisualKey = sceneVisualKey
         }
         .onChange(of: viewModel.isCompleted) { completed in
             if completed {
@@ -576,6 +584,9 @@ struct ResponsiveDialogView: View {
             }
         }
         .onChange(of: viewModel.currentNodeIndex) { _ in
+            let newSceneKey = sceneVisualKey
+            defer { lastSceneVisualKey = newSceneKey }
+            guard newSceneKey != lastSceneVisualKey else { return }
             sceneContentOpacity = 0.18
             withAnimation(.easeOut(duration: 0.28)) {
                 sceneContentOpacity = 1.0
@@ -815,15 +826,31 @@ struct ResponsiveDialogView: View {
                         .padding(.top, layout.safeAreaInsets.top + layout.topBarTopInset)
 
                     HStack(alignment: .top, spacing: layout.sectionSpacing) {
-                        VStack(spacing: layout.sectionSpacing) {
-                            characterSection(layout: layout, forcedPlacement: .left)
-                                .frame(height: min(layout.height * 0.34, 300))
+                        ZStack {
+                            VStack {
+                                Spacer(minLength: 8)
 
-                            eventSceneDialogPanel(layout: layout)
+                                characterSection(layout: layout, forcedPlacement: .center)
+                                    .frame(
+                                        maxWidth: .infinity,
+                                        maxHeight: min(layout.height * 0.52, layout.characterMaxHeight + 90)
+                                    )
+                                    .padding(.horizontal, max(4, layout.dialogPadding * 0.35))
 
-                            Spacer(minLength: 0)
+                                Spacer(minLength: 0)
+                            }
+
+                            VStack {
+                                Spacer(minLength: 0)
+
+                                eventSceneDialogPanel(layout: layout)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.horizontal, max(2, layout.dialogPadding * 0.2))
+                                    .padding(.bottom, max(14, layout.dialogLiftFromBottom - 36))
+                            }
                         }
-                        .frame(width: max(240, geometry.size.width * 0.28))
+                        .frame(width: max(420, geometry.size.width * 0.42))
+                        .frame(maxHeight: .infinity, alignment: .center)
 
                         DialogEventPanel(
                             eventPayload: eventPayload,
@@ -834,7 +861,7 @@ struct ResponsiveDialogView: View {
                             }
                         )
                         .id(eventPayload.id)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     }
                     .padding(.horizontal, layout.dialogPadding)
                     .padding(.bottom, layout.safeAreaInsets.bottom + 20)
@@ -1805,14 +1832,16 @@ struct DialogEventPanel: View {
 
     @State private var didTrigger = false
     @State private var phoneMessages: [String] = [
-        "Unknown: ...you there?",
-        "Ploy: Link is noisy. Say something simple."
+        "UNKNOWN: Hi. Is this your number?"
     ]
     @State private var phoneDraft = ""
     @State private var phoneStability: Double = 0.08
     @State private var phonePulseCount = 0
     @State private var phoneGlitchSeed = 0
     @State private var phoneNoiseLevel: Double = 0.82
+    @State private var phoneLessonStep = 0
+    @State private var phoneNoReplyCount = 0
+    @State private var phoneLessonHint = "Ask who they are and why they are contacting you before sharing anything."
     @State private var memoryProgress: Double = 0.18
     @State private var selectedBiasCard = 0
     @State private var chatStarted = false
@@ -1826,7 +1855,7 @@ struct DialogEventPanel: View {
     @State private var promptDraftTokens: [String] = []
     @State private var promptAIName = ""
     @State private var promptWorkshopPassed = false
-    @State private var promptFeedback = "Build a prompt with goal, context, output format, and an ethical rule."
+    @State private var promptFeedback = "Pick one option for each step, then press Check Prompt Plan."
     @State private var selectedPromptCategory: String = "Goal"
 
     var body: some View {
@@ -1838,6 +1867,9 @@ struct DialogEventPanel: View {
             }
         }
         .onAppear {
+            if eventPayload.type == .mobileChat && !chatStarted {
+                startPhoneEvent()
+            }
             onCompletionChanged(actionCompleted)
         }
         .onChange(of: actionCompleted) { isCompleted in
@@ -2018,19 +2050,27 @@ struct DialogEventPanel: View {
 
     private var mobileChatPhoneCard: some View {
         let currentPulse = min(phonePulseCount, 2)
+        let phoneContainerAlignment: Alignment =
+            (!layout.isCompact && eventPayload.type == .mobileChat && !showsEventChrome)
+            ? .center
+            : .center
+        let phoneHorizontalOffset: CGFloat =
+            (!layout.isCompact && eventPayload.type == .mobileChat && !showsEventChrome)
+            ? (layout.isLarge || layout.isExtraLarge ? -28 : -16)
+            : 0
         let targetPhoneHeight: CGFloat = {
             if layout.isCompact {
-                return min(max(layout.height * 0.54, 440), 620)
+                return min(max(layout.height * 0.58, 470), 680)
             } else if layout.isRegular {
-                return min(max(layout.height * 0.62, 540), 740)
+                return min(max(layout.height * 0.70, 610), 820)
             } else {
-                return min(max(layout.height * 0.74, 660), 860)
+                return min(max(layout.height * 0.80, 760), 980)
             }
         }()
         let targetPhoneWidth: CGFloat = {
             let ratioWidth = targetPhoneHeight * 0.56
-            let minWidth: CGFloat = layout.isCompact ? 290 : (layout.isRegular ? 340 : 400)
-            let maxWidth: CGFloat = layout.isCompact ? min(layout.width - 24, 360) : (layout.isRegular ? 440 : 560)
+            let minWidth: CGFloat = layout.isCompact ? 300 : (layout.isRegular ? 360 : 430)
+            let maxWidth: CGFloat = layout.isCompact ? min(layout.width - 24, 390) : (layout.isRegular ? 500 : 620)
             return min(max(ratioWidth, minWidth), maxWidth)
         }()
 
@@ -2078,15 +2118,15 @@ struct DialogEventPanel: View {
                         .fill(
                             LinearGradient(
                                 colors: chatObjectiveComplete
-                                    ? [Color(red: 0.06, green: 0.14, blue: 0.12), Color(red: 0.03, green: 0.09, blue: 0.08)]
-                                    : [Color(red: 0.09, green: 0.02, blue: 0.08), Color(red: 0.02, green: 0.03, blue: 0.07), Color(red: 0.06, green: 0.01, blue: 0.03)],
+                                    ? [Color(red: 0.92, green: 0.95, blue: 0.99), Color(red: 0.88, green: 0.92, blue: 0.98)]
+                                    : [Color(red: 0.95, green: 0.96, blue: 0.99), Color(red: 0.90, green: 0.93, blue: 0.98), Color(red: 0.88, green: 0.91, blue: 0.97)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: layout.isCompact ? 20 : 24, style: .continuous)
-                                .stroke(chatObjectiveComplete ? Color.green.opacity(0.35) : Color.pink.opacity(0.24), lineWidth: 1)
+                                .stroke(Color.black.opacity(0.08), lineWidth: 1)
                         )
 
                     VStack(spacing: 6) {
@@ -2094,8 +2134,8 @@ struct DialogEventPanel: View {
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
                                 .fill(
                                     (index + phoneGlitchSeed).isMultiple(of: 2)
-                                        ? Color.cyan.opacity(chatObjectiveComplete ? 0.05 : 0.12)
-                                        : Color.pink.opacity(chatObjectiveComplete ? 0.04 : 0.10)
+                                        ? Color.blue.opacity(chatObjectiveComplete ? 0.05 : 0.09)
+                                        : Color.gray.opacity(chatObjectiveComplete ? 0.03 : 0.06)
                                 )
                                 .frame(width: phoneAccentLineWidth(index), height: 2)
                                 .offset(x: phoneAccentLineOffset(index))
@@ -2106,28 +2146,54 @@ struct DialogEventPanel: View {
                     .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text(chatStarted ? "SIGNAL // UNSTABLE" : "PHONE // OFFLINE")
-                                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .black, design: .rounded))
-                                .foregroundColor(.white.opacity(0.92))
-                                .tracking(1)
-
-                            Spacer()
-
-                            HStack(spacing: 6) {
-                                Text(chatObjectiveComplete ? "LOCKED" : "\(Int(phoneNoiseLevel * 100))% GLITCH")
-                                    .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .bold, design: .monospaced))
-                                    .foregroundColor(chatObjectiveComplete ? .green.opacity(0.9) : .pink.opacity(0.9))
-                                Image(systemName: chatObjectiveComplete ? "wifi" : "wifi.exclamationmark")
-                                    .font(.system(size: layout.captionFontSize))
-                                    .foregroundColor(chatObjectiveComplete ? .green : .orange)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
+                                Text("Messages")
+                                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
+                                Spacer()
+                                Text(chatObjectiveComplete ? "iMessage" : "Unknown Number")
+                                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                                    .foregroundColor(.black.opacity(0.5))
                             }
+
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.black.opacity(0.08))
+                                    .frame(width: 26, height: 26)
+                                    .overlay(
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.gray)
+                                    )
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("UNKNOWN")
+                                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                        .foregroundColor(.black.opacity(0.84))
+                                    Text(chatObjectiveComplete ? "Conversation closed" : (chatStarted ? "Unknown sender" : "Offline"))
+                                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                                        .foregroundColor(.black.opacity(0.48))
+                                }
+                                Spacer()
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: layout.captionFontSize + 3))
+                                    .foregroundColor(.black.opacity(0.45))
+                            }
+
+                            Rectangle()
+                                .fill(Color.black.opacity(0.07))
+                                .frame(height: 1)
                         }
+
+                        mobileMessagesConversationPreview(currentPulse: currentPulse)
 
                         ZStack {
                             Image(systemName: "iphone")
                                 .font(.system(size: layout.isCompact ? 42 : 52, weight: .thin))
-                                .foregroundColor(.white.opacity(0.22))
+                                .foregroundColor(.black.opacity(0.18))
 
                             Image(systemName: "dot.radiowaves.left.and.right")
                                 .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
@@ -2137,7 +2203,7 @@ struct DialogEventPanel: View {
                             if !chatObjectiveComplete {
                                 Image(systemName: "dot.radiowaves.left.and.right")
                                     .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
-                                    .foregroundColor(.cyan.opacity(0.45))
+                                    .foregroundColor(.blue.opacity(0.28))
                                     .offset(
                                         x: CGFloat((phoneGlitchSeed % 3) - 1) * 4,
                                         y: CGFloat((phoneGlitchSeed % 5) - 2) * 1.5
@@ -2148,31 +2214,42 @@ struct DialogEventPanel: View {
                         .padding(.top, 4)
                         .padding(.bottom, 2)
 
-                        Text(
-                            chatObjectiveComplete
-                                ? "Signal stabilized. Event unlocked."
-                                : (!chatStarted
-                                    ? "Power on the phone, then stabilize the glitch signal."
-                                    : "Tap STABILIZE twice. You cannot continue until the phone link locks.")
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Prompting + Scam Safety")
+                                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold))
+                                .foregroundColor(.black.opacity(0.55))
+                            Text(
+                                chatObjectiveComplete
+                                    ? "Lesson complete. You asked clearly and avoided unsafe sharing."
+                                    : (!chatStarted
+                                        ? "Open the phone message to begin."
+                                        : "Choose a preset reply that asks clear questions and protects your information.")
+                            )
+                            .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                            .foregroundColor(.black.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(10)
+                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.black.opacity(0.07), lineWidth: 1)
                         )
-                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.88))
-                        .fixedSize(horizontal: false, vertical: true)
 
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
-                                Text("STABILITY")
+                                Text("SAFE REPLIES")
                                     .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold, design: .monospaced))
-                                    .foregroundColor(.white.opacity(0.55))
+                                    .foregroundColor(.black.opacity(0.55))
                                 Spacer()
                                 Text("\(Int(phoneStability * 100))%")
                                     .font(.system(size: layout.captionFontSize, weight: .bold, design: .monospaced))
-                                    .foregroundColor(chatObjectiveComplete ? .green : .cyan)
+                                    .foregroundColor(chatObjectiveComplete ? .green : .blue)
                             }
 
                             ZStack(alignment: .leading) {
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.white.opacity(0.08))
+                                    .fill(Color.black.opacity(0.06))
                                     .frame(height: 10)
                                 GeometryReader { geo in
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -2180,7 +2257,7 @@ struct DialogEventPanel: View {
                                             LinearGradient(
                                                 colors: chatObjectiveComplete
                                                     ? [Color.green.opacity(0.95), Color.mint.opacity(0.8)]
-                                                    : [Color.pink.opacity(0.95), Color.cyan.opacity(0.85)],
+                                                    : [Color(red: 0.34, green: 0.63, blue: 1.0), Color(red: 0.24, green: 0.54, blue: 0.98)],
                                                 startPoint: .leading,
                                                 endPoint: .trailing
                                             )
@@ -2197,19 +2274,29 @@ struct DialogEventPanel: View {
                                 ForEach(0..<2, id: \.self) { idx in
                                     HStack(spacing: 5) {
                                         Circle()
-                                            .fill(idx < currentPulse ? Color.green : Color.white.opacity(0.15))
+                                            .fill(idx < currentPulse ? Color.green : Color.black.opacity(0.12))
                                             .frame(width: 8, height: 8)
                                         Text("Pulse \(idx + 1)")
                                             .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .semibold))
-                                            .foregroundColor(.white.opacity(idx < currentPulse ? 0.95 : 0.55))
+                                            .foregroundColor(.black.opacity(idx < currentPulse ? 0.88 : 0.5))
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                                    .background(Color.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                                    )
                                 }
                             }
                         }
+                        .padding(10)
+                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.black.opacity(0.07), lineWidth: 1)
+                        )
 
                         VStack(spacing: 8) {
                             if !chatStarted {
@@ -2224,7 +2311,7 @@ struct DialogEventPanel: View {
                                     .padding(.vertical, 10)
                                     .background(
                                         LinearGradient(
-                                            colors: [Color.pink.opacity(0.95), Color.orange.opacity(0.85)],
+                                            colors: [Color(red: 0.24, green: 0.54, blue: 0.98), Color(red: 0.19, green: 0.73, blue: 1.0)],
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         ),
@@ -2235,45 +2322,53 @@ struct DialogEventPanel: View {
                             } else {
                                 HStack(spacing: 8) {
                                     Button(action: scramblePhoneScreen) {
-                                        Label("GLITCH", systemImage: "waveform.path.ecg")
+                                        Label("Clear", systemImage: "xmark")
                                             .font(.system(size: layout.captionFontSize, weight: .bold))
-                                            .foregroundColor(.white.opacity(0.9))
+                                            .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
                                             .frame(maxWidth: .infinity)
                                             .padding(.vertical, 9)
-                                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                                            .background(Color.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 10))
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                                    .stroke(Color.black.opacity(0.07), lineWidth: 1)
                                             )
                                     }
                                     .buttonStyle(.plain)
                                     .disabled(chatObjectiveComplete)
                                     .opacity(chatObjectiveComplete ? 0.5 : 1.0)
 
-                                    Button(action: stabilizePhonePulse) {
-                                        Label(chatObjectiveComplete ? "LOCKED" : "STABILIZE", systemImage: "dot.radiowaves.left.and.right")
-                                            .font(.system(size: layout.captionFontSize, weight: .black))
-                                            .foregroundColor(.white)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 9)
-                                            .background(
-                                                chatObjectiveComplete ? Color.green.opacity(0.55) : Color.cyan.opacity(0.35),
-                                                in: RoundedRectangle(cornerRadius: 10)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(
-                                                        chatObjectiveComplete ? Color.green.opacity(0.45) : Color.cyan.opacity(0.5),
-                                                        lineWidth: 1
-                                                    )
-                                            )
+                                    if let selectedChatOption, !selectedChatOption.isEmpty {
+                                        Button(action: stabilizePhonePulse) {
+                                            Label(chatObjectiveComplete ? "Delivered" : "Send", systemImage: "arrow.up.circle.fill")
+                                                .font(.system(size: layout.captionFontSize, weight: .black))
+                                                .foregroundColor(.white)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 9)
+                                                .background(
+                                                    chatObjectiveComplete ? Color.green.opacity(0.55) : Color(red: 0.24, green: 0.54, blue: 0.98).opacity(0.95),
+                                                    in: RoundedRectangle(cornerRadius: 10)
+                                                )
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10)
+                                                        .stroke(
+                                                            chatObjectiveComplete ? Color.green.opacity(0.45) : Color(red: 0.33, green: 0.65, blue: 1.0).opacity(0.7),
+                                                            lineWidth: 1
+                                                        )
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(chatObjectiveComplete)
+                                        .opacity(chatObjectiveComplete ? 0.6 : 1.0)
                                     }
-                                    .buttonStyle(.plain)
-                                    .disabled(chatObjectiveComplete)
-                                    .opacity(chatObjectiveComplete ? 0.88 : 1.0)
                                 }
                             }
                         }
+                        .padding(10)
+                        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                        )
                     }
                     .padding(layout.isCompact ? 14 : 16)
                 }
@@ -2297,7 +2392,11 @@ struct DialogEventPanel: View {
             }
         }
         .frame(width: targetPhoneWidth, height: targetPhoneHeight)
-        .frame(maxWidth: .infinity)
+        .frame(
+            maxWidth: .infinity,
+            alignment: phoneContainerAlignment
+        )
+        .offset(x: phoneHorizontalOffset)
     }
 
     private func phoneAccentLineWidth(_ index: Int) -> CGFloat {
@@ -2310,15 +2409,184 @@ struct DialogEventPanel: View {
         return CGFloat(raw - 8)
     }
 
+    private var phoneHintForCurrentStep: String {
+        switch phoneLessonStep {
+        case 0:
+            return "Ask who they are and what they want. Keep it short and clear."
+        case 1:
+            return "Set boundaries: do not share codes/passwords. Verify through an official channel first."
+        default:
+            return "Lesson complete. Tap the left story panel to continue."
+        }
+    }
+
+    private func unknownEscalationMessage(level: Int) -> String {
+        switch level {
+        case 0...1:
+            return "Hello?? Please respond. This is urgent."
+        case 2:
+            return "Warning: if you do not reply now, your account may be limited today."
+        case 3:
+            return "Final warning: immediate action required. Reply now and confirm your details to avoid suspension."
+        default:
+            return "URGENT WARNING: Your account is at risk. Reply immediately and follow the instructions I send next."
+        }
+    }
+
+    @ViewBuilder
+    private func mobileMessagesConversationPreview(currentPulse: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(phoneMessages.suffix(layout.isCompact ? 4 : 5).enumerated()), id: \.offset) { _, raw in
+                let parsed = parsedPhoneMessage(raw)
+                mobileMessageBubble(
+                    parsed.text,
+                    isUser: parsed.isUser,
+                    caption: parsed.caption
+                )
+            }
+
+            if let selectedChatOption, !chatObjectiveComplete {
+                mobileMessageBubble(
+                    selectedChatOption,
+                    isUser: true,
+                    caption: "Draft"
+                )
+                .opacity(0.72)
+            }
+
+            if !chatObjectiveComplete {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Reply Options")
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold))
+                        .foregroundColor(.black.opacity(0.55))
+
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: layout.isCompact ? 120 : 150), spacing: 6)],
+                        spacing: 6
+                    ) {
+                        ForEach(chatQuickReplies, id: \.self) { option in
+                            let isSelected = selectedChatOption == option
+                            Button {
+                                selectedChatOption = option
+                                phoneGlitchSeed += 1
+                            } label: {
+                                HStack(spacing: 5) {
+                                    if isSelected {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: max(layout.captionFontSize - 1, 10)))
+                                    }
+                                    Text(option)
+                                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                                        .multilineTextAlignment(.leading)
+                                    Spacer(minLength: 0)
+                                }
+                                .foregroundColor(isSelected ? .white : Color.black.opacity(0.8))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 7)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    isSelected
+                                        ? Color(red: 0.19, green: 0.53, blue: 0.98)
+                                        : Color.white,
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(Color.black.opacity(isSelected ? 0.0 : 0.06), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                }
+                .padding(8)
+                .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .foregroundColor(.green)
+                    Text("Lesson complete. Tap the left story panel to continue.")
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                        .foregroundColor(.black.opacity(0.7))
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func parsedPhoneMessage(_ raw: String) -> (text: String, isUser: Bool, caption: String?) {
+        if raw.hasPrefix("You: ") {
+            return (String(raw.dropFirst(5)), true, nil)
+        }
+        if raw.hasPrefix("UNKNOWN: ") {
+            return (String(raw.dropFirst(9)), false, "UNKNOWN")
+        }
+        if raw.hasPrefix("SYSTEM: ") {
+            return (String(raw.dropFirst(8)), false, "Safety Tip")
+        }
+        return (raw, false, "Message")
+    }
+
+    @ViewBuilder
+    private func mobileMessageBubble(_ text: String, isUser: Bool, caption: String?) -> some View {
+        HStack(alignment: .bottom, spacing: 6) {
+            if isUser { Spacer(minLength: 32) }
+
+            VStack(alignment: .leading, spacing: 3) {
+                if let caption, !caption.isEmpty {
+                    Text(caption)
+                        .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .semibold))
+                        .foregroundColor(isUser ? .white.opacity(0.8) : .black.opacity(0.45))
+                }
+
+                Text(text)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(isUser ? .white : .black.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                isUser
+                    ? Color(red: 0.19, green: 0.53, blue: 0.98)
+                    : Color.white,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+            )
+
+            if !isUser { Spacer(minLength: 32) }
+        }
+    }
+
     private func startPhoneEvent() {
         didTrigger = true
         guard !chatStarted else { return }
 
         chatStarted = true
         phoneGlitchSeed += 2
+        phoneLessonStep = 0
+        phonePulseCount = 0
+        phoneNoReplyCount = 0
+        phoneStability = 0.0
+        selectedChatOption = nil
+        chatObjectiveComplete = false
+        phoneMessages = [
+            "UNKNOWN: Hi. Is this your number?"
+        ]
+        phoneLessonHint = "Ask who they are and what this is about."
         withAnimation(.easeInOut(duration: 0.2)) {
-            phoneStability = max(phoneStability, 0.18)
-            phoneNoiseLevel = min(0.95, max(0.62, phoneNoiseLevel))
+            phoneNoiseLevel = 0.78
         }
     }
 
@@ -2330,36 +2598,17 @@ struct DialogEventPanel: View {
         }
 
         guard !chatObjectiveComplete else { return }
-
-        phonePulseCount += 1
-        phoneGlitchSeed += 3
-
-        withAnimation(.easeInOut(duration: 0.2)) {
-            phoneStability = min(1.0, phoneStability + (phonePulseCount >= 2 ? 0.45 : 0.32))
-            phoneNoiseLevel = max(0.08, phoneNoiseLevel - 0.30)
+        guard let selected = selectedChatOption else {
+            phoneLessonHint = "Choose a reply option first, then tap Send."
+            return
         }
-
-        if phonePulseCount >= 2 {
-            chatObjectiveComplete = true
-            phoneStability = 1.0
-            phoneNoiseLevel = 0.04
-        }
+        sendChatReply(selected)
     }
 
     private func scramblePhoneScreen() {
         didTrigger = true
-        if !chatStarted {
-            startPhoneEvent()
-            return
-        }
-
-        guard !chatObjectiveComplete else { return }
-
-        phoneGlitchSeed += 5
-        withAnimation(.easeInOut(duration: 0.15)) {
-            phoneNoiseLevel = min(0.98, phoneNoiseLevel + 0.08)
-            phoneStability = max(0.10, phoneStability - 0.04)
-        }
+        selectedChatOption = nil
+        phoneGlitchSeed += 1
     }
 
     private var mobileChatHelpCard: some View {
@@ -2394,17 +2643,8 @@ struct DialogEventPanel: View {
 
     private var promptWorkshopPreview: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if layout.isCompact {
-                VStack(spacing: 10) {
-                    promptComputerChatCard
-                    promptPlannerCard
-                }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    promptComputerChatCard
-                    promptPlannerCard
-                }
-            }
+            promptPlannerCard
+            promptComputerChatCard
         }
     }
 
@@ -2428,12 +2668,12 @@ struct DialogEventPanel: View {
             VStack(alignment: .leading, spacing: 8) {
                 promptChatBubble(
                     speaker: "AI Friend",
-                    text: "If you ask better, I can help better. Give me goal, context, and limits.",
+                    text: "Build a real prompt in 4 parts: goal, context, output format, and an ethical rule.",
                     isUser: false
                 )
                 promptChatBubble(
                     speaker: "You",
-                    text: promptDraftTokens.isEmpty ? "..." : promptPreviewText,
+                    text: promptDraftTokens.isEmpty ? "I will build my prompt step by step." : promptPreviewText,
                     isUser: true
                 )
                 promptChatBubble(
@@ -2452,29 +2692,41 @@ struct DialogEventPanel: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
-        .frame(maxWidth: layout.isCompact ? .infinity : 300, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var promptPlannerCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Prompt Planner (Tap to Build)")
-                .font(.system(size: layout.captionFontSize + 2, weight: .bold))
-                .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Prompt Workshop (Easy Mode)")
+                        .font(.system(size: layout.captionFontSize + 3, weight: .bold))
+                        .foregroundColor(.white)
 
-            Text("Learn prompt writing by planning the request in parts: goal, context, format, and ethics. Tap chips to assemble a strong prompt.")
-                .font(.system(size: layout.captionFontSize))
-                .foregroundColor(.white.opacity(0.74))
-
-            HStack(spacing: 8) {
-                Text("AI Name")
-                    .font(.system(size: layout.captionFontSize, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                TextField("Name the AI", text: $promptAIName)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: layout.captionFontSize))
-                    .foregroundColor(.white)
+                    Text("Build one real-world prompt in 4 easy steps. Pick one choice per step, then check your plan.")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.78))
+                }
+                Spacer()
+                Text(promptWorkshopPassed ? "READY" : "BUILD")
+                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .black))
+                    .foregroundColor(promptWorkshopPassed ? .mint : .orange)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.06), in: Capsule())
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Step 0: Who are you asking?")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                    .foregroundColor(.white)
+
+                TextField("AI name (example: Neura)", text: $promptAIName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: layout.captionFontSize + 1))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                     .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -2482,106 +2734,79 @@ struct DialogEventPanel: View {
                     )
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(promptCategories, id: \.self) { category in
-                        Button {
-                            selectedPromptCategory = category
-                        } label: {
-                            Text(category)
-                                .font(.system(size: layout.captionFontSize, weight: .bold))
-                                .foregroundColor(selectedPromptCategory == category ? .white : .white.opacity(0.8))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    selectedPromptCategory == category
-                                    ? Color.pink.opacity(0.35)
-                                    : Color.white.opacity(0.05),
-                                    in: Capsule()
-                                )
-                                .overlay(
-                                    Capsule().stroke(
-                                        selectedPromptCategory == category ? Color.pink.opacity(0.7) : Color.white.opacity(0.08),
-                                        lineWidth: 1
-                                    )
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(promptCategories.enumerated()), id: \.offset) { index, category in
+                    promptStepSection(category: category, stepIndex: index + 1)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: layout.isCompact ? 130 : 150), spacing: 8)], spacing: 8) {
-                ForEach(promptChips(for: selectedPromptCategory), id: \.self) { chip in
-                    Button {
-                        addPromptChip(chip)
-                    } label: {
-                        Text(chip)
-                            .font(.system(size: layout.captionFontSize, weight: .medium))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
+            HStack(spacing: 8) {
+                Button("Use Easy Example") {
+                    applyPromptStarterExample()
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: layout.captionFontSize, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.pink.opacity(0.35), in: Capsule())
+                .overlay(
+                    Capsule().stroke(Color.pink.opacity(0.55), lineWidth: 1)
+                )
+
+                Button("Clear All") {
+                    promptDraftTokens.removeAll()
+                    promptWorkshopPassed = false
+                    promptFeedback = "Pick one option for each step, then press Check Prompt Plan."
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: layout.captionFontSize, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.white.opacity(0.08), in: Capsule())
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Prompt Draft")
+                Text("Your Prompt (Preview)")
                     .font(.system(size: layout.captionFontSize, weight: .bold))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(.white.opacity(0.95))
+
                 Text(promptPreviewText)
-                    .font(.system(size: layout.captionFontSize))
+                    .font(.system(size: layout.captionFontSize + 1))
                     .foregroundColor(promptDraftTokens.isEmpty ? .white.opacity(0.45) : .white.opacity(0.95))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(12)
+                    .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 12))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     )
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                promptChecklistRow("Goal included", isComplete: hasPromptGoal)
-                promptChecklistRow("Context included", isComplete: hasPromptContext)
-                promptChecklistRow("Output format included", isComplete: hasPromptFormat)
-                promptChecklistRow("Ethical rule included", isComplete: hasPromptEthics)
+            VStack(alignment: .leading, spacing: 5) {
                 promptChecklistRow("AI name set", isComplete: !promptAIName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                promptChecklistRow("Step 1: Goal", isComplete: hasPromptGoal)
+                promptChecklistRow("Step 2: Context", isComplete: hasPromptContext)
+                promptChecklistRow("Step 3: Output format", isComplete: hasPromptFormat)
+                promptChecklistRow("Step 4: Ethical rule", isComplete: hasPromptEthics)
             }
 
             HStack(spacing: 8) {
-                Button("Undo") {
-                    guard !promptDraftTokens.isEmpty else { return }
-                    promptDraftTokens.removeLast()
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: layout.captionFontSize, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.08), in: Capsule())
-
-                Button("Clear") {
-                    promptDraftTokens.removeAll()
-                    promptWorkshopPassed = false
-                    promptFeedback = "Build a prompt with goal, context, output format, and an ethical rule."
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: layout.captionFontSize, weight: .semibold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.08), in: Capsule())
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(.yellow)
+                Text("Tip: Press the main event button (Check Prompt Plan) when all 5 items are complete.")
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.8))
             }
+            .padding(10)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
         }
-        .padding(12)
+        .padding(layout.isCompact ? 12 : 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -2725,7 +2950,11 @@ struct DialogEventPanel: View {
             if !chatStarted {
                 startPhoneEvent()
             } else if !chatObjectiveComplete {
-                stabilizePhonePulse()
+                if selectedChatOption == nil {
+                    phoneLessonHint = "Choose a reply option in the phone, then tap Send Reply."
+                } else {
+                    stabilizePhonePulse()
+                }
             }
         case .promptWorkshop:
             didTrigger = true
@@ -2755,9 +2984,9 @@ struct DialogEventPanel: View {
     private var actionButtonLabel: String {
         switch eventPayload.type {
         case .mobileChat:
-            if chatObjectiveComplete { return "Phone Signal Locked" }
-            if !chatStarted { return "Power On Phone" }
-            return "Stabilize Signal"
+            if chatObjectiveComplete { return "Lesson Complete" }
+            if !chatStarted { return "Open Messages" }
+            return selectedChatOption == nil ? "Choose a Reply" : "Send Selected Reply"
         case .promptWorkshop:
             return promptWorkshopPassed ? "Prompt Plan Ready" : eventPayload.ctaTitle
         case .hallucinationBias:
@@ -2786,12 +3015,12 @@ struct DialogEventPanel: View {
         switch eventPayload.type {
         case .mobileChat:
             if chatObjectiveComplete {
-                return "Phone signal stabilized. Event complete. Return to the story dialog panel to continue."
+                return "Phone lesson complete. You used safe, clear replies to handle an unknown number. Return to the story panel to continue."
             }
             if chatStarted {
-                return "Phone minigame active. Stabilize the glitch signal (\(min(phonePulseCount, 2))/2 pulses locked)."
+                return "Phone minigame active. Reply to an unknown number with clear questions and safe boundaries (\(min(phonePulseCount, 2))/2 safe replies)."
             }
-            return "Open the phone first, then stabilize the glitch signal. Story progression stays locked until completion."
+            return "Open Messages, then reply safely to an unknown number. Story progression stays locked until completion."
         case .promptWorkshop:
             if promptWorkshopPassed {
                 return "Prompt plan is complete. You included goal, context, format, and an ethical rule."
@@ -2822,7 +3051,7 @@ struct DialogEventPanel: View {
     private var statusIcon: String {
         switch eventPayload.type {
         case .mobileChat:
-            return chatObjectiveComplete ? "checkmark.shield.fill" : "iphone.gen3.radiowaves.left.and.right"
+            return chatObjectiveComplete ? "checkmark.shield.fill" : "message.badge.waveform"
         case .promptWorkshop:
             return promptWorkshopPassed ? "checkmark.seal.fill" : "text.badge.plus"
         case .hallucinationBias:
@@ -2835,7 +3064,7 @@ struct DialogEventPanel: View {
     private var statusColor: Color {
         switch eventPayload.type {
         case .mobileChat:
-            return chatObjectiveComplete ? .green : .pink
+            return chatObjectiveComplete ? .green : .blue
         case .promptWorkshop:
             return promptWorkshopPassed ? .mint : .pink
         case .hallucinationBias:
@@ -2846,48 +3075,123 @@ struct DialogEventPanel: View {
     }
 
     private func sendPhoneMessage() {
-        let trimmed = phoneDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        didTrigger = true
-
-        if !chatStarted {
-            chatStarted = true
-            phoneMessages.append("Ploy: Handshake window is open. Send your first reply.")
+        guard let selected = selectedChatOption else {
+            phoneLessonHint = "Choose a reply option first, then tap Send."
+            return
         }
-
-        phoneMessages.append("You: \(trimmed)")
-        phoneDraft = ""
-
-        let userReplyCount = phoneMessages.filter { $0.hasPrefix("You:") }.count
-        switch userReplyCount {
-        case 1:
-            phoneMessages.append("Ploy: Good. Keep it short. One more reply to confirm signal stability.")
-        case 2:
-            phoneMessages.append("Ploy: Link stabilized. Identity confirmed. Proceeding to visual test.")
-            chatObjectiveComplete = true
-        default:
-            phoneMessages.append("System: Secure channel remains stable.")
-        }
+        sendChatReply(selected)
     }
 
     private var chatQuickReplies: [String] {
-        [
-            "I'm here.",
-            "Signal received.",
-            "Who is this?",
-            "Channel looks unstable."
-        ]
+        switch phoneLessonStep {
+        case 0:
+            return [
+                "Hello?",
+                "Who are you?",
+                "What is this about?",
+                "Yes, this is me. What do you need?",
+                "No reply yet."
+            ]
+        case 1:
+            return [
+                "Please identify your organization and reason.",
+                "I won’t share codes or personal info.",
+                "I will verify through an official channel first.",
+                "Okay, send me the link and I will log in now.",
+                "No reply yet."
+            ]
+        default:
+            return []
+        }
     }
 
     private func sendChatReply(_ option: String) {
         selectedChatOption = option
+        guard !chatObjectiveComplete else { return }
+
+        if !chatStarted {
+            startPhoneEvent()
+        }
+
+        phoneMessages.append("You: \(option)")
         phoneDraft = option
-        sendPhoneMessage()
+        phoneGlitchSeed += 2
+
+        switch phoneLessonStep {
+        case 0:
+            if option == "No reply yet." {
+                phoneNoReplyCount += 1
+                phoneMessages.append("UNKNOWN: \(unknownEscalationMessage(level: phoneNoReplyCount))")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = min(0.95, phoneNoiseLevel + 0.08)
+                }
+            } else if ["Who are you?", "What is this about?", "Hello?"].contains(option) {
+                phonePulseCount = min(2, phonePulseCount + 1)
+                phoneStability = Double(phonePulseCount) / 2.0
+                phoneLessonStep = 1
+                phoneNoReplyCount = 0
+                phoneMessages.append("UNKNOWN: I’m from account support. There is a problem. Send your 6-digit code now.")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = max(0.45, phoneNoiseLevel - 0.14)
+                }
+            } else {
+                phoneLessonStep = 1
+                phoneMessages.append("UNKNOWN: Good. Then send your code now or your account may be locked today.")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = min(0.98, phoneNoiseLevel + 0.10)
+                }
+            }
+
+        case 1:
+            if option == "No reply yet." {
+                phoneNoReplyCount += 1
+                phoneMessages.append("UNKNOWN: \(unknownEscalationMessage(level: phoneNoReplyCount + 1))")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = min(0.98, phoneNoiseLevel + 0.10)
+                }
+            } else if [
+                "Please identify your organization and reason.",
+                "I won’t share codes or personal info.",
+                "I will verify through an official channel first."
+            ].contains(option) {
+                phonePulseCount = 2
+                phoneStability = 1.0
+                chatObjectiveComplete = true
+                phoneLessonStep = 2
+                phoneNoReplyCount = 0
+                phoneMessages.append("UNKNOWN: Final warning. Your account will be suspended in 10 minutes unless you click this link.")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = 0.06
+                }
+            } else {
+                phoneMessages.append("UNKNOWN: Good. Open this link and enter your password to fix it now.")
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    phoneNoiseLevel = min(0.98, phoneNoiseLevel + 0.1)
+                }
+            }
+
+        default:
+            break
+        }
+
+        selectedChatOption = nil
     }
 
     private var promptCategories: [String] {
         ["Goal", "Context", "Format", "Ethics"]
+    }
+
+    private func promptCategoryDescription(_ category: String) -> String {
+        switch category {
+        case "Goal":
+            return "What do you want the AI to do?"
+        case "Context":
+            return "Who is the answer for? What situation?"
+        case "Format":
+            return "How should the answer be organized?"
+        default:
+            return "What safety/ethics rule should the AI follow?"
+        }
     }
 
     private func promptChips(for category: String) -> [String] {
@@ -2923,16 +3227,126 @@ struct DialogEventPanel: View {
         }
     }
 
+    private func promptCategory(for chip: String) -> String? {
+        for category in promptCategories where promptChips(for: category).contains(chip) {
+            return category
+        }
+        return nil
+    }
+
+    private func selectedPromptChip(in category: String) -> String? {
+        promptDraftTokens.first { promptChips(for: category).contains($0) }
+    }
+
+    @ViewBuilder
+    private func promptStepSection(category: String, stepIndex: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Step \(stepIndex)")
+                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .black))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.pink.opacity(0.6), in: Capsule())
+
+                Text(category)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                if let selected = selectedPromptChip(in: category), !selected.isEmpty {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.mint)
+                }
+            }
+
+            Text(promptCategoryDescription(category))
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.7))
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: layout.isCompact ? 140 : 170), spacing: 8)],
+                spacing: 8
+            ) {
+                ForEach(promptChips(for: category), id: \.self) { chip in
+                    let isSelected = selectedPromptChip(in: category) == chip
+
+                    Button {
+                        addPromptChip(chip)
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isSelected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: layout.captionFontSize))
+                            }
+                            Text(chip)
+                                .font(.system(size: layout.captionFontSize, weight: .medium))
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            isSelected ? Color.pink.opacity(0.24) : Color.white.opacity(0.05),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(
+                                    isSelected ? Color.pink.opacity(0.55) : Color.white.opacity(0.08),
+                                    lineWidth: 1
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
     private func addPromptChip(_ chip: String) {
-        guard !promptDraftTokens.contains(chip) else { return }
+        guard let category = promptCategory(for: chip) else {
+            guard !promptDraftTokens.contains(chip) else { return }
+            promptDraftTokens.append(chip)
+            promptWorkshopPassed = false
+            promptFeedback = "Good. Continue filling the remaining steps."
+            return
+        }
+
+        let categoryChips = Set(promptChips(for: category))
+        promptDraftTokens.removeAll { categoryChips.contains($0) }
         promptDraftTokens.append(chip)
         promptWorkshopPassed = false
-        promptFeedback = "Good. Keep building the prompt plan before checking it."
+        promptFeedback = "Good. Continue filling the remaining steps."
+    }
+
+    private func applyPromptStarterExample() {
+        if promptAIName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            promptAIName = "Neura"
+        }
+
+        promptDraftTokens = [
+            "Explain AI ethics",
+            "for a high school student",
+            "step-by-step",
+            "encourage ethical use"
+        ]
+        promptWorkshopPassed = false
+        promptFeedback = "Great start. Read the preview, then press Check Prompt Plan."
     }
 
     private var promptPreviewText: String {
         if promptDraftTokens.isEmpty {
-            return "Tap prompt chips to build your prompt..."
+            return "Pick one option for each step to build your prompt..."
         }
 
         let aiName = promptAIName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2968,12 +3382,12 @@ struct DialogEventPanel: View {
 
         guard missing.isEmpty else {
             promptWorkshopPassed = false
-            promptFeedback = "Missing: " + missing.joined(separator: ", ") + ". Add those parts and check again."
+            promptFeedback = "Missing: " + missing.joined(separator: ", ") + ". Fill those steps, then check again."
             return
         }
 
         promptWorkshopPassed = true
-        promptFeedback = "Excellent prompt plan. It teaches clearly, sets context, defines output, and includes ethical boundaries."
+        promptFeedback = "Excellent. This prompt is clear, realistic, and safe for real-world use."
     }
 
     @ViewBuilder
