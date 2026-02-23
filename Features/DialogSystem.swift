@@ -643,6 +643,15 @@ struct ResponsiveDialogView: View {
         return !viewModel.isTyping && !viewModel.showChoices && !viewModel.showTextInput && inlineReady
     }
 
+    private var activeInlineActivityContext: (node: DialogNode, activity: DialogInlineActivity)? {
+        guard let node = viewModel.currentNode,
+              let activity = node.inlineActivity else {
+            return nil
+        }
+        return (node, activity)
+    }
+
+
     private var sceneVisualKey: String {
         viewModel.currentNode?.backgroundImage ?? "none"
     }
@@ -693,7 +702,16 @@ struct ResponsiveDialogView: View {
             // Background
             backgroundLayer(layout: layout)
 
-            visualNovelLayout(layout: layout, geometry: geometry)
+            if let context = activeInlineActivityContext {
+                inlineActivityScene(
+                    layout: layout,
+                    geometry: geometry,
+                    node: context.node,
+                    activity: context.activity
+                )
+            } else {
+                visualNovelLayout(layout: layout, geometry: geometry)
+            }
 
             Color.black
                 .opacity(1.0 - sceneContentOpacity)
@@ -742,6 +760,346 @@ struct ResponsiveDialogView: View {
                 dialogSection(layout: layout, maxWidth: layout.visualNovelDialogMaxWidth)
                     .padding(.horizontal, layout.dialogPadding)
                     .padding(.bottom, layout.safeAreaInsets.bottom + layout.dialogLiftFromBottom)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func inlineActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        activity: DialogInlineActivity
+    ) -> some View {
+        switch activity {
+        case .video(let clip):
+            fullScreenCutsceneScene(layout: layout, geometry: geometry, node: node, clip: clip)
+        case .lectureQuiz(let quiz):
+            lectureQuizActivityScene(layout: layout, geometry: geometry, node: node, quiz: quiz)
+        case .promptBuilder(let minigame):
+            promptBuilderActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
+        }
+    }
+
+    private func fullScreenCutsceneScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        clip: DialogVideoClip
+    ) -> some View {
+        ZStack {
+            DialogFullscreenVideoCutsceneStage(
+                clip: clip,
+                title: viewModel.resolvedCutsceneTitle(for: node) ?? clip.title,
+                subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                instructionText: viewModel.displayedText,
+                isTyping: viewModel.isTyping,
+                isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                onSkipTyping: { viewModel.skipTyping() },
+                onMarkComplete: {
+                    let filename = "\(clip.resourceName).\(clip.fileExtension)"
+                    viewModel.completeInlineActivity(
+                        for: node.id,
+                        result: "Watched placeholder cutscene: \(filename). Replace with final Chapter 1 cutscene later."
+                    )
+                },
+                onContinue: {
+                    guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
+                    viewModel.advance()
+                }
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                HStack {
+                    if showBackButton {
+                        backButton(layout: layout, forceIconOnly: true)
+                    }
+                    Spacer()
+                    HStack(spacing: layout.elementSpacing) {
+                        historyButton(layout: layout)
+                        if showSettings {
+                            pauseButton(layout: layout, forceIconOnly: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, layout.dialogPadding)
+                .padding(.top, layout.topBarSafePadding)
+                Spacer()
+            }
+            .zIndex(10)
+        }
+    }
+
+    private func lectureQuizActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        quiz: LectureQuizMiniGame
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
+        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
+        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+
+        return VStack(spacing: 0) {
+            topBar(layout: layout)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, topBarTopPadding(for: layout))
+
+            if useVerticalLayout {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        LectureQuizMiniGameCard(
+                            quiz: quiz,
+                            layout: layout,
+                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                        ) { result in
+                            viewModel.completeInlineActivity(for: node.id, result: result)
+                        }
+                        .allowsHitTesting(!viewModel.isTyping)
+                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
+
+                        MiniGameStageCharacterPanel(
+                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                            emotion: node.emotion,
+                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                            instructionText: viewModel.displayedText,
+                            isTyping: viewModel.isTyping,
+                            layout: layout,
+                            accentColor: getEmotionColor(node.emotion),
+                            onSkipTyping: { viewModel.skipTyping() }
+                        )
+                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                }
+            } else {
+                HStack(alignment: .top, spacing: layout.sectionSpacing) {
+                    MiniGameStageCharacterPanel(
+                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                        emotion: node.emotion,
+                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        instructionText: viewModel.displayedText,
+                        isTyping: viewModel.isTyping,
+                        layout: layout,
+                        accentColor: getEmotionColor(node.emotion),
+                        onSkipTyping: { viewModel.skipTyping() }
+                    )
+                    .frame(width: leftWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            LectureQuizMiniGameCard(
+                                quiz: quiz,
+                                layout: layout,
+                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                            ) { result in
+                                viewModel.completeInlineActivity(for: node.id, result: result)
+                            }
+                            .allowsHitTesting(!viewModel.isTyping)
+                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+            }
+
+            MiniGameBottomBar(
+                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
+                    ? "Answer recorded. Continue when you are ready."
+                    : "Choose an answer to continue.",
+                continueTitle: "Continue Story",
+                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
+                layout: layout,
+                onContinue: { viewModel.advance() }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, bottomSafePadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func promptBuilderActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        minigame: PromptBuilderMiniGame
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
+        let leftWidth = max(min(geometry.size.width * 0.24, 340), 210)
+        let useVerticalLayout = geometry.size.width < 1040 || geometry.size.height < 720
+
+        return VStack(spacing: 0) {
+            topBar(layout: layout)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, topBarTopPadding(for: layout))
+
+            if useVerticalLayout {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        PromptBuilderMiniGameCard(
+                            minigame: minigame,
+                            layout: layout,
+                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                        ) { result in
+                            viewModel.completeInlineActivity(for: node.id, result: result)
+                        }
+                        .allowsHitTesting(!viewModel.isTyping)
+                        .opacity(viewModel.isTyping ? 0.85 : 1.0)
+
+                        MiniGameStageCharacterPanel(
+                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node),
+                            subtitle: "Your reply matters. Build a clear prompt.",
+                            emotion: node.emotion,
+                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                            instructionText: viewModel.displayedText,
+                            isTyping: viewModel.isTyping,
+                            layout: layout,
+                            accentColor: .blue,
+                            onSkipTyping: { viewModel.skipTyping() }
+                        )
+                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                }
+            } else {
+                HStack(alignment: .top, spacing: layout.sectionSpacing) {
+                    MiniGameStageCharacterPanel(
+                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node),
+                        subtitle: "Your reply matters. Build a clear prompt.",
+                        emotion: node.emotion,
+                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        instructionText: viewModel.displayedText,
+                        isTyping: viewModel.isTyping,
+                        layout: layout,
+                        accentColor: .blue,
+                        onSkipTyping: { viewModel.skipTyping() }
+                    )
+                    .frame(width: leftWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            PromptBuilderMiniGameCard(
+                                minigame: minigame,
+                                layout: layout,
+                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                            ) { result in
+                                viewModel.completeInlineActivity(for: node.id, result: result)
+                            }
+                            .allowsHitTesting(!viewModel.isTyping)
+                            .opacity(viewModel.isTyping ? 0.85 : 1.0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+            }
+
+            MiniGameBottomBar(
+                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
+                    ? "Prompt sent. Continue when you are ready."
+                    : "Build the prompt and tap Send to continue.",
+                continueTitle: "Continue Story",
+                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
+                layout: layout,
+                onContinue: { viewModel.advance() }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, bottomSafePadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func activityReviewFooter(
+        layout: DialogAdaptiveLayout,
+        nodeID: UUID,
+        pendingText: String,
+        completedButtonTitle: String,
+        showSummary: Bool = true
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if showSummary, let result = viewModel.inlineActivityResult(for: nodeID), !result.isEmpty {
+                Text(result)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            } else if viewModel.isInlineActivityCompleted(for: nodeID) && !showSummary {
+                Text("Review shown above. Continue when you are ready.")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            } else {
+                Text(pendingText)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.65))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+            }
+
+            if layout.width < 700 {
+                Button {
+                    guard viewModel.isInlineActivityCompleted(for: nodeID) else { return }
+                    viewModel.advance()
+                } label: {
+                    Label(completedButtonTitle, systemImage: "arrow.right.circle.fill")
+                        .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            viewModel.isInlineActivityCompleted(for: nodeID)
+                                ? Color.pink
+                                : Color(hex: "3B4048"),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!viewModel.isInlineActivityCompleted(for: nodeID))
+            } else {
+                HStack {
+                    Spacer()
+                    Button {
+                        guard viewModel.isInlineActivityCompleted(for: nodeID) else { return }
+                        viewModel.advance()
+                    } label: {
+                        Label(completedButtonTitle, systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                viewModel.isInlineActivityCompleted(for: nodeID)
+                                    ? Color.pink
+                                    : Color(hex: "3B4048"),
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!viewModel.isInlineActivityCompleted(for: nodeID))
+                }
             }
         }
     }
@@ -924,9 +1282,9 @@ struct ResponsiveDialogView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.black.opacity(0.42), in: Capsule())
+        .background(Color(hex: "242A33"), in: Capsule())
         .overlay(
-            Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+            Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
     }
 
@@ -1751,6 +2109,268 @@ struct ResponsiveDialogView: View {
 }
 
 // MARK: - Supporting Views
+struct DialogFullscreenVideoCutsceneStage: View {
+    let clip: DialogVideoClip
+    let title: String
+    let subtitle: String?
+    let instructionText: String
+    let isTyping: Bool
+    let isCompleted: Bool
+    let onSkipTyping: () -> Void
+    let onMarkComplete: () -> Void
+    let onContinue: () -> Void
+
+    @State private var player: AVPlayer?
+    @State private var didSetupPlayer = false
+    @State private var failedToLoad = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            Group {
+                if failedToLoad {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.black, Color.gray.opacity(0.35)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        VStack(spacing: 10) {
+                            Image(systemName: "video.slash.fill")
+                                .font(.system(size: 34))
+                                .foregroundColor(.white.opacity(0.8))
+                            Text("Could not load placeholder cutscene")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            Text("\(clip.resourceName).\(clip.fileExtension)")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                } else {
+                    VideoPlayer(player: player)
+                }
+            }
+            .ignoresSafeArea()
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.5),
+                    Color.clear,
+                    Color.clear,
+                    Color.black.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                Spacer()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(title.uppercased())
+                                .font(.system(size: 15, weight: .heavy))
+                                .foregroundColor(.white)
+                                .tracking(1.0)
+
+                            if let subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.78))
+                            }
+                        }
+
+                        Spacer()
+
+                        if isTyping {
+                            Button(action: onSkipTyping) {
+                                Label("Skip Text", systemImage: "forward.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
+                                    .background(Color.white.opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if !instructionText.isEmpty {
+                        Text(instructionText)
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.96))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                    }
+
+                    HStack(spacing: 10) {
+                        Button {
+                            player?.seek(to: .zero)
+                            player?.play()
+                        } label: {
+                            Label("Replay", systemImage: "gobackward")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.10), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(failedToLoad)
+
+                        Spacer()
+
+                        if !isCompleted {
+                            Button {
+                                onMarkComplete()
+                            } label: {
+                                Label("Finish Cutscene", systemImage: "checkmark.circle.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .background(Color.pink.opacity(0.92), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(isTyping)
+                        } else {
+                            Button {
+                                onContinue()
+                            } label: {
+                                Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .background(Color.green.opacity(0.9), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(16)
+                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+                .padding(.horizontal, 18)
+                .padding(.bottom, 18)
+            }
+        }
+        .onAppear { setupPlayerIfNeeded() }
+        .onDisappear { player?.pause() }
+    }
+
+    private func setupPlayerIfNeeded() {
+        guard !didSetupPlayer else { return }
+        didSetupPlayer = true
+
+        let url =
+            Bundle.module.url(forResource: clip.resourceName, withExtension: clip.fileExtension) ??
+            Bundle.main.url(forResource: clip.resourceName, withExtension: clip.fileExtension)
+
+        guard let url else {
+            failedToLoad = true
+            return
+        }
+
+        let player = AVPlayer(url: url)
+        self.player = player
+        if clip.autoplay {
+            player.play()
+        }
+    }
+}
+
+struct MiniGameStageCharacterPanel: View {
+    let speaker: String
+    let subtitle: String?
+    let emotion: Emotion
+    let characterImageName: String
+    let instructionText: String
+    let isTyping: Bool
+    let layout: DialogAdaptiveLayout
+    let accentColor: Color
+    let onSkipTyping: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(speaker)
+                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                            .foregroundColor(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Text(instructionText.isEmpty ? "..." : instructionText)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.92))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+
+                Spacer(minLength: 0)
+
+                if isTyping {
+                    Button(action: onSkipTyping) {
+                        Text("Skip")
+                            .font(.system(size: layout.captionFontSize, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.10), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Image(characterImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .shadow(color: accentColor.opacity(0.18), radius: 18, x: 0, y: 10)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(accentColor)
+                    .frame(width: 8, height: 8)
+                Text(emotion.rawValue.capitalized)
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.35), in: Capsule())
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+    }
+}
+
 struct DialogVideoCutsceneCard: View {
     let clip: DialogVideoClip
     let layout: DialogAdaptiveLayout
@@ -1882,145 +2502,295 @@ struct PromptBuilderMiniGameCard: View {
 
     @State private var selectedOptionBySlotID: [String: String] = [:]
     @State private var submitted = false
+    @State private var submissionReviewText = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(minigame.title)
                         .font(.system(size: layout.captionFontSize + 2, weight: .bold))
                         .foregroundColor(.white)
-                    Text("Tap chips to build a better prompt (Goal + Context + Action + Format)")
+                    Text("Play inside a Messages-style screen and build a clear prompt.")
                         .font(.system(size: layout.captionFontSize))
                         .foregroundColor(.white.opacity(0.68))
                 }
                 Spacer()
-                Text("Messages")
+                Text("Messages Mini-game")
                     .font(.system(size: layout.captionFontSize, weight: .semibold))
-                    .foregroundColor(.cyan.opacity(0.9))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.06), in: Capsule())
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.white.opacity(0.08), in: Capsule())
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.gray.opacity(0.5))
-                        .frame(width: 20, height: 20)
-                        .overlay(Image(systemName: "questionmark").font(.system(size: 10, weight: .bold)).foregroundColor(.white))
-                    Text(minigame.contactName)
-                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                        .foregroundColor(.white)
-                    Spacer()
-                }
+            VStack(spacing: 0) {
+                messagesTopChrome
 
-                HStack {
-                    Text(minigame.introMessage)
-                        .font(.system(size: layout.captionFontSize + 1))
-                        .foregroundColor(.black.opacity(0.82))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    Spacer(minLength: 26)
-                }
-            }
-            .padding(10)
-            .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            ForEach(minigame.slots) { slot in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(slot.label)
-                            .font(.system(size: layout.captionFontSize + 1, weight: .bold))
-                            .foregroundColor(.white.opacity(0.9))
-                        Spacer()
-                        Text(selectedOption(for: slot)?.chipText ?? slot.placeholder)
-                            .font(.system(size: layout.captionFontSize, weight: .medium))
-                            .foregroundColor((selectedOption(for: slot) == nil ? Color.white.opacity(0.45) : Color.cyan.opacity(0.9)))
-                            .lineLimit(1)
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(slot.options) { option in
-                                let isSelected = selectedOptionBySlotID[slot.id] == option.id
-                                Button {
-                                    guard !isCompleted else { return }
-                                    selectedOptionBySlotID[slot.id] = option.id
-                                } label: {
-                                    Text(option.chipText)
-                                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                                        .foregroundColor(isSelected ? .black : .white.opacity(0.92))
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(
-                                            Capsule()
-                                                .fill(isSelected ? Color.cyan.opacity(0.95) : Color.white.opacity(0.07))
-                                                .overlay(
-                                                    Capsule().stroke(isSelected ? Color.cyan.opacity(0.15) : Color.white.opacity(0.12), lineWidth: 1)
-                                                )
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(isCompleted)
-                            }
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        messageThreadSection
+                        promptBuilderSection
+                        composerSection
+                        if submitted || isCompleted {
+                            sentReceiptSection
                         }
                     }
+                    .padding(12)
                 }
+                .background(Color(red: 0.95, green: 0.96, blue: 0.98))
             }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Prompt Preview")
-                    .font(.system(size: layout.captionFontSize, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.7))
-
-                Text(promptPreview)
-                    .font(.system(size: layout.captionFontSize + 1, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.95))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
-            }
+            .frame(maxWidth: 980)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
 
             if let tip = minigame.tip, !tip.isEmpty {
                 Text(tip)
                     .font(.system(size: layout.captionFontSize))
                     .foregroundColor(.white.opacity(0.65))
+                    .padding(.horizontal, 4)
             }
+        }
+        .padding(12)
+        .background(Color(hex: "181D25"), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+
+    private var messagesTopChrome: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("9:41")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.8))
+                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "wifi")
+                    Image(systemName: "battery.100")
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.black.opacity(0.75))
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
 
             HStack(spacing: 10) {
-                if submitted || isCompleted {
-                    Label("Sent", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                        .foregroundColor(.green.opacity(0.9))
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.blue)
+
+                Circle()
+                    .fill(Color.gray.opacity(0.4))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        Image(systemName: "questionmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.white)
+                    )
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(minigame.contactName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.85))
+                    Text("Unknown sender")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.gray)
                 }
 
                 Spacer()
 
+                Image(systemName: "video")
+                    .foregroundColor(.blue)
+                Image(systemName: "info.circle")
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+            .background(Color.white)
+        }
+    }
+
+    private var messageThreadSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Today")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.gray)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white, in: Capsule())
+                Spacer()
+            }
+
+            HStack {
+                Text(minigame.introMessage)
+                    .font(.system(size: 14))
+                    .foregroundColor(.black.opacity(0.84))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                Spacer(minLength: 40)
+            }
+
+            HStack {
+                Spacer(minLength: 40)
+                Text(canSubmit ? promptPreview : "Tap choices below to build your reply...")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(canSubmit ? .white : Color.black.opacity(0.7))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        canSubmit ? Color(red: 0.07, green: 0.51, blue: 1.0) : Color(red: 0.88, green: 0.90, blue: 0.93),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+            }
+        }
+        .padding(12)
+        .background(Color(red: 0.90, green: 0.93, blue: 0.97), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var promptBuilderSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Build Your Prompt")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.black.opacity(0.85))
+                Spacer()
+                Text("Goal + Context + Action + Format")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.blue.opacity(0.85))
+            }
+
+            ForEach(minigame.slots) { slot in
+                promptSlotSection(slot)
+            }
+        }
+        .padding(12)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    private func promptSlotSection(_ slot: PromptBuilderSlot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(slot.label)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.black.opacity(0.82))
+                Spacer()
+                if let selected = selectedOption(for: slot) {
+                    Text(selected.chipText)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.08), in: Capsule())
+                }
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 8)], spacing: 8) {
+                ForEach(slot.options) { option in
+                    let isSelected = selectedOptionBySlotID[slot.id] == option.id
+                    Button {
+                        guard !isCompleted else { return }
+                        selectedOptionBySlotID[slot.id] = option.id
+                    } label: {
+                        Text(option.chipText)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(isSelected ? .white : .black.opacity(0.82))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 9)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(isSelected ? Color(red: 0.07, green: 0.51, blue: 1.0) : Color(red: 0.94, green: 0.95, blue: 0.97))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(isSelected ? Color.blue.opacity(0.15) : Color.black.opacity(0.05), lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCompleted)
+                }
+            }
+        }
+    }
+
+    private var composerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Reply Preview")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.gray)
+
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.green)
+                    Text(canSubmit ? promptPreview : "Write a clearer prompt...")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(canSubmit ? .black.opacity(0.85) : .gray)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
+
                 Button {
                     submitPrompt()
                 } label: {
-                    Label("Send Prompt", systemImage: "arrow.up.circle.fill")
-                        .font(.system(size: layout.captionFontSize + 2, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background((canSubmit && !isCompleted) ? Color.blue.opacity(0.9) : Color.white.opacity(0.12), in: Capsule())
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor((canSubmit && !isCompleted) ? Color.blue : Color.gray.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSubmit || isCompleted)
             }
         }
+    }
+
+    @ViewBuilder
+    private var sentReceiptSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Message Sent", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.green)
+                Spacer()
+            }
+
+            Text("You can continue the story now. Review note is shown below the mini-game screen.")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.black.opacity(0.72))
+
+            if !submissionReviewText.isEmpty {
+                Text(submissionReviewText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.black.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+        }
         .padding(12)
-        .background(Color.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.05), lineWidth: 1)
         )
     }
 
@@ -2057,6 +2827,7 @@ struct PromptBuilderMiniGameCard: View {
             selectedOptionBySlotID[slot.id] == slot.recommendedOptionID
         }.count
         let summary = "Message sent to \(minigame.contactName). All answers can work, but the strongest prompt here is: \"\(recommendedPrompt())\". Your version matched \(recommendedMatches)/\(minigame.slots.count) best-practice parts. \(selectedNotes) The sender still appears as \"\(minigame.contactName)\" for now; you can rename them later (default: Ploy)."
+        submissionReviewText = summary
         onComplete(summary)
     }
 }
@@ -2078,10 +2849,10 @@ struct LectureQuizMiniGameCard: View {
             feedbackSection
         }
         .padding(12)
-        .background(Color.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color(hex: "181D25"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
@@ -2145,11 +2916,36 @@ struct LectureQuizMiniGameCard: View {
     @ViewBuilder
     private var feedbackSection: some View {
         if let selectedChoice = selectedChoice {
-            Text(selectedChoice.feedback)
-                .font(.system(size: layout.captionFontSize))
-                .foregroundColor(.white.opacity(0.7))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Review")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text(selectedChoice.feedback)
+                    .font(.system(size: layout.captionFontSize + 1))
+                    .foregroundColor(.white.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let bestChoice = quiz.choices.first(where: \.isBestAnswer) {
+                    Text(selectedChoice.isBestAnswer ? "You chose the best answer." : "Best answer: \(bestChoice.text)")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.mint.opacity(0.9))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(quiz.summaryNote)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .background(Color(hex: "11161D"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
         } else if isCompleted {
-            Text("Answer recorded. You can continue.")
+            Text("Answer recorded. Review is ready.")
                 .font(.system(size: layout.captionFontSize))
                 .foregroundColor(.white.opacity(0.7))
         }
@@ -2181,7 +2977,7 @@ struct LectureQuizMiniGameCard: View {
 
                 Spacer()
 
-                if choice.isBestAnswer {
+                if choice.isBestAnswer && (selectedChoiceID != nil || isCompleted) {
                     Text("Best")
                         .font(.system(size: layout.captionFontSize - 1, weight: .bold))
                         .foregroundColor(isSelected ? .black.opacity(0.7) : .mint.opacity(0.9))
@@ -2196,10 +2992,10 @@ struct LectureQuizMiniGameCard: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.mint.opacity(0.9) : Color.white.opacity(0.06))
+                    .fill(isSelected ? Color.mint.opacity(0.9) : Color(hex: "232A34"))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(isSelected ? Color.mint.opacity(0.22) : Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(isSelected ? Color.mint.opacity(0.22) : Color.white.opacity(0.10), lineWidth: 1)
                     )
             )
         }
@@ -2249,10 +3045,10 @@ struct DialogControlButton: View {
             .frame(minWidth: title == nil ? layout.controlButtonMinTapSize : nil)
             .background(
                 Capsule()
-                    .fill(Color.black.opacity(0.55))
+                    .fill(Color(hex: "232A33"))
                     .overlay(
                         Capsule()
-                            .stroke(Color.white.opacity(isHovered ? 0.28 : 0.14), lineWidth: 1)
+                            .stroke(Color.white.opacity(isHovered ? 0.30 : 0.18), lineWidth: 1)
                     )
             )
             .scaleEffect(isHovered ? 1.05 : 1.0)

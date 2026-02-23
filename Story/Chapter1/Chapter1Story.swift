@@ -10,8 +10,8 @@ let chapterOneStory = StoryChapter(
     overview: "A high-school day begins with AI ethics class, continues in a red car chat mini-game, and ends with a strange glitch and a lesson about prompting and responsible AI use.",
     lines: [
         StoryDialogLine(
-            speaker: "Narration",
-            text: "Morning at school. The mountain line behind campus is clear today, and you can still see the Chiang Mai peaks in the distance before class starts.",
+            speaker: "You",
+            text: "The mountain line behind school is clear this morning. I can still see the Chiang Mai peaks before class starts.",
             emotion: .gentle,
             backgroundImage: "schooltopview",
             characterImage: "char_neutral",
@@ -19,8 +19,8 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "High school campus / mountain view"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "You are a high school student, carrying your notebook and laptop, heading into Professor New's AI class.",
+            speaker: "You",
+            text: "I carry my notebook and laptop and head into Professor New's AI class.",
             emotion: .curious,
             backgroundImage: "cnxgate",
             characterImage: "char_curious",
@@ -28,8 +28,8 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "H~Hi Who are you?"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "A short cutscene plays here. We are using a placeholder video first until the final Chapter 1 cutscene is ready.",
+            speaker: "",
+            text: "",
             emotion: .neutral,
             backgroundImage: "schooltopview",
             characterImage: "char_neutral",
@@ -139,8 +139,8 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Take the lesson home"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "School is over. You ride a red car (รถสี่ล้อแดง) back home and open your iPhone. A new Apple Messages thread appears from an Unknown User.",
+            speaker: "You",
+            text: "School is over. I ride a red car (รถสี่ล้อแดง) home and check my iPhone. A new Messages thread appears from an Unknown User.",
             emotion: .surprised,
             backgroundImage: "redbus",
             characterImage: "char_surprised",
@@ -163,8 +163,22 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Messages app / unknown sender"
         ),
         StoryDialogLine(
-            speaker: "Unknown User",
-            text: "Mini-game time: build a basic prompt using Goal + Context + Action + Format, then send it in the chat.",
+            speaker: "You",
+            text: "How should I reply to this? I should answer carefully and build a clear prompt first.",
+            emotion: .curious,
+            backgroundImage: "redbus",
+            characterImage: "char_curious",
+            cutsceneTitle: "Reply Choice",
+            cutsceneSubtitle: "Choose how to respond first",
+            choices: [
+                DialogChoice(text: "Ask who they are before helping", emotion: .concerned, response: "You ask for identity first. Good instinct: unknown contacts should be treated carefully before sharing information.", icon: "questionmark.bubble"),
+                DialogChoice(text: "Reply politely and help, but stay careful", emotion: .gentle, response: "You stay polite and cautious. Good balance: respectful tone plus healthy boundaries.", icon: "checkmark.shield"),
+                DialogChoice(text: "Send anything quickly without thinking", emotion: .angry, response: "Fast replies can create problems. It is better to slow down and make your prompt clear.", icon: "bolt.fill")
+            ]
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "I will build a basic prompt with Goal + Context + Action + Format, then send it in the chat.",
             emotion: .curious,
             backgroundImage: "redbus",
             characterImage: "char_curious",
@@ -235,8 +249,8 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Basic prompting works"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "Back home, you open your computer and continue the same thread on a larger screen. The unknown sender still replies instantly.",
+            speaker: "You",
+            text: "Back home, I open my computer and continue the same thread on a larger screen. The unknown sender still replies instantly.",
             emotion: .neutral,
             backgroundImage: "507room",
             characterImage: "char_neutral",
@@ -253,8 +267,8 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Usefulness and responsibility"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "The monitor flickers. The screen glitches. Then the room lights suddenly go out.",
+            speaker: "You",
+            text: "My monitor flickers. The screen glitches. Then the room lights suddenly go out.",
             emotion: .surprised,
             backgroundImage: "gltich",
             characterImage: "char_surprised",
