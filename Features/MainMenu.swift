@@ -163,20 +163,7 @@ struct MainMenuView: View {
     
     // MARK: - Background
     private func backgroundLayer(layout: ResponsiveLayout) -> some View {
-        ZStack {
-            Image("cnxaqu")
-                .resizable()
-                .scaledToFill()
-                .scaleEffect(1.4)
-                .offset(
-                    x: viewModel.offsetX * settings.effectiveParallaxStrength,
-                    y: viewModel.offsetY * settings.effectiveParallaxStrength
-                )
-                .ignoresSafeArea()
-            
-            Color.black.opacity(settings.menuOverlayOpacity)
-                .ignoresSafeArea()
-        }
+        Color.black.ignoresSafeArea()
     }
     
     // MARK: - Compact Layout (iPhone Portrait/Small)
@@ -438,7 +425,11 @@ struct LargeMenuButton: View {
             .padding(.vertical, layout.scaled(18))
             .background(
                 RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .fill(Color.white.opacity(0.1))
+                    .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: layout.cornerRadius)
+                            .stroke(.white.opacity(0.08), lineWidth: 1)
+                    )
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -461,7 +452,15 @@ struct SmallIconButton: View {
             ZStack {
                 // Background fills entire button
                 RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
-                    .fill(Color.white.opacity(isHovered ? 0.15 : 0.08))
+                    .fill(Color(
+                        red: isHovered ? 0.14 : 0.09,
+                        green: isHovered ? 0.14 : 0.09,
+                        blue: isHovered ? 0.15 : 0.10
+                    ))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
+                            .stroke(.white.opacity(0.08), lineWidth: 1)
+                    )
                 
                 // Content centered
                 VStack(spacing: 6) {

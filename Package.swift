@@ -37,7 +37,7 @@ let package = Package(
         .executableTarget(
             name: "AppModule",
             path: ".",
-            sources: ["ContentView.swift", "CreditsView.swift", "DialogSystem.swift", "DialogSystemPreview.swift", "FeatureTestingData.swift", "FeatureTestingPreview.swift", "FeatureTestingView.swift", "GlobalSettings.swift", "ImageTrainingView.swift", "LoadingView.swift", "MainMenu.swift", "NeuraApp.swift", "PointerFX.swift", "ResponsiveLayout.swift", "SettingsView.swift", "SharedUISupport.swift", "Story/Chapter1/Chapter1Story.swift", "Story/Chapter2/Chapter2Story.swift", "Story/Chapter3/Chapter3Story.swift", "Story/StoryChapterHubView.swift", "Story/StoryChapterPlayerView.swift", "Story/StoryScriptModels.swift", "StoryGalleryMuseumView.swift", "StoryProgressStore.swift"],
+            sources: ["App/ContentView.swift", "Features/CreditsView.swift", "Features/DialogSystem.swift", "Previews/DialogSystemPreview.swift", "Testing/FeatureTestingData.swift", "Previews/FeatureTestingPreview.swift", "Testing/FeatureTestingView.swift", "Core/GlobalSettings.swift", "Features/ImageTrainingView.swift", "Features/LoadingView.swift", "Features/MainMenu.swift", "App/NeuraApp.swift", "Core/PointerFX.swift", "Core/ResponsiveLayout.swift", "Features/SettingsView.swift", "Core/SharedUISupport.swift", "Story/Chapter1/Chapter1Story.swift", "Story/Chapter2/Chapter2Story.swift", "Story/Chapter3/Chapter3Story.swift", "Story/StoryChapterHubView.swift", "Story/StoryChapterPlayerView.swift", "Story/StoryScriptModels.swift", "Features/StoryGalleryMuseumView.swift", "State/StoryProgressStore.swift"],
             resources: [
                 .process("Assets.xcassets")
             ]

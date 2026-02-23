@@ -99,11 +99,11 @@ struct StoryGalleryMuseumView: View {
             VStack(spacing: 14) {
                 Text("Memory Museum")
                     .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
 
                 Text("No chapters are available yet.")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.black.opacity(0.7))
+                    .foregroundStyle(.white.opacity(0.7))
 
                 Button("Back") {
                     dismiss()
@@ -111,11 +111,12 @@ struct StoryGalleryMuseumView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(.white.opacity(0.9), in: Capsule())
+                .background(Color.black.opacity(0.88), in: Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(.black.opacity(0.12), lineWidth: 1)
+                        .stroke(.white.opacity(0.12), lineWidth: 1)
                 )
+                .foregroundStyle(.white)
             }
             .padding(.top, geo.safeAreaInsets.top)
         }
@@ -124,19 +125,19 @@ struct StoryGalleryMuseumView: View {
 
     private var museumBackground: some View {
         ZStack {
-            // Placeholder background image. Replace this asset later with your final museum background.
             Image(placeholderImageName)
                 .resizable()
                 .scaledToFill()
-                .blur(radius: 10)
-                .overlay(Color.white.opacity(0.62))
+                .blur(radius: 12)
+                .saturation(0.35)
+                .overlay(Color.black.opacity(0.72))
                 .ignoresSafeArea()
 
             LinearGradient(
                 colors: [
-                    Color.white.opacity(0.46),
-                    Color.white.opacity(0.12),
-                    Color.black.opacity(0.06)
+                    Color.black.opacity(0.62),
+                    Color.black.opacity(0.35),
+                    Color.black.opacity(0.75)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -144,8 +145,7 @@ struct StoryGalleryMuseumView: View {
             .ignoresSafeArea()
 
             Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.55)
+                .fill(Color.black.opacity(0.32))
                 .ignoresSafeArea()
         }
     }
@@ -155,21 +155,21 @@ struct StoryGalleryMuseumView: View {
             Button(action: { dismiss() }) {
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.86))
+                        .fill(Color.black.opacity(0.9))
                     Circle()
-                        .stroke(Color.red.opacity(0.85), lineWidth: 2.5)
+                        .stroke(Color.red.opacity(0.9), lineWidth: 2.5)
                     Image(systemName: "arrow.left")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(Color.red.opacity(0.9))
+                        .foregroundStyle(.white)
                 }
                 .frame(width: 48, height: 48)
-                .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
             }
             .buttonStyle(.plain)
 
             Text("Memory museum")
                 .font(.system(size: 24, weight: .medium, design: .rounded))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             Spacer(minLength: 12)
 
@@ -183,17 +183,17 @@ struct StoryGalleryMuseumView: View {
         HStack(spacing: 8) {
             Text("CHAPTER")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.black.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.55))
             Text("\(clampedChapterIndex + 1)/\(chapters.count)")
                 .font(.system(size: 13, weight: .heavy))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .background(Color.white.opacity(0.82), in: Capsule())
+        .background(Color.black.opacity(0.82), in: Capsule())
         .overlay(
             Capsule()
-                .stroke(.black.opacity(0.1), lineWidth: 1)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
         )
     }
 
@@ -201,18 +201,18 @@ struct StoryGalleryMuseumView: View {
         VStack(spacing: 4) {
             Text("Chapter \(clampedChapterIndex + 1)")
                 .font(.system(size: isCompact ? 22 : 28, weight: .regular, design: .rounded))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
 
             Text(chapter.subtitle)
                 .font(.system(size: isCompact ? 16 : 20, weight: .medium, design: .rounded))
-                .foregroundStyle(.black.opacity(0.82))
+                .foregroundStyle(.white.opacity(0.82))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
 
             Text(chapter.title)
                 .font(.system(size: isCompact ? 12 : 13, weight: .semibold))
-                .foregroundStyle(.black.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.55))
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
@@ -227,7 +227,7 @@ struct StoryGalleryMuseumView: View {
     ) -> some View {
         ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.7))
+                .fill(Color.black.opacity(0.82))
 
             Image(imageName)
                 .resizable()
@@ -291,9 +291,9 @@ struct StoryGalleryMuseumView: View {
         .frame(height: height)
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(.black.opacity(0.12), lineWidth: 1)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.12), radius: 18, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.35), radius: 18, x: 0, y: 10)
     }
 
     private func lockOverlay(for chapter: StoryChapter) -> some View {
@@ -301,7 +301,7 @@ struct StoryGalleryMuseumView: View {
 
         return ZStack {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(Color.black.opacity(0.32))
 
             VStack(spacing: 8) {
                 Image(systemName: "lock.fill")
@@ -356,9 +356,9 @@ struct StoryGalleryMuseumView: View {
                     }
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(isSelected ? Color.red.opacity(0.85) : .black.opacity(0.12), lineWidth: isSelected ? 2 : 1)
+                            .stroke(isSelected ? Color.red.opacity(0.9) : .white.opacity(0.08), lineWidth: isSelected ? 2 : 1)
                     )
-                    .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 4)
+                    .shadow(color: .black.opacity(0.28), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
                 .disabled(!isUnlocked || !hasImage)
@@ -375,16 +375,16 @@ struct StoryGalleryMuseumView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(isEnabled ? 0.88 : 0.55))
+                    .fill(Color.black.opacity(isEnabled ? 0.86 : 0.55))
                 Circle()
-                    .stroke(direction == .next ? Color.red.opacity(0.85) : .black.opacity(0.14), lineWidth: direction == .next ? 2.5 : 1)
+                    .stroke(direction == .next ? Color.red.opacity(0.9) : .white.opacity(0.08), lineWidth: direction == .next ? 2.5 : 1)
 
                 Image(systemName: direction == .next ? "chevron.right" : "chevron.left")
                     .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(direction == .next ? Color.red.opacity(isEnabled ? 0.9 : 0.45) : .black.opacity(isEnabled ? 0.8 : 0.35))
+                    .foregroundStyle(direction == .next ? Color.red.opacity(isEnabled ? 0.95 : 0.4) : .white.opacity(isEnabled ? 0.86 : 0.35))
             }
             .frame(width: size, height: size)
-            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+            .shadow(color: .black.opacity(0.35), radius: 10, x: 0, y: 6)
             .opacity(isEnabled ? 1 : 0.75)
         }
         .buttonStyle(.plain)
@@ -421,7 +421,7 @@ struct StoryGalleryMuseumView: View {
         HStack(spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(0.86))
+                    .fill(Color.black.opacity(0.84))
                 Image(systemName: "trophy.fill")
                     .font(.system(size: 21, weight: .bold))
                     .foregroundStyle(Color.orange.opacity(0.9))
@@ -429,18 +429,18 @@ struct StoryGalleryMuseumView: View {
             .frame(width: 54, height: 54)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(.black.opacity(0.1), lineWidth: 1)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
             )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(isCompleted ? "Museum entry archived" : (isUnlocked ? "Museum entry unlocked" : "Museum entry locked"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
 
                 Text(isCompleted ? "Completed chapter memories are ready for export." : "Complete the chapter to mark this archive as finished.")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.black.opacity(0.62))
+                    .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(2)
             }
         }
@@ -450,7 +450,7 @@ struct StoryGalleryMuseumView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Archive date [xx/xx/xxxx]")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
 
             HStack(spacing: 8) {
                 museumActionPill(title: "Save", icon: "square.and.arrow.down", isEnabled: isUnlocked)
@@ -460,7 +460,7 @@ struct StoryGalleryMuseumView: View {
 
             Text("Save to Photos, share, etc.")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.black.opacity(0.58))
+                .foregroundStyle(.white.opacity(0.58))
         }
     }
 
@@ -472,13 +472,13 @@ struct StoryGalleryMuseumView: View {
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
             }
-            .foregroundStyle(.black.opacity(isEnabled ? 0.85 : 0.35))
+            .foregroundStyle(.white.opacity(isEnabled ? 0.9 : 0.35))
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(isEnabled ? 0.9 : 0.65), in: Capsule())
+            .background(Color.black.opacity(isEnabled ? 0.88 : 0.55), in: Capsule())
             .overlay(
                 Capsule()
-                    .stroke(.black.opacity(0.1), lineWidth: 1)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
