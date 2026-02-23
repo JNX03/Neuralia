@@ -193,7 +193,14 @@ final class DialogViewModel: ObservableObject {
     func selectChoice(_ choice: DialogChoice) {
         showChoices = false
         currentEmotion = choice.emotion
-        
+
+        if !choice.response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            displayedText = choice.response
+            isTyping = false
+            showTextInput = false
+            return
+        }
+
         if let nextIndex = choice.nextNodeIndex {
             currentNodeIndex = nextIndex
             startTyping()
@@ -391,6 +398,22 @@ struct DialogAdaptiveLayout {
         default: return 10
         }
     }
+
+    var shouldWrapTopBar: Bool {
+        width < 520 || (isLandscape && height < 430)
+    }
+
+    var controlButtonMinTapSize: CGFloat {
+        isCompact ? 36 : 42
+    }
+
+    var pausePanelMaxHeight: CGFloat {
+        max(240, height - safeAreaInsets.top - safeAreaInsets.bottom - (isCompact ? 24 : 40))
+    }
+
+    var usesVerticalPauseActions: Bool {
+        width < 380 || height < 520
+    }
     
     // MARK: - Layout Mode
     enum LayoutMode {
@@ -517,6 +540,17 @@ struct ResponsiveDialogView: View {
 
     private var isEventBlockingProgress: Bool {
         currentEventPayload != nil && !isCurrentEventCompleted
+    }
+
+    private var clockSplitShowcaseMedia: DialogShowcaseMedia? {
+        guard let node = viewModel.currentNode,
+              node.speaker == "Ploy",
+              let showcase = node.showcaseMedia,
+              showcase.imageName == "__clock_placeholder__",
+              node.eventPayload == nil else {
+            return nil
+        }
+        return showcase
     }
 
     private var canAdvanceFromDialogTap: Bool {
@@ -707,10 +741,13 @@ struct ResponsiveDialogView: View {
                 if showBackButton {
                     VStack {
                         HStack {
-                            backButton(layout: layout)
+                            backButton(layout: layout, forceIconOnly: true)
                             Spacer()
-                            if showSettings {
-                                pauseButton(layout: layout)
+                            HStack(spacing: layout.elementSpacing) {
+                                historyButton(layout: layout)
+                                if showSettings {
+                                    pauseButton(layout: layout, forceIconOnly: true)
+                                }
                             }
                         }
                         .padding(.horizontal, layout.dialogPadding)
@@ -954,58 +991,86 @@ struct ResponsiveDialogView: View {
     }
     
     // MARK: - Top Bar
-    private func topBar(layout: DialogAdaptiveLayout) -> some View {
-        HStack {
-            if showBackButton {
-                backButton(layout: layout)
-            }
-            
-            Spacer()
+    private func chapterStatusBadge(layout: DialogAdaptiveLayout) -> some View {
+        VStack(spacing: 2) {
+            Text(viewModel.currentNode?.cutsceneTitle ?? "Story")
+                .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text("Line \(min(viewModel.currentNodeIndex + 1, max(viewModel.nodes.count, 1))) / \(max(viewModel.nodes.count, 1))")
+                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                .foregroundColor(.white.opacity(0.68))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.42), in: Capsule())
+        .overlay(
+            Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+    }
 
-            VStack(spacing: 2) {
-                Text(viewModel.currentNode?.cutsceneTitle ?? "Story")
-                    .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                Text("Line \(min(viewModel.currentNodeIndex + 1, max(viewModel.nodes.count, 1))) / \(max(viewModel.nodes.count, 1))")
-                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                    .foregroundColor(.white.opacity(0.68))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.black.opacity(0.42), in: Capsule())
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
-            
-            Spacer()
-            
-            HStack(spacing: layout.elementSpacing) {
-                // History button (only on larger screens)
-                if layout.isLarge || layout.isExtraLarge {
-                    historyButton(layout: layout)
+    private func topBar(layout: DialogAdaptiveLayout) -> some View {
+        Group {
+            if layout.shouldWrapTopBar {
+                VStack(spacing: max(8, layout.elementSpacing)) {
+                    HStack(spacing: layout.elementSpacing) {
+                        if showBackButton {
+                            backButton(layout: layout)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        HStack(spacing: layout.elementSpacing) {
+                            historyButton(layout: layout)
+                            if showSettings {
+                                pauseButton(layout: layout)
+                            }
+                        }
+                    }
+
+                    chapterStatusBadge(layout: layout)
+                        .frame(maxWidth: .infinity)
                 }
-                
-                if showSettings {
-                    pauseButton(layout: layout)
+            } else {
+                HStack(spacing: layout.elementSpacing) {
+                    if showBackButton {
+                        backButton(layout: layout)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    chapterStatusBadge(layout: layout)
+                        .layoutPriority(1)
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: layout.elementSpacing) {
+                        historyButton(layout: layout)
+                        if showSettings {
+                            pauseButton(layout: layout)
+                        }
+                    }
                 }
             }
         }
     }
     
-    private func backButton(layout: DialogAdaptiveLayout) -> some View {
+    private func backButton(layout: DialogAdaptiveLayout, forceIconOnly: Bool = false) -> some View {
         DialogControlButton(
             icon: "xmark",
-            title: layout.isCompact ? nil : "Exit",
+            title: (layout.isCompact || forceIconOnly) ? nil : "Exit",
             action: { dismiss() },
             layout: layout
         )
     }
     
-    private func pauseButton(layout: DialogAdaptiveLayout) -> some View {
+    private func pauseButton(layout: DialogAdaptiveLayout, forceIconOnly: Bool = false) -> some View {
         DialogControlButton(
             icon: "pause.fill",
-            title: layout.isCompact ? nil : "Pause",
+            title: (layout.isCompact || forceIconOnly) ? nil : "Pause",
             action: { withAnimation(.spring()) { showSettingsPanel.toggle() } },
             layout: layout
         )
@@ -1025,7 +1090,11 @@ struct ResponsiveDialogView: View {
         layout: DialogAdaptiveLayout,
         forcedPlacement: VNCharacterPlacement? = nil
     ) -> some View {
-        let placement = forcedPlacement ?? characterPlacement
+        let splitShowcase = forcedPlacement == nil ? clockSplitShowcaseMedia : nil
+        let placement = forcedPlacement ?? (splitShowcase != nil ? .left : characterPlacement)
+        let characterMaxWidth = splitShowcase != nil
+            ? min(layout.characterMaxWidth, layout.width * (layout.isCompact ? 0.46 : 0.34))
+            : layout.characterMaxWidth
 
         return ZStack(alignment: .bottom) {
             // Character shadow
@@ -1046,16 +1115,44 @@ struct ResponsiveDialogView: View {
             HStack {
                 if placement != .left { Spacer(minLength: 0) }
                 characterImage(layout: layout)
-                    .frame(maxWidth: layout.characterMaxWidth, maxHeight: layout.characterMaxHeight)
+                    .frame(maxWidth: characterMaxWidth, maxHeight: layout.characterMaxHeight)
                 if placement != .right { Spacer(minLength: 0) }
+            }
+
+            if let splitShowcase {
+                HStack(alignment: .center, spacing: layout.elementSpacing) {
+                    Spacer(minLength: layout.isCompact ? 0 : max(8, layout.elementSpacing))
+
+                    DialogShowcaseCard(showcase: splitShowcase, layout: layout)
+                        .frame(width: clockSplitShowcaseWidth(for: layout))
+                        .padding(.trailing, layout.isCompact ? 4 : 10)
+                        .padding(.bottom, layout.isCompact ? 8 : 18)
+                        .allowsHitTesting(false)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
             
             // Character info badge
-            characterInfoBadge(layout: layout)
-                .padding(.trailing, layout.isCompact ? 16 : 24)
+            characterInfoBadge(layout: layout, alignLeading: splitShowcase != nil)
+                .padding(.leading, splitShowcase != nil ? (layout.isCompact ? 12 : 20) : 0)
+                .padding(.trailing, splitShowcase == nil ? (layout.isCompact ? 16 : 24) : 0)
                 .padding(.bottom, layout.isCompact ? 20 : 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func clockSplitShowcaseWidth(for layout: DialogAdaptiveLayout) -> CGFloat {
+        switch true {
+        case layout.isCompact:
+            return min(layout.width * 0.48, 210)
+        case layout.isRegular:
+            return min(layout.width * 0.34, 260)
+        case layout.isLarge:
+            return min(layout.width * 0.28, 300)
+        default:
+            return min(layout.width * 0.24, 340)
+        }
     }
     
     private func characterImage(layout: DialogAdaptiveLayout) -> some View {
@@ -1097,10 +1194,10 @@ struct ResponsiveDialogView: View {
             }, perform: {})
     }
     
-    private func characterInfoBadge(layout: DialogAdaptiveLayout) -> some View {
+    private func characterInfoBadge(layout: DialogAdaptiveLayout, alignLeading: Bool = false) -> some View {
         HStack {
-            Spacer()
-            VStack(alignment: .trailing, spacing: layout.elementSpacing / 2) {
+            if !alignLeading { Spacer() }
+            VStack(alignment: alignLeading ? .leading : .trailing, spacing: layout.elementSpacing / 2) {
                 Text(viewModel.currentNode?.speaker ?? "Unknown")
                     .font(.system(size: layout.speakerFontSize + 2, weight: .bold))
                     .foregroundColor(.white)
@@ -1122,6 +1219,7 @@ struct ResponsiveDialogView: View {
                 RoundedRectangle(cornerRadius: layout.isCompact ? 10 : 12, style: .continuous)
                     .stroke(Color.white.opacity(0.16), lineWidth: 1)
             )
+            if alignLeading { Spacer() }
         }
     }
     
@@ -1371,126 +1469,170 @@ struct ResponsiveDialogView: View {
                 .onTapGesture {
                     withAnimation(.spring()) { showSettingsPanel = false }
                 }
-            
-            VStack(spacing: layout.sectionSpacing) {
-                Text("Paused")
-                    .font(.system(size: layout.bodyFontSize + 2, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Text("Chapter is paused. Resume, adjust settings, or exit.")
-                    .font(.system(size: layout.captionFontSize + 1))
-                    .foregroundColor(.white.opacity(0.72))
-                    .multilineTextAlignment(.center)
 
-                Divider()
-                    .background(Color.white.opacity(0.2))
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: layout.sectionSpacing) {
+                    Text("Paused")
+                        .font(.system(size: layout.bodyFontSize + 2, weight: .bold))
+                        .foregroundColor(.white)
 
-                HStack(spacing: 10) {
-                    Button(action: { showSettingsPanel = false }) {
-                        Text("Resume")
-                            .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.pink)
-                            .cornerRadius(12)
+                    Text("Chapter is paused. Resume, adjust settings, or exit.")
+                        .font(.system(size: layout.captionFontSize + 1))
+                        .foregroundColor(.white.opacity(0.72))
+                        .multilineTextAlignment(.center)
+
+                    Divider()
+                        .background(Color.white.opacity(0.2))
+
+                    Group {
+                        if layout.usesVerticalPauseActions {
+                            VStack(spacing: 10) {
+                                Button(action: { showSettingsPanel = false }) {
+                                    Text("Resume")
+                                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.pink)
+                                        .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button(action: { dismiss() }) {
+                                    Text("Exit Chapter")
+                                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.white.opacity(0.14))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        } else {
+                            HStack(spacing: 10) {
+                                Button(action: { showSettingsPanel = false }) {
+                                    Text("Resume")
+                                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.pink)
+                                        .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button(action: { dismiss() }) {
+                                    Text("Exit Chapter")
+                                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.85)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.white.opacity(0.14))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
 
-                    Button(action: { dismiss() }) {
-                        Text("Exit Chapter")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Character Position")
+                            .font(.system(size: layout.bodyFontSize))
+                            .foregroundColor(.white)
+
+                        HStack(spacing: 8) {
+                            ForEach(VNCharacterPlacement.allCases) { placement in
+                                Button {
+                                    characterPlacement = placement
+                                } label: {
+                                    Text(placement.label)
+                                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                        .foregroundColor(characterPlacement == placement ? .white : .white.opacity(0.75))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 9)
+                                        .background(
+                                            characterPlacement == placement
+                                                ? Color.pink.opacity(0.85)
+                                                : Color.white.opacity(0.08),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(
+                                                    characterPlacement == placement ? Color.pink.opacity(0.25) : Color.white.opacity(0.08),
+                                                    lineWidth: 1
+                                                )
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // Typing speed
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Typing Speed")
+                            .font(.system(size: layout.bodyFontSize))
+                            .foregroundColor(.white)
+
+                        HStack {
+                            Text("Slow")
+                                .font(.system(size: layout.captionFontSize))
+                                .foregroundColor(.white.opacity(0.6))
+
+                            Slider(value: $viewModel.typingSpeed, in: 0.5...3.0, step: 0.5)
+
+                            Text("Fast")
+                                .font(.system(size: layout.captionFontSize))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                    }
+
+                    // Background opacity
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Background Brightness")
+                            .font(.system(size: layout.bodyFontSize))
+                            .foregroundColor(.white)
+
+                        Slider(value: $backgroundOpacity, in: 0.3...1.0)
+                    }
+
+                    Button(action: { showSettingsPanel = false }) {
+                        Text("Close Pause Menu")
                             .font(.system(size: layout.bodyFontSize, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color.white.opacity(0.14))
+                            .padding()
+                            .background(Color.white.opacity(0.12))
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
                 }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Character Position")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white)
-
-                    HStack(spacing: 8) {
-                        ForEach(VNCharacterPlacement.allCases) { placement in
-                            Button {
-                                characterPlacement = placement
-                            } label: {
-                                Text(placement.label)
-                                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                                    .foregroundColor(characterPlacement == placement ? .white : .white.opacity(0.75))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 9)
-                                    .background(
-                                        characterPlacement == placement
-                                            ? Color.pink.opacity(0.85)
-                                            : Color.white.opacity(0.08),
-                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(
-                                                characterPlacement == placement ? Color.pink.opacity(0.25) : Color.white.opacity(0.08),
-                                                lineWidth: 1
-                                            )
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                
-                // Typing speed
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Typing Speed")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white)
-                    
-                    HStack {
-                        Text("Slow")
-                            .font(.system(size: layout.captionFontSize))
-                            .foregroundColor(.white.opacity(0.6))
-                        
-                        Slider(value: $viewModel.typingSpeed, in: 0.5...3.0, step: 0.5)
-                        
-                        Text("Fast")
-                            .font(.system(size: layout.captionFontSize))
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                }
-                
-                // Background opacity
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Background Brightness")
-                        .font(.system(size: layout.bodyFontSize))
-                        .foregroundColor(.white)
-                    
-                    Slider(value: $backgroundOpacity, in: 0.3...1.0)
-                }
-                
-                Button(action: { showSettingsPanel = false }) {
-                    Text("Close Pause Menu")
-                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
+                .padding(layout.dialogPadding)
+                .frame(maxWidth: .infinity)
             }
-            .padding(layout.dialogPadding)
+            .frame(maxWidth: min(layout.dialogMaxWidth, 400), maxHeight: layout.pausePanelMaxHeight)
             .background(
                 RoundedRectangle(cornerRadius: layout.dialogCornerRadius)
                     .fill(Color.black.opacity(0.88))
@@ -1499,7 +1641,7 @@ struct ResponsiveDialogView: View {
                             .stroke(Color.white.opacity(0.14), lineWidth: 1)
                     )
             )
-            .frame(maxWidth: min(layout.dialogMaxWidth, 400))
+            .clipShape(RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous))
             .padding(.horizontal, layout.dialogPadding)
         }
     }
@@ -1610,11 +1752,15 @@ struct DialogControlButton: View {
                 if let title = title {
                     Text(title)
                         .font(.system(size: layout.captionFontSize + 2, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
             .foregroundColor(.white)
             .padding(.horizontal, title != nil ? (layout.isCompact ? 10 : 14) : (layout.isCompact ? 8 : 10))
             .padding(.vertical, title != nil ? (layout.isCompact ? 6 : 8) : (layout.isCompact ? 8 : 10))
+            .frame(minHeight: layout.controlButtonMinTapSize)
+            .frame(minWidth: title == nil ? layout.controlButtonMinTapSize : nil)
             .background(
                 Capsule()
                     .fill(Color.black.opacity(0.55))
@@ -1624,6 +1770,7 @@ struct DialogControlButton: View {
                     )
             )
             .scaleEffect(isHovered ? 1.05 : 1.0)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .dialogHoverIfAvailable { isHovered = $0 }
@@ -1772,23 +1919,29 @@ struct DialogShowcaseCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: layout.elementSpacing) {
             ZStack(alignment: .topLeading) {
-                Image(showcase.imageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: layout.isCompact ? 140 : 180)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            colors: [
-                                Color.clear,
-                                Color.black.opacity(0.2),
-                                Color.black.opacity(0.65)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                Group {
+                    if showcase.imageName == "__clock_placeholder__" {
+                        PlaceholderClockHeroCard()
+                    } else {
+                        Image(showcase.imageName)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                }
+                .frame(height: layout.isCompact ? 140 : 180)
+                .frame(maxWidth: .infinity)
+                .clipped()
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color.clear,
+                            Color.black.opacity(0.2),
+                            Color.black.opacity(0.65)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
+                )
 
                 if let badge = showcase.badge {
                     Text(badge)
@@ -1824,6 +1977,74 @@ struct DialogShowcaseCard: View {
     }
 }
 
+private struct PlaceholderClockHeroCard: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.10, blue: 0.15),
+                    Color(red: 0.13, green: 0.16, blue: 0.22)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.white.opacity(0.03))
+                .padding(10)
+
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(Circle().stroke(Color.white.opacity(0.22), lineWidth: 1))
+
+                    ForEach(0..<12, id: \.self) { mark in
+                        Rectangle()
+                            .fill(Color.white.opacity(mark % 3 == 0 ? 0.75 : 0.35))
+                            .frame(width: 2, height: mark % 3 == 0 ? 10 : 6)
+                            .offset(y: -34)
+                            .rotationEffect(.degrees(Double(mark) * 30))
+                    }
+
+                    // Deliberately wrong "67 minutes" cue (placeholder art)
+                    Rectangle()
+                        .fill(Color.red.opacity(0.9))
+                        .frame(width: 2, height: 30)
+                        .offset(y: -15)
+                        .rotationEffect(.degrees(402)) // 67 * 6
+
+                    Rectangle()
+                        .fill(Color.cyan.opacity(0.95))
+                        .frame(width: 3, height: 22)
+                        .offset(y: -11)
+                        .rotationEffect(.degrees(324)) // 10-ish
+
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 7, height: 7)
+                }
+                .frame(width: 88, height: 88)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("10:67")
+                        .font(.system(size: 26, weight: .heavy, design: .rounded))
+                        .foregroundColor(.white)
+                    Text("Impossible time")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.orange)
+                    Text("Placeholder clock art")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.62))
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 18)
+        }
+    }
+}
+
 struct DialogEventPanel: View {
     let eventPayload: DialogEventPayload
     let layout: DialogAdaptiveLayout
@@ -1843,10 +2064,8 @@ struct DialogEventPanel: View {
     @State private var phoneNoReplyCount = 0
     @State private var phoneLessonHint = "Ask who they are and why they are contacting you before sharing anything."
     @State private var memoryProgress: Double = 0.18
-    @State private var selectedBiasCard = 0
     @State private var chatStarted = false
     @State private var chatObjectiveComplete = false
-    @State private var reviewedBiasCards: Set<Int> = []
     @State private var biasPressure: Double = 0.72
     @State private var biasResolved = false
     @State private var memoryEpoch = 0
@@ -1857,6 +2076,43 @@ struct DialogEventPanel: View {
     @State private var promptWorkshopPassed = false
     @State private var promptFeedback = "Pick one option for each step, then press Check Prompt Plan."
     @State private var selectedPromptCategory: String = "Goal"
+    @State private var zooLessonStage = 0
+    @State private var zooLessonFeedback = "Ploy said an impossible time. Pick the real time from the clock."
+    @State private var selectedClockOption: String? = nil
+    @State private var selectedBirdOption: String? = nil
+    @State private var selectedRedPandaLabel: String? = nil
+    @State private var selectedBiasFixOption: String? = nil
+    @State private var zooShowDetailPanel = false
+    @State private var zooUnlockedMemories: Set<String> = []
+    @State private var algaeRevealProgress: Double = 0.05
+
+    private enum ZooLessonStage: Int, CaseIterable {
+        case clock = 0
+        case bird = 1
+        case redPandaBias = 2
+        case aquariumData = 3
+        case complete = 4
+    }
+
+    private struct TriangleTail: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            path.closeSubpath()
+            return path
+        }
+    }
+
+    private var currentZooStage: ZooLessonStage {
+        ZooLessonStage(rawValue: zooLessonStage) ?? .clock
+    }
+
+    private let zooClockCorrectOption = "10:57"
+    private let zooBirdCorrectOption = "Bird"
+    private let zooRedPandaCorrectOption = "Red Panda"
+    private let zooBiasBestFix = "Use labels + diverse examples"
 
     var body: some View {
         Group {
@@ -1870,6 +2126,9 @@ struct DialogEventPanel: View {
             if eventPayload.type == .mobileChat && !chatStarted {
                 startPhoneEvent()
             }
+            if eventPayload.type == .hallucinationBias {
+                syncZooRiskMeter()
+            }
             onCompletionChanged(actionCompleted)
         }
         .onChange(of: actionCompleted) { isCompleted in
@@ -1878,30 +2137,34 @@ struct DialogEventPanel: View {
     }
 
     private var eventChromeBody: some View {
-        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+        let isZooGame = eventPayload.type == .hallucinationBias
+
+        return VStack(alignment: .leading, spacing: layout.elementSpacing) {
             HStack(alignment: .top, spacing: layout.elementSpacing) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(eventPayload.title)
                         .font(.system(size: layout.bodyFontSize, weight: .bold))
                         .foregroundColor(.white)
-                    Text(eventPayload.subtitle)
+                    Text(isZooGame ? "One stage at a time. Open the Book to check the real answer and why AI can be wrong." : eventPayload.subtitle)
                         .font(.system(size: layout.captionFontSize))
                         .foregroundColor(.white.opacity(0.72))
                 }
                 Spacer()
-                Text(eventPayload.type.rawValue.uppercased())
+                Text(isZooGame ? "MINI GAME" : eventPayload.type.rawValue.uppercased())
                     .font(.system(size: layout.captionFontSize - 1, weight: .black))
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .background((isZooGame ? stageAccentColor.opacity(0.18) : Color.white.opacity(0.08)), in: Capsule())
             }
 
             eventContent
 
-            statusBanner
+            if !isZooGame {
+                statusBanner
+            }
 
-            if !eventPayload.metrics.isEmpty {
+            if !eventPayload.metrics.isEmpty && !isZooGame {
                 LazyVGrid(
                     columns: [GridItem(.flexible()), GridItem(.flexible())],
                     spacing: layout.choiceSpacing
@@ -1927,7 +2190,7 @@ struct DialogEventPanel: View {
                 }
             }
 
-            if !eventPayload.tags.isEmpty {
+            if !eventPayload.tags.isEmpty && !isZooGame {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(eventPayload.tags, id: \.self) { tag in
@@ -1942,40 +2205,65 @@ struct DialogEventPanel: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            if isZooGame {
                 Button(action: triggerEventHook) {
                     HStack(spacing: 8) {
                         Image(systemName: actionButtonIcon)
                         Text(actionButtonLabel)
                             .lineLimit(1)
                     }
-                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .font(.system(size: layout.bodyFontSize, weight: .black, design: .rounded))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
+                    .padding(.vertical, 14)
                     .background(
                         LinearGradient(
-                            colors: didTrigger
-                                ? [actionAccent.opacity(0.95), actionAccent.opacity(0.65)]
-                                : [Color.pink.opacity(0.95), Color.orange.opacity(0.85)],
+                            colors: [actionAccent.opacity(0.95), actionAccent.opacity(0.70)],
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
-                        in: RoundedRectangle(cornerRadius: 12)
+                        in: RoundedRectangle(cornerRadius: 14)
                     )
                 }
                 .buttonStyle(.plain)
                 .disabled(actionCompleted)
                 .opacity(actionCompleted ? 0.92 : 1.0)
+            } else {
+                HStack(spacing: 10) {
+                    Button(action: triggerEventHook) {
+                        HStack(spacing: 8) {
+                            Image(systemName: actionButtonIcon)
+                            Text(actionButtonLabel)
+                                .lineLimit(1)
+                        }
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(
+                            LinearGradient(
+                                colors: didTrigger
+                                    ? [actionAccent.opacity(0.95), actionAccent.opacity(0.65)]
+                                    : [Color.pink.opacity(0.95), Color.orange.opacity(0.85)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ),
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(actionCompleted)
+                    .opacity(actionCompleted ? 0.92 : 1.0)
 
-                Text(eventPayload.hookName)
-                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.68))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 10)
-                    .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    Text(eventPayload.hookName)
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.68))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 10))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
         }
         .padding(layout.isCompact ? 12 : 14)
@@ -1993,7 +2281,12 @@ struct DialogEventPanel: View {
                                     Color(red: 0.10, green: 0.10, blue: 0.14),
                                     Color(red: 0.08, green: 0.08, blue: 0.11)
                                 ]
-                                : [Color.white.opacity(0.06), Color.white.opacity(0.03)],
+                                : eventPayload.type == .hallucinationBias
+                                    ? [
+                                        Color(red: 0.07, green: 0.08, blue: 0.10).opacity(0.94),
+                                        Color(red: 0.06, green: 0.06, blue: 0.08).opacity(0.94)
+                                    ]
+                                    : [Color.white.opacity(0.06), Color.white.opacity(0.03)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -2003,7 +2296,9 @@ struct DialogEventPanel: View {
                         .stroke(
                             (eventPayload.type == .mobileChat || eventPayload.type == .promptWorkshop)
                                 ? Color.white.opacity(0.10)
-                                : Color.white.opacity(0.14),
+                                : eventPayload.type == .hallucinationBias
+                                    ? stageAccentColor.opacity(0.28)
+                                    : Color.white.opacity(0.14),
                             lineWidth: 1
                         )
                 )
@@ -2049,364 +2344,432 @@ struct DialogEventPanel: View {
     }
 
     private var mobileChatPhoneCard: some View {
-        let currentPulse = min(phonePulseCount, 2)
-        let phoneContainerAlignment: Alignment =
-            (!layout.isCompact && eventPayload.type == .mobileChat && !showsEventChrome)
-            ? .center
-            : .center
+        let phoneContainerAlignment: Alignment = .center
         let phoneHorizontalOffset: CGFloat =
             (!layout.isCompact && eventPayload.type == .mobileChat && !showsEventChrome)
             ? (layout.isLarge || layout.isExtraLarge ? -28 : -16)
             : 0
         let targetPhoneHeight: CGFloat = {
             if layout.isCompact {
-                return min(max(layout.height * 0.58, 470), 680)
+                return min(max(layout.height * 0.64, 520), 760)
             } else if layout.isRegular {
-                return min(max(layout.height * 0.70, 610), 820)
+                return min(max(layout.height * 0.78, 660), 900)
             } else {
-                return min(max(layout.height * 0.80, 760), 980)
+                return min(max(layout.height * 0.86, 800), 1020)
             }
         }()
         let targetPhoneWidth: CGFloat = {
-            let ratioWidth = targetPhoneHeight * 0.56
-            let minWidth: CGFloat = layout.isCompact ? 300 : (layout.isRegular ? 360 : 430)
-            let maxWidth: CGFloat = layout.isCompact ? min(layout.width - 24, 390) : (layout.isRegular ? 500 : 620)
+            let ratioWidth = targetPhoneHeight * 0.50
+            let minWidth: CGFloat = layout.isCompact ? 308 : (layout.isRegular ? 372 : 432)
+            let maxWidth: CGFloat = layout.isCompact ? min(layout.width - 22, 402) : (layout.isRegular ? 520 : 640)
             return min(max(ratioWidth, minWidth), maxWidth)
         }()
+        let outerCorner = layout.isCompact ? 34.0 : 40.0
+        let screenCorner = layout.isCompact ? 28.0 : 32.0
 
         return ZStack {
-            RoundedRectangle(cornerRadius: layout.isCompact ? 30 : 34, style: .continuous)
-                .fill(Color(red: 0.03, green: 0.03, blue: 0.05))
+            RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
+                .fill(Color.black)
                 .overlay(
-                    RoundedRectangle(cornerRadius: layout.isCompact ? 30 : 34, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1.2)
+                    RoundedRectangle(cornerRadius: outerCorner, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1.2)
                 )
-                .shadow(color: Color.black.opacity(0.4), radius: 16, x: 0, y: 10)
+                .shadow(color: Color.black.opacity(0.45), radius: 22, x: 0, y: 14)
 
-            VStack(spacing: 0) {
-                HStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.8))
-                        .frame(width: 12, height: 12)
-                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
-
-                    Spacer()
-
-                    Capsule()
-                        .fill(Color.black.opacity(0.7))
-                        .frame(width: layout.isCompact ? 84 : 110, height: 18)
-                        .overlay(
-                            Text("NEURA PHONE")
-                                .font(.system(size: 8, weight: .black, design: .rounded))
-                                .foregroundColor(.white.opacity(0.35))
-                                .tracking(1)
-                        )
-
-                    Spacer()
-
-                    Circle()
-                        .fill(Color.black.opacity(0.8))
-                        .frame(width: 12, height: 12)
-                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+            // Side buttons for a more phone-like silhouette.
+            HStack {
+                VStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 4, height: 36)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 4, height: 56)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 4, height: 56)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: layout.isCompact ? 20 : 24, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: chatObjectiveComplete
-                                    ? [Color(red: 0.92, green: 0.95, blue: 0.99), Color(red: 0.88, green: 0.92, blue: 0.98)]
-                                    : [Color(red: 0.95, green: 0.96, blue: 0.99), Color(red: 0.90, green: 0.93, blue: 0.98), Color(red: 0.88, green: 0.91, blue: 0.97)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: layout.isCompact ? 20 : 24, style: .continuous)
-                                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                        )
-
-                    VStack(spacing: 6) {
-                        ForEach(0..<5, id: \.self) { index in
-                            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(
-                                    (index + phoneGlitchSeed).isMultiple(of: 2)
-                                        ? Color.blue.opacity(chatObjectiveComplete ? 0.05 : 0.09)
-                                        : Color.gray.opacity(chatObjectiveComplete ? 0.03 : 0.06)
-                                )
-                                .frame(width: phoneAccentLineWidth(index), height: 2)
-                                .offset(x: phoneAccentLineOffset(index))
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .padding(.top, layout.isCompact ? 16 : 20)
-                    .allowsHitTesting(false)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: layout.captionFontSize, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
-                                Text("Messages")
-                                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
-                                Spacer()
-                                Text(chatObjectiveComplete ? "iMessage" : "Unknown Number")
-                                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                                    .foregroundColor(.black.opacity(0.5))
-                            }
-
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(Color.black.opacity(0.08))
-                                    .frame(width: 26, height: 26)
-                                    .overlay(
-                                        Image(systemName: "person.crop.circle.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(.gray)
-                                    )
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("UNKNOWN")
-                                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                                        .foregroundColor(.black.opacity(0.84))
-                                    Text(chatObjectiveComplete ? "Conversation closed" : (chatStarted ? "Unknown sender" : "Offline"))
-                                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                                        .foregroundColor(.black.opacity(0.48))
-                                }
-                                Spacer()
-                                Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: layout.captionFontSize + 3))
-                                    .foregroundColor(.black.opacity(0.45))
-                            }
-
-                            Rectangle()
-                                .fill(Color.black.opacity(0.07))
-                                .frame(height: 1)
-                        }
-
-                        mobileMessagesConversationPreview(currentPulse: currentPulse)
-
-                        ZStack {
-                            Image(systemName: "iphone")
-                                .font(.system(size: layout.isCompact ? 42 : 52, weight: .thin))
-                                .foregroundColor(.black.opacity(0.18))
-
-                            Image(systemName: "dot.radiowaves.left.and.right")
-                                .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
-                                .foregroundColor(chatObjectiveComplete ? .green.opacity(0.9) : .pink.opacity(0.9))
-                                .shadow(color: chatObjectiveComplete ? .green.opacity(0.35) : .pink.opacity(0.35), radius: 6)
-
-                            if !chatObjectiveComplete {
-                                Image(systemName: "dot.radiowaves.left.and.right")
-                                    .font(.system(size: layout.isCompact ? 32 : 38, weight: .medium))
-                                    .foregroundColor(.blue.opacity(0.28))
-                                    .offset(
-                                        x: CGFloat((phoneGlitchSeed % 3) - 1) * 4,
-                                        y: CGFloat((phoneGlitchSeed % 5) - 2) * 1.5
-                                    )
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 4)
-                        .padding(.bottom, 2)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Prompting + Scam Safety")
-                                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold))
-                                .foregroundColor(.black.opacity(0.55))
-                            Text(
-                                chatObjectiveComplete
-                                    ? "Lesson complete. You asked clearly and avoided unsafe sharing."
-                                    : (!chatStarted
-                                        ? "Open the phone message to begin."
-                                        : "Choose a preset reply that asks clear questions and protects your information.")
-                            )
-                            .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                            .foregroundColor(.black.opacity(0.82))
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.black.opacity(0.07), lineWidth: 1)
-                        )
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                Text("SAFE REPLIES")
-                                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold, design: .monospaced))
-                                    .foregroundColor(.black.opacity(0.55))
-                                Spacer()
-                                Text("\(Int(phoneStability * 100))%")
-                                    .font(.system(size: layout.captionFontSize, weight: .bold, design: .monospaced))
-                                    .foregroundColor(chatObjectiveComplete ? .green : .blue)
-                            }
-
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(Color.black.opacity(0.06))
-                                    .frame(height: 10)
-                                GeometryReader { geo in
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: chatObjectiveComplete
-                                                    ? [Color.green.opacity(0.95), Color.mint.opacity(0.8)]
-                                                    : [Color(red: 0.34, green: 0.63, blue: 1.0), Color(red: 0.24, green: 0.54, blue: 0.98)],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .frame(
-                                            width: max(8, geo.size.width * phoneStability),
-                                            height: 10
-                                        )
-                                }
-                            }
-                            .frame(height: 10)
-
-                            HStack(spacing: 8) {
-                                ForEach(0..<2, id: \.self) { idx in
-                                    HStack(spacing: 5) {
-                                        Circle()
-                                            .fill(idx < currentPulse ? Color.green : Color.black.opacity(0.12))
-                                            .frame(width: 8, height: 8)
-                                        Text("Pulse \(idx + 1)")
-                                            .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .semibold))
-                                            .foregroundColor(.black.opacity(idx < currentPulse ? 0.88 : 0.5))
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 8))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                                    )
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.black.opacity(0.07), lineWidth: 1)
-                        )
-
-                        VStack(spacing: 8) {
-                            if !chatStarted {
-                                Button(action: startPhoneEvent) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "power")
-                                        Text("POWER ON PHONE")
-                                    }
-                                    .font(.system(size: layout.captionFontSize + 1, weight: .black, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [Color(red: 0.24, green: 0.54, blue: 0.98), Color(red: 0.19, green: 0.73, blue: 1.0)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        ),
-                                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                HStack(spacing: 8) {
-                                    Button(action: scramblePhoneScreen) {
-                                        Label("Clear", systemImage: "xmark")
-                                            .font(.system(size: layout.captionFontSize, weight: .bold))
-                                            .foregroundColor(Color(red: 0.29, green: 0.59, blue: 0.98))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 9)
-                                            .background(Color.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 10))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(Color.black.opacity(0.07), lineWidth: 1)
-                                            )
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(chatObjectiveComplete)
-                                    .opacity(chatObjectiveComplete ? 0.5 : 1.0)
-
-                                    if let selectedChatOption, !selectedChatOption.isEmpty {
-                                        Button(action: stabilizePhonePulse) {
-                                            Label(chatObjectiveComplete ? "Delivered" : "Send", systemImage: "arrow.up.circle.fill")
-                                                .font(.system(size: layout.captionFontSize, weight: .black))
-                                                .foregroundColor(.white)
-                                                .frame(maxWidth: .infinity)
-                                                .padding(.vertical, 9)
-                                                .background(
-                                                    chatObjectiveComplete ? Color.green.opacity(0.55) : Color(red: 0.24, green: 0.54, blue: 0.98).opacity(0.95),
-                                                    in: RoundedRectangle(cornerRadius: 10)
-                                                )
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .stroke(
-                                                            chatObjectiveComplete ? Color.green.opacity(0.45) : Color(red: 0.33, green: 0.65, blue: 1.0).opacity(0.7),
-                                                            lineWidth: 1
-                                                        )
-                                                )
-                                        }
-                                        .buttonStyle(.plain)
-                                        .disabled(chatObjectiveComplete)
-                                        .opacity(chatObjectiveComplete ? 0.6 : 1.0)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                        )
-                    }
-                    .padding(layout.isCompact ? 14 : 16)
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-                .onTapGesture {
-                    guard chatStarted && !chatObjectiveComplete else { return }
-                    didTrigger = true
-                    phoneGlitchSeed += 1
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        phoneStability = min(0.92, phoneStability + 0.03)
-                        phoneNoiseLevel = max(0.28, phoneNoiseLevel - 0.03)
-                    }
-                }
-
-                Capsule()
-                    .fill(Color.white.opacity(0.2))
-                    .frame(width: layout.isCompact ? 92 : 112, height: 4)
-                    .padding(.top, 6)
-                    .padding(.bottom, 10)
+                .offset(x: -4, y: -90)
+                Spacer()
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: 4, height: 84)
+                    .offset(x: 4, y: -70)
             }
+            .padding(.horizontal, 2)
+            .allowsHitTesting(false)
+
+            RoundedRectangle(cornerRadius: screenCorner, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.96, green: 0.97, blue: 0.99),
+                            Color(red: 0.93, green: 0.95, blue: 0.98)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: screenCorner, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
+                .overlay(
+                    VStack(spacing: 0) {
+                        mobilePhoneStatusBar
+                        mobilePhoneThreadHeader
+                            .padding(.top, 4)
+
+                        Rectangle()
+                            .fill(Color.black.opacity(0.06))
+                            .frame(height: 1)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 10)
+
+                        mobileMessagesConversationPreview()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                        mobileReplySuggestionsStrip
+                            .padding(.top, 4)
+
+                        mobileComposerBar
+                            .padding(.top, 6)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: screenCorner, style: .continuous))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
         }
         .frame(width: targetPhoneWidth, height: targetPhoneHeight)
-        .frame(
-            maxWidth: .infinity,
-            alignment: phoneContainerAlignment
-        )
+        .contentShape(RoundedRectangle(cornerRadius: outerCorner, style: .continuous))
+        .onTapGesture {
+            guard chatStarted && !chatObjectiveComplete else { return }
+            didTrigger = true
+            phoneGlitchSeed += 1
+            withAnimation(.easeInOut(duration: 0.18)) {
+                phoneStability = min(0.92, phoneStability + 0.03)
+                phoneNoiseLevel = max(0.28, phoneNoiseLevel - 0.03)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: phoneContainerAlignment)
         .offset(x: phoneHorizontalOffset)
     }
 
-    private func phoneAccentLineWidth(_ index: Int) -> CGFloat {
-        let base = 74 + CGFloat(((index * 17) + (phoneGlitchSeed * 9)) % 72)
-        return base
+    private var mobilePhoneStatusBar: some View {
+        HStack(spacing: 10) {
+            Text("9:41")
+                .font(.system(size: layout.isCompact ? 13 : 14, weight: .semibold))
+                .foregroundColor(.black.opacity(0.88))
+
+            Spacer()
+
+            Capsule()
+                .fill(Color.black)
+                .frame(width: layout.isCompact ? 94 : 116, height: layout.isCompact ? 22 : 24)
+
+            Spacer()
+
+            HStack(spacing: 5) {
+                Image(systemName: "cellularbars")
+                Image(systemName: "wifi")
+                Image(systemName: "battery.100")
+            }
+            .font(.system(size: layout.isCompact ? 11 : 12, weight: .semibold))
+            .foregroundColor(.black.opacity(0.88))
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, 2)
     }
 
-    private func phoneAccentLineOffset(_ index: Int) -> CGFloat {
-        let raw = ((index * 11) + (phoneGlitchSeed * 3) + (phonePulseCount * 5)) % 17
-        return CGFloat(raw - 8)
+    private var mobilePhoneThreadHeader: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 7) {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.cyan.opacity(0.20), Color.teal.opacity(0.28)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: layout.isCompact ? 42 : 50, height: layout.isCompact ? 42 : 50)
+                    .overlay(
+                        Image(systemName: "sparkles")
+                            .font(.system(size: layout.isCompact ? 17 : 20, weight: .semibold))
+                            .foregroundColor(.teal.opacity(0.9))
+                    )
+
+                Text("AI Friend")
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold))
+                    .foregroundColor(.black.opacity(0.88))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.82), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                    )
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(chatObjectiveComplete ? Color.green : Color.gray.opacity(0.35))
+                        .frame(width: 6, height: 6)
+                    Text(mobileThreadSubtitle)
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                        .foregroundColor(.black.opacity(0.5))
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Button(action: scramblePhoneScreen) {
+                Image(systemName: "xmark")
+                    .font(.system(size: layout.isCompact ? 12 : 13, weight: .bold))
+                    .foregroundColor(.black.opacity(0.8))
+                    .frame(width: 30, height: 30)
+                    .background(Color.white.opacity(0.85), in: Circle())
+                    .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(chatObjectiveComplete && (selectedChatOption == nil))
+            .opacity(chatObjectiveComplete && (selectedChatOption == nil) ? 0.6 : 1.0)
+        }
+    }
+
+    private var mobileThreadSubtitle: String {
+        if chatObjectiveComplete {
+            return "Conversation ended"
+        }
+        if !chatStarted {
+            return "Tap send to open chat"
+        }
+        return "Progress: \(min(phonePulseCount, 2))/2 replies"
+    }
+
+    private var mobileComposerPlaceholder: String {
+        if chatObjectiveComplete {
+            return "Lesson complete"
+        }
+        if !chatStarted {
+            return "Open Messages"
+        }
+        return "Tap a suggestion below"
+    }
+
+    private var hasSelectedReplyDraft: Bool {
+        !(selectedChatOption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+    }
+
+    private var mobileThreadStatusText: String {
+        if chatObjectiveComplete {
+            return "Nice. You asked questions first and did not share private info."
+        }
+        if !chatStarted {
+            return "Open the chat, then respond using short, clear replies."
+        }
+        return phoneHintForCurrentStep
+    }
+
+    private var mobileReplySuggestionsStrip: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(mobileThreadStatusText)
+                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                .foregroundColor(.black.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !chatObjectiveComplete {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(chatQuickReplies, id: \.self) { option in
+                            let isSelected = selectedChatOption == option
+                            Button {
+                                selectedChatOption = option
+                                phoneGlitchSeed += 1
+                            } label: {
+                                Text(option)
+                                    .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                                    .foregroundColor(isSelected ? .white : .black.opacity(0.78))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 7)
+                                    .background(
+                                        isSelected
+                                            ? Color(red: 0.18, green: 0.55, blue: 0.98)
+                                            : Color.white.opacity(0.92),
+                                        in: Capsule()
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(Color.black.opacity(isSelected ? 0 : 0.07), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                    .padding(.vertical, 1)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Tap the story panel to continue.")
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .semibold))
+                        .foregroundColor(.black.opacity(0.65))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.white.opacity(0.85), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.green.opacity(0.16), lineWidth: 1)
+                )
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var mobileComposerBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                if chatStarted && !chatObjectiveComplete {
+                    scramblePhoneScreen()
+                } else if !chatStarted {
+                    startPhoneEvent()
+                }
+            } label: {
+                Image(systemName: chatStarted ? "plus" : "play.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.82))
+                    .frame(width: 32, height: 32)
+                    .background(Color.white.opacity(0.92), in: Circle())
+                    .overlay(Circle().stroke(Color.black.opacity(0.06), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 6) {
+                Text(hasSelectedReplyDraft ? (selectedChatOption ?? "") : mobileComposerPlaceholder)
+                    .font(.system(size: layout.captionFontSize + 1, weight: hasSelectedReplyDraft ? .medium : .regular))
+                    .foregroundColor(hasSelectedReplyDraft ? .black.opacity(0.86) : .black.opacity(0.45))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+            )
+
+            Button {
+                if !chatStarted {
+                    startPhoneEvent()
+                } else {
+                    stabilizePhonePulse()
+                }
+            } label: {
+                Image(systemName: chatObjectiveComplete ? "checkmark" : "arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        (chatObjectiveComplete ? Color.green : Color(red: 0.12, green: 0.53, blue: 0.98)),
+                        in: Circle()
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(chatObjectiveComplete || (chatStarted && !hasSelectedReplyDraft))
+            .opacity(chatObjectiveComplete || (chatStarted && !hasSelectedReplyDraft) ? 0.55 : 1.0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private func mobileMessagesConversationPreview() -> some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(chatStarted ? "Today • 9:41 AM" : "Waiting For Connection")
+                        .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .semibold))
+                        .foregroundColor(.black.opacity(0.36))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 6)
+
+                    ForEach(Array(phoneMessages.enumerated()), id: \.offset) { index, raw in
+                        let parsed = parsedPhoneMessage(raw)
+                        mobileMessageBubble(
+                            parsed.text,
+                            isUser: parsed.isUser,
+                            caption: parsed.caption
+                        )
+                        .id("phone-message-\(index)")
+                    }
+
+                    if hasSelectedReplyDraft && !chatObjectiveComplete {
+                        mobileMessageBubble(
+                            selectedChatOption ?? "",
+                            isUser: true,
+                            caption: "Draft"
+                        )
+                        .opacity(0.72)
+                        .id("phone-draft")
+                    }
+
+                    if chatStarted || chatObjectiveComplete {
+                        HStack(spacing: 6) {
+                            Image(systemName: chatObjectiveComplete ? "checkmark.shield.fill" : "info.circle.fill")
+                                .foregroundColor(chatObjectiveComplete ? .green : Color(red: 0.24, green: 0.54, blue: 0.98))
+                            Text(mobileThreadStatusText)
+                                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
+                                .foregroundColor(.black.opacity(0.62))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.black.opacity(0.05), lineWidth: 1)
+                        )
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("phone-thread-bottom")
+                }
+                .padding(.horizontal, 4)
+                .padding(.bottom, 6)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .clipped()
+            .onAppear {
+                DispatchQueue.main.async {
+                    scrollPhoneThreadToBottom(proxy, animated: false)
+                }
+            }
+            .onChange(of: phoneMessages.count) { _ in
+                scrollPhoneThreadToBottom(proxy)
+            }
+            .onChange(of: selectedChatOption) { _ in
+                scrollPhoneThreadToBottom(proxy)
+            }
+        }
+    }
+
+    private func scrollPhoneThreadToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
+        let scrollAction = {
+            proxy.scrollTo("phone-thread-bottom", anchor: .bottom)
+        }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2), scrollAction)
+        } else {
+            scrollAction()
+        }
     }
 
     private var phoneHintForCurrentStep: String {
@@ -2433,95 +2796,6 @@ struct DialogEventPanel: View {
         }
     }
 
-    @ViewBuilder
-    private func mobileMessagesConversationPreview(currentPulse: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(phoneMessages.suffix(layout.isCompact ? 4 : 5).enumerated()), id: \.offset) { _, raw in
-                let parsed = parsedPhoneMessage(raw)
-                mobileMessageBubble(
-                    parsed.text,
-                    isUser: parsed.isUser,
-                    caption: parsed.caption
-                )
-            }
-
-            if let selectedChatOption, !chatObjectiveComplete {
-                mobileMessageBubble(
-                    selectedChatOption,
-                    isUser: true,
-                    caption: "Draft"
-                )
-                .opacity(0.72)
-            }
-
-            if !chatObjectiveComplete {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Reply Options")
-                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold))
-                        .foregroundColor(.black.opacity(0.55))
-
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: layout.isCompact ? 120 : 150), spacing: 6)],
-                        spacing: 6
-                    ) {
-                        ForEach(chatQuickReplies, id: \.self) { option in
-                            let isSelected = selectedChatOption == option
-                            Button {
-                                selectedChatOption = option
-                                phoneGlitchSeed += 1
-                            } label: {
-                                HStack(spacing: 5) {
-                                    if isSelected {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: max(layout.captionFontSize - 1, 10)))
-                                    }
-                                    Text(option)
-                                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                                        .multilineTextAlignment(.leading)
-                                    Spacer(minLength: 0)
-                                }
-                                .foregroundColor(isSelected ? .white : Color.black.opacity(0.8))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 7)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    isSelected
-                                        ? Color(red: 0.19, green: 0.53, blue: 0.98)
-                                        : Color.white,
-                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.black.opacity(isSelected ? 0.0 : 0.06), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-
-                }
-                .padding(8)
-                .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
-            } else {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .foregroundColor(.green)
-                    Text("Lesson complete. Tap the left story panel to continue.")
-                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                        .foregroundColor(.black.opacity(0.7))
-                }
-                .padding(8)
-                .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-            }
-        }
-        .padding(10)
-        .background(Color.white.opacity(0.85), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.black.opacity(0.06), lineWidth: 1)
-        )
-    }
-
     private func parsedPhoneMessage(_ raw: String) -> (text: String, isUser: Bool, caption: String?) {
         if raw.hasPrefix("You: ") {
             return (String(raw.dropFirst(5)), true, nil)
@@ -2538,35 +2812,39 @@ struct DialogEventPanel: View {
     @ViewBuilder
     private func mobileMessageBubble(_ text: String, isUser: Bool, caption: String?) -> some View {
         HStack(alignment: .bottom, spacing: 6) {
-            if isUser { Spacer(minLength: 32) }
+            if isUser { Spacer(minLength: 44) }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 3) {
                 if let caption, !caption.isEmpty {
                     Text(caption)
                         .font(.system(size: max(layout.captionFontSize - 2, 9), weight: .semibold))
-                        .foregroundColor(isUser ? .white.opacity(0.8) : .black.opacity(0.45))
+                        .foregroundColor(.black.opacity(0.38))
+                        .padding(.horizontal, 2)
                 }
 
                 Text(text)
-                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
-                    .foregroundColor(isUser ? .white : .black.opacity(0.85))
+                    .font(.system(size: layout.captionFontSize + 1, weight: .regular))
+                    .foregroundColor(isUser ? .white : .black.opacity(0.84))
+                    .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        isUser
+                            ? Color(red: 0.17, green: 0.56, blue: 0.98)
+                            : Color(red: 0.90, green: 0.90, blue: 0.92),
+                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(isUser ? Color.clear : Color.black.opacity(0.05), lineWidth: 1)
+                    )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                isUser
-                    ? Color(red: 0.19, green: 0.53, blue: 0.98)
-                    : Color.white,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
-            )
+            .frame(maxWidth: layout.isCompact ? 240 : 320, alignment: isUser ? .trailing : .leading)
 
-            if !isUser { Spacer(minLength: 32) }
+            if !isUser { Spacer(minLength: 44) }
         }
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
 
     private func startPhoneEvent() {
@@ -2617,13 +2895,13 @@ struct DialogEventPanel: View {
                 .font(.system(size: layout.captionFontSize + 2, weight: .bold))
                 .foregroundColor(.white)
 
-            Text("Looks like a phone chat now: solid screen, real message bubbles, quick-reply choices, and custom text input.")
+            Text("Looks like a phone chat now: fixed phone frame, real message bubbles, and quick-reply suggestions.")
                 .font(.system(size: layout.captionFontSize))
                 .foregroundColor(.white.opacity(0.75))
 
             VStack(alignment: .leading, spacing: 6) {
                 Label("Tap a quick option to reply instantly", systemImage: "list.bullet.rectangle.portrait.fill")
-                Label("Or type your own message", systemImage: "keyboard")
+                Label("Pick a suggestion, then tap Send", systemImage: "arrow.up.circle.fill")
                 Label("Complete 2 replies to finish the handshake", systemImage: "checkmark.shield.fill")
             }
             .font(.system(size: layout.captionFontSize))
@@ -2820,71 +3098,17 @@ struct DialogEventPanel: View {
 
     private var hallucinationBiasPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let imageName = eventPayload.imageName {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: layout.isCompact ? 120 : 150)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            zooLessonHeader
+            zooStepDotsRow
+            zooInstructionCard
+
+            zooLessonStageView
+
+            if zooShowDetailPanel {
+                zooDetailPanel
             }
 
-            HStack(spacing: 10) {
-                ForEach(Array(["Prediction", "Ground Truth", "Bias Source"].enumerated()), id: \.offset) { index, title in
-                    let selected = selectedBiasCard == index
-                    let reviewed = reviewedBiasCards.contains(index)
-                    Button {
-                        selectBiasCard(index)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Text(title)
-                                    .font(.system(size: layout.captionFontSize, weight: .bold))
-                                    .foregroundColor(.white)
-                                if reviewed {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: layout.captionFontSize))
-                                        .foregroundColor(.mint)
-                                }
-                            }
-                            Text(biasCardValue(index))
-                                .font(.system(size: layout.captionFontSize))
-                                .foregroundColor(.white.opacity(0.74))
-                                .lineLimit(2)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.white.opacity(selected ? 0.12 : 0.04))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(selected ? Color.purple.opacity(0.7) : Color.white.opacity(0.08), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.05))
-                    .frame(height: 10)
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.yellow, Color.orange, Color.red],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(layout.dialogMaxWidth - 32, 120) * biasPressure, height: 10)
-            }
-            Text("Bias pressure: \(Int(biasPressure * 100))%")
-                .font(.system(size: layout.captionFontSize))
-                .foregroundColor(.white.opacity(0.68))
+            zooStickerProgressRow
         }
     }
 
@@ -2943,6 +3167,1087 @@ struct DialogEventPanel: View {
         }
     }
 
+    private var zooLessonHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Stage \(min(zooLessonStage + 1, 4))/4")
+                    .font(.system(size: layout.captionFontSize, weight: .black))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(stageAccentColor.opacity(0.22), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(stageAccentColor.opacity(0.45), lineWidth: 1)
+                    )
+
+                Text(zooStageTitle)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Button {
+                    zooShowDetailPanel.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "book.closed.fill")
+                        Text(zooShowDetailPanel ? "Close Book" : "Open Book")
+                    }
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.08), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var zooStepDotsRow: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<4, id: \.self) { index in
+                let stage = ZooLessonStage(rawValue: index) ?? .clock
+                let isDone = zooUnlockedMemories.contains(zooMemorySlots[index].id)
+                let isCurrent = currentZooStage == stage || (currentZooStage == .complete && index == 3)
+
+                HStack(spacing: 6) {
+                    ZStack {
+                        Circle()
+                            .fill(isDone ? Color.mint.opacity(0.18) : (isCurrent ? stageAccentColor.opacity(0.18) : Color.white.opacity(0.05)))
+                            .frame(width: 24, height: 24)
+                            .overlay(
+                                Circle()
+                                    .stroke(
+                                        isDone ? Color.mint.opacity(0.5) : (isCurrent ? stageAccentColor.opacity(0.5) : Color.white.opacity(0.10)),
+                                        lineWidth: 1
+                                    )
+                            )
+
+                        if isDone {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 11, weight: .black))
+                                .foregroundColor(.mint)
+                        } else {
+                            Text("\(index + 1)")
+                                .font(.system(size: 11, weight: .black))
+                                .foregroundColor(.white.opacity(isCurrent ? 0.95 : 0.5))
+                        }
+                    }
+
+                    if index < 3 {
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 18, height: 4)
+                    }
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private var zooInstructionCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "gamecontroller.fill")
+                    .foregroundColor(stageAccentColor)
+                Text("Your Job")
+                    .font(.system(size: layout.captionFontSize, weight: .black))
+                    .foregroundColor(.white)
+            }
+
+            Text(zooLessonFeedback)
+                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                .foregroundColor(.white.opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(stageAccentColor.opacity(0.22), lineWidth: 1)
+        )
+    }
+
+    private var zooStickerProgressRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Stickers")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(zooUnlockedMemories.count)/4")
+                    .font(.system(size: layout.captionFontSize, weight: .black))
+                    .foregroundColor(.mint)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(Array(zooMemorySlots.indices), id: \.self) { index in
+                    let slot = zooMemorySlots[index]
+                    let unlocked = zooUnlockedMemories.contains(slot.id)
+
+                    VStack(spacing: 5) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill((unlocked ? slot.color.opacity(0.18) : Color.white.opacity(0.03)))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke((unlocked ? slot.color.opacity(0.45) : Color.white.opacity(0.08)), lineWidth: 1)
+                                )
+                            Image(systemName: unlocked ? "star.fill" : "star")
+                                .foregroundColor(unlocked ? slot.color : .white.opacity(0.35))
+                        }
+                        .frame(height: 42)
+
+                        Text(shortStickerName(for: slot.id))
+                            .font(.system(size: max(layout.captionFontSize - 2, 10), weight: .bold))
+                            .foregroundColor(.white.opacity(unlocked ? 0.92 : 0.45))
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var zooLessonStageView: some View {
+        switch currentZooStage {
+        case .clock:
+            zooClockStageCard
+        case .bird:
+            zooBirdStageCard
+        case .redPandaBias:
+            zooRedPandaStageCard
+        case .aquariumData:
+            zooAquariumStageCard
+        case .complete:
+            zooCompleteStageCard
+        }
+    }
+
+    private func zooAIDialogCard(
+        accent: Color,
+        message: String,
+        supportText: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(accent)
+                Text("AI says (check first)")
+                    .font(.system(size: layout.captionFontSize, weight: .black))
+                    .foregroundColor(.white)
+            }
+
+            Text(message)
+                .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.26))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(accent.opacity(0.25), lineWidth: 1)
+                        )
+                )
+
+            Text(supportText)
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func zooScenePlaceholderCard(
+        title: String,
+        subtitle: String,
+        signText: String,
+        accent: Color
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(0.18),
+                            Color.white.opacity(0.04),
+                            Color.black.opacity(0.18)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 120, height: 120)
+                    .offset(x: 35, y: 18)
+                Circle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 86, height: 86)
+                    .offset(x: 90, y: 48)
+
+                VStack(spacing: 6) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
+                    Text("Background image placeholder")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.white.opacity(0.92))
+                    Text("Replace with real animal photo later")
+                        .font(.system(size: max(layout.captionFontSize - 1, 10)))
+                        .foregroundColor(.white.opacity(0.65))
+                }
+                .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(subtitle)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.68))
+                }
+                Spacer()
+                Text(signText)
+                    .font(.system(size: layout.captionFontSize - 1, weight: .black))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.24), in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(accent.opacity(0.45), lineWidth: 1)
+                    )
+            }
+            .padding(12)
+        }
+        .frame(height: layout.isCompact ? 160 : 176)
+    }
+
+    @ViewBuilder
+    private func zooQuestionSplitLayout<ImageContent: View, BottomContent: View>(
+        accent: Color,
+        aiMessage: String,
+        aiSupportText: String,
+        promptText: String,
+        @ViewBuilder imageContent: () -> ImageContent,
+        @ViewBuilder bottomContent: () -> BottomContent
+    ) -> some View {
+        if layout.isCompact {
+            VStack(alignment: .leading, spacing: 10) {
+                zooAIDialogCard(
+                    accent: accent,
+                    message: aiMessage,
+                    supportText: aiSupportText
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    imageContent()
+
+                    Text(promptText)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    bottomContent()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                zooAIDialogCard(
+                    accent: accent,
+                    message: aiMessage,
+                    supportText: aiSupportText
+                )
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    imageContent()
+
+                    Text(promptText)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    bottomContent()
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+
+    private var zooClockStageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            zooQuestionSplitLayout(
+                accent: .orange,
+                aiMessage: "I think the time is 10:67.",
+                aiSupportText: "This is a hallucination. AI can sound confident even when the answer is impossible.",
+                promptText: "Pick the real clock time you checked yourself."
+            ) {
+                ZStack(alignment: .topLeading) {
+                    PlaceholderClockHeroCard()
+                        .frame(height: layout.isCompact ? 148 : 166)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Text("Clock check")
+                        .font(.system(size: layout.captionFontSize - 1, weight: .black))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.black.opacity(0.55), in: Capsule())
+                        .padding(10)
+                }
+            } bottomContent: {
+                VStack(spacing: 8) {
+                    ForEach(["10:07", zooClockCorrectOption, "11:07"], id: \.self) { option in
+                        zooOptionButton(
+                            option,
+                            isSelected: selectedClockOption == option,
+                            tint: .orange
+                        ) {
+                            selectedClockOption = option
+                            zooLessonFeedback = "Good habit: verify with a real clock instead of trusting a guess."
+                            syncZooRiskMeter()
+                        }
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(zooStageBackground)
+    }
+
+    private var zooBirdStageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            zooQuestionSplitLayout(
+                accent: .cyan,
+                aiMessage: "That looks like a plane.",
+                aiSupportText: "Hallucination happens when AI guesses from shape only and ignores context clues.",
+                promptText: "Look at the picture and choose the actual animal under the image."
+            ) {
+                zooScenePlaceholderCard(
+                    title: "Zoo Bird Area",
+                    subtitle: "Use the sign, shape, and movement clues",
+                    signText: "BIRD ZONE",
+                    accent: .cyan
+                )
+            } bottomContent: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Choose the correct answer")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.white.opacity(0.9))
+
+                    VStack(spacing: 8) {
+                        ForEach(["Plane", zooBirdCorrectOption, "Drone"], id: \.self) { option in
+                            zooOptionButton(
+                                option,
+                                isSelected: selectedBirdOption == option,
+                                tint: .cyan
+                            ) {
+                                selectedBirdOption = option
+                                zooLessonFeedback = "Check obvious clues and nearby signs before trusting the first guess."
+                                syncZooRiskMeter()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(zooStageBackground)
+    }
+
+    private var zooRedPandaStageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            zooQuestionSplitLayout(
+                accent: .purple,
+                aiMessage: "Fox? Raccoon? This can't be a panda.",
+                aiSupportText: "Bias can happen when AI learns too many similar examples and overgeneralizes a pattern.",
+                promptText: "Step 1: Choose the correct animal label under the image."
+            ) {
+                zooScenePlaceholderCard(
+                    title: "Red Panda Enclosure",
+                    subtitle: "The AI assumed all pandas look the same",
+                    signText: "RED PANDA",
+                    accent: .purple
+                )
+            } bottomContent: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("1) What is the correct label?")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.white.opacity(0.9))
+                    VStack(spacing: 8) {
+                        ForEach(["Fox", "Raccoon", zooRedPandaCorrectOption], id: \.self) { option in
+                            zooOptionButton(
+                                option,
+                                isSelected: selectedRedPandaLabel == option,
+                                tint: .purple
+                            ) {
+                                selectedRedPandaLabel = option
+                                syncZooRiskMeter()
+                            }
+                        }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("2) Best fix for this bias/assumption?")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white.opacity(0.9))
+                VStack(spacing: 6) {
+                    ForEach([
+                        "Trust pattern only",
+                        zooBiasBestFix,
+                        "Ignore the zoo sign"
+                    ], id: \.self) { option in
+                        zooOptionRowButton(
+                            option,
+                            isSelected: selectedBiasFixOption == option,
+                            tint: .purple
+                        ) {
+                            selectedBiasFixOption = option
+                            zooLessonFeedback = "Bias often comes from overgeneralizing patterns. Labels + diverse data reduce that."
+                            syncZooRiskMeter()
+                        }
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Training Snapshot (example)")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white.opacity(0.82))
+                zooBiasBar(label: "Big panda examples", fraction: 0.82, color: .orange)
+                zooBiasBar(label: "Red panda examples", fraction: 0.18, color: .mint)
+            }
+            .padding(8)
+            .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .padding(10)
+        .background(zooStageBackground)
+    }
+
+    private var zooAquariumStageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            zooQuestionSplitLayout(
+                accent: .mint,
+                aiMessage: "Sea monster! It must be huge.",
+                aiSupportText: "Bad or blurry input can make AI (or people) guess wildly. Clear data first.",
+                promptText: "Swipe across the tank image to clear algae, then check what animal it really is."
+            ) {
+                GeometryReader { geo in
+                    let width = max(geo.size.width, 1)
+                    let revealX = width * CGFloat(algaeRevealProgress)
+
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.06, green: 0.17, blue: 0.20),
+                                        Color(red: 0.04, green: 0.10, blue: 0.16)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
+                        HStack(spacing: 0) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(algaeRevealProgress > 0.78 ? "Revealed: Giant Catfish" : "Shape detected...")
+                                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                                    .foregroundColor(.white)
+                                Text(algaeRevealProgress > 0.78 ? "Clearer view = better prediction." : "Blurred input can cause a bad guess.")
+                                    .font(.system(size: layout.captionFontSize))
+                                    .foregroundColor(.white.opacity(0.72))
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+
+                        Group {
+                            Capsule()
+                                .fill(Color.gray.opacity(0.75))
+                                .frame(width: 110, height: 42)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                                .offset(x: width * 0.48, y: 48)
+
+                            TriangleTail()
+                                .fill(Color.gray.opacity(0.7))
+                                .frame(width: 18, height: 24)
+                                .rotationEffect(.degrees(90))
+                                .offset(x: width * 0.44, y: 57)
+
+                            Circle()
+                                .fill(Color.white.opacity(0.75))
+                                .frame(width: 5, height: 5)
+                                .offset(x: width * 0.56, y: 56)
+                        }
+
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.green.opacity(0.6),
+                                        Color(red: 0.07, green: 0.25, blue: 0.12).opacity(0.85)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(algaeStrandsOverlay)
+                            .frame(width: width * CGFloat(1.0 - algaeRevealProgress))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+
+                        Rectangle()
+                            .fill(Color.white.opacity(0.85))
+                            .frame(width: 2)
+                            .padding(.vertical, 8)
+                            .offset(x: max(0, revealX - 1))
+                            .opacity(algaeRevealProgress < 0.98 ? 0.8 : 0.2)
+                    }
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let progress = min(1.0, max(0.0, Double(value.location.x / width)))
+                                if progress > algaeRevealProgress {
+                                    algaeRevealProgress = progress
+                                    zooLessonFeedback = algaeRevealProgress > 0.78
+                                        ? "Nice. Clearer input reveals a giant catfish, not a sea monster."
+                                        : "Keep swiping to improve the view. Bad input causes bad predictions."
+                                    syncZooRiskMeter()
+                                }
+                            }
+                    )
+                }
+                .frame(height: layout.isCompact ? 150 : 168)
+            } bottomContent: {
+                HStack(spacing: 8) {
+                    Label("Swipe to clear algae", systemImage: "hand.point.right.fill")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.85))
+                    Spacer()
+                    Text("\(Int(algaeRevealProgress * 100))% clear")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.mint)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(10)
+        .background(zooStageBackground)
+    }
+
+    private var zooCompleteStageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Zoo memory album complete")
+                .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                .foregroundColor(.white)
+            Text("You taught Ploy to verify facts, avoid overgeneralizing patterns, and improve bad input before guessing.")
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.75))
+            HStack(spacing: 8) {
+                ForEach(["Hallucination", "Bias", "Ground Truth", "Bad Data"], id: \.self) { tag in
+                    Text(tag)
+                        .font(.system(size: layout.captionFontSize - 1, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.06), in: Capsule())
+                }
+            }
+        }
+        .padding(10)
+        .background(zooStageBackground)
+    }
+
+    private var zooDetailPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Reality Check Book", systemImage: "book.closed.fill")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Text(zooStageConceptTag)
+                    .font(.system(size: layout.captionFontSize - 1, weight: .bold))
+                    .foregroundColor(stageAccentColor)
+            }
+
+            zooBookFactRow(
+                title: "AI said",
+                icon: "brain.head.profile",
+                tint: stageAccentColor,
+                text: zooBookAIClaimText
+            )
+
+            zooBookFactRow(
+                title: "Actual answer",
+                icon: "checkmark.seal.fill",
+                tint: .mint,
+                text: zooBookGroundTruthText
+            )
+
+            zooBookFactRow(
+                title: "Why this matters",
+                icon: "lightbulb.fill",
+                tint: .yellow,
+                text: zooDetailText
+            )
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(stageAccentColor.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func zooBookFactRow(
+        title: String,
+        icon: String,
+        tint: Color,
+        text: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundColor(tint)
+                Text(title)
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+
+            Text(text)
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private var zooBookAIClaimText: String {
+        switch currentZooStage {
+        case .clock:
+            return "\"The time is 10:67.\" (confident, but impossible)"
+        case .bird:
+            return "\"That animal is a plane / drone.\""
+        case .redPandaBias:
+            return "\"It cannot be a panda because it looks like a fox/raccoon.\""
+        case .aquariumData:
+            return "\"That blurry shape is a sea monster.\""
+        case .complete:
+            return "AI guesses can sound sure even when the input is unclear or the training is biased."
+        }
+    }
+
+    private var zooBookGroundTruthText: String {
+        switch currentZooStage {
+        case .clock:
+            return "The real clock shows \(zooClockCorrectOption). Check a real source before trusting a guess."
+        case .bird:
+            return "It is a bird. Use the zoo sign and visual clues (not just a quick guess)."
+        case .redPandaBias:
+            return "It is a \(zooRedPandaCorrectOption). 'Panda' can look different, so labels and diverse examples matter."
+        case .aquariumData:
+            if algaeRevealProgress > 0.78 {
+                return "After clearing the image, the animal is a giant catfish. Better input helps AI predictions."
+            }
+            return "The answer should be checked after cleaning the image. Poor input quality causes wrong predictions."
+        case .complete:
+            return "Use ground truth: verify facts, read labels, and improve image/input quality."
+        }
+    }
+
+    private var zooMemoryAlbum: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Memory Album")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(zooUnlockedMemories.count)/4")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.mint)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(Array(zooMemorySlots.indices), id: \.self) { index in
+                    let slot = zooMemorySlots[index]
+                    let unlocked = zooUnlockedMemories.contains(slot.id)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: unlocked ? "photo.fill" : "photo")
+                                .foregroundColor(unlocked ? slot.color : .white.opacity(0.35))
+                            Spacer()
+                            if unlocked {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.mint)
+                            }
+                        }
+                        Text(slot.title)
+                            .font(.system(size: layout.captionFontSize, weight: .semibold))
+                            .foregroundColor(.white.opacity(unlocked ? 0.92 : 0.45))
+                        Text(unlocked ? "Saved" : "Locked")
+                            .font(.system(size: layout.captionFontSize - 1))
+                            .foregroundColor(.white.opacity(unlocked ? 0.68 : 0.35))
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.white.opacity(unlocked ? 0.08 : 0.03))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke((unlocked ? slot.color : Color.white.opacity(0.08)).opacity(0.25), lineWidth: 1)
+                            )
+                    )
+                }
+            }
+        }
+    }
+
+    private func zooPlaceholderImageFrame(
+        title: String,
+        subtitle: String,
+        signText: String,
+        accent: Color,
+        aiGuess: String
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.06),
+                            Color.white.opacity(0.03)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                            .foregroundColor(.white)
+                        Text(subtitle)
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.68))
+                    }
+                    Spacer()
+                    Text(signText)
+                        .font(.system(size: layout.captionFontSize - 1, weight: .black))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(accent.opacity(0.24), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(accent.opacity(0.45), lineWidth: 1)
+                        )
+                }
+
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(accent.opacity(0.14))
+                        .frame(width: 78, height: 62)
+                        .overlay(
+                            VStack(spacing: 6) {
+                                Image(systemName: "photo")
+                                    .foregroundColor(accent)
+                                Text("Image")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(accent.opacity(0.35), lineWidth: 1)
+                        )
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "brain.head.profile")
+                                .foregroundColor(accent)
+                            Text(aiGuess)
+                                .font(.system(size: layout.captionFontSize, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        Text("Look carefully and use ground truth clues (shape, sign, context).")
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+            }
+            .padding(12)
+        }
+        .frame(height: layout.isCompact ? 142 : 154)
+    }
+
+    private func zooBiasBar(label: String, fraction: Double, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.7))
+                Spacer()
+                Text("\(Int(fraction * 100))%")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(color)
+            }
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white.opacity(0.05))
+                    .frame(height: 8)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color)
+                    .frame(width: max(layout.dialogMaxWidth - 120, 80) * CGFloat(fraction), height: 8)
+            }
+        }
+    }
+
+    private var algaeStrandsOverlay: some View {
+        ZStack {
+            ForEach(0..<8, id: \.self) { strand in
+                Capsule()
+                    .fill(Color.green.opacity(0.22))
+                    .frame(width: CGFloat((strand % 2) + 2), height: CGFloat(70 + strand * 7))
+                    .offset(x: CGFloat(12 + strand * 18), y: CGFloat((strand % 3) * 6))
+                    .rotationEffect(.degrees(Double(strand * 4 - 10)))
+            }
+            ForEach(0..<12, id: \.self) { bubble in
+                Circle()
+                    .fill(Color.white.opacity(0.10))
+                    .frame(width: CGFloat(4 + (bubble % 4)), height: CGFloat(4 + (bubble % 4)))
+                    .offset(x: CGFloat(8 + bubble * 14), y: CGFloat(10 + (bubble % 5) * 18))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func zooOptionButton(_ text: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? tint : .white.opacity(0.45))
+                Text(text)
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(isSelected ? 0.12 : 0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke((isSelected ? tint : Color.white.opacity(0.08)).opacity(0.95), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func zooOptionRowButton(_ text: String, isSelected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .foregroundColor(isSelected ? tint : .white.opacity(0.45))
+                Text(text)
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(isSelected ? 0.10 : 0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke((isSelected ? tint : Color.white.opacity(0.08)).opacity(0.9), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var zooStageBackground: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.white.opacity(0.03))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+
+    private var zooStageTitle: String {
+        switch currentZooStage {
+        case .clock:
+            return "Hallucination: Impossible Time"
+        case .bird:
+            return "Hallucination: Wrong Animal Guess"
+        case .redPandaBias:
+            return "Bias: Overgeneralized Pattern"
+        case .aquariumData:
+            return "Bad Data: Clear the Input"
+        case .complete:
+            return "Lesson Complete"
+        }
+    }
+
+    private var zooStageConceptTag: String {
+        switch currentZooStage {
+        case .clock, .bird:
+            return "Hallucination"
+        case .redPandaBias:
+            return "Bias"
+        case .aquariumData:
+            return "Bad Data"
+        case .complete:
+            return "Summary"
+        }
+    }
+
+    private var zooDetailText: String {
+        switch currentZooStage {
+        case .clock:
+            return "AI can guess and sound sure, even when it is wrong. Always check a real source, like a clock."
+        case .bird:
+            return "Use what you can see and the zoo sign. A confident guess is not always the correct answer."
+        case .redPandaBias:
+            return "Bias means the AI learned too many similar examples. More labels and different examples help it learn better."
+        case .aquariumData:
+            return "If the picture is messy or blocked, AI can guess badly. Clearer input usually gives better answers."
+        case .complete:
+            return "You used 3 smart habits: check facts, read labels, and get clearer data."
+        }
+    }
+
+    private var stageAccentColor: Color {
+        switch currentZooStage {
+        case .clock:
+            return .orange
+        case .bird:
+            return .cyan
+        case .redPandaBias:
+            return .purple
+        case .aquariumData:
+            return .mint
+        case .complete:
+            return .green
+        }
+    }
+
+    private var zooMemorySlots: [(id: String, title: String, color: Color)] {
+        [
+            ("clock-check", "Clock Check", .orange),
+            ("bird-photo", "Bird Photo", .cyan),
+            ("red-panda-card", "Red Panda Card", .purple),
+            ("catfish-reveal", "Catfish Reveal", .mint)
+        ]
+    }
+
+    private func shortStickerName(for id: String) -> String {
+        switch id {
+        case "clock-check":
+            return "Clock"
+        case "bird-photo":
+            return "Bird"
+        case "red-panda-card":
+            return "Panda"
+        case "catfish-reveal":
+            return "Fish"
+        default:
+            return "Sticker"
+        }
+    }
+
+    private func syncZooRiskMeter() {
+        let stageFactor: Double = {
+            switch currentZooStage {
+            case .clock: return 0.86
+            case .bird: return 0.68
+            case .redPandaBias: return 0.74
+            case .aquariumData: return 0.82 - (algaeRevealProgress * 0.62)
+            case .complete: return 0.12
+            }
+        }()
+
+        var reductions = Double(zooUnlockedMemories.count) * 0.08
+        if selectedRedPandaLabel == zooRedPandaCorrectOption { reductions += 0.06 }
+        if selectedBiasFixOption == zooBiasBestFix { reductions += 0.10 }
+        if selectedBirdOption == zooBirdCorrectOption { reductions += 0.05 }
+        if selectedClockOption == zooClockCorrectOption { reductions += 0.05 }
+
+        withAnimation(.easeInOut(duration: 0.15)) {
+            biasPressure = max(0.10, min(0.95, stageFactor - reductions))
+        }
+    }
+
+    private func unlockZooMemory(_ id: String) {
+        zooUnlockedMemories.insert(id)
+        syncZooRiskMeter()
+    }
+
+    private func moveZooLesson(to stage: ZooLessonStage, feedback: String) {
+        zooLessonStage = stage.rawValue
+        zooLessonFeedback = feedback
+        zooShowDetailPanel = false
+        syncZooRiskMeter()
+    }
+
     private func triggerEventHook() {
         switch eventPayload.type {
         case .mobileChat:
@@ -2990,9 +4295,21 @@ struct DialogEventPanel: View {
         case .promptWorkshop:
             return promptWorkshopPassed ? "Prompt Plan Ready" : eventPayload.ctaTitle
         case .hallucinationBias:
-            if biasResolved { return "Correction Applied" }
-            if reviewedBiasCards.count < 3 { return "Review Evidence" }
-            return eventPayload.ctaTitle
+            if biasResolved { return "Lesson Complete" }
+            switch currentZooStage {
+            case .clock:
+                return selectedClockOption == nil ? "Pick the Correct Time" : "Check Time"
+            case .bird:
+                return selectedBirdOption == nil ? "Pick the Correct Animal" : "Save Bird Memory"
+            case .redPandaBias:
+                if selectedRedPandaLabel == nil { return "Choose the Label" }
+                if selectedBiasFixOption == nil { return "Choose a Bias Fix" }
+                return "Apply Bias Fix"
+            case .aquariumData:
+                return algaeRevealProgress > 0.78 ? "Save Catfish Reveal" : "Clear More Algae"
+            case .complete:
+                return "Lesson Complete"
+            }
         case .memoryTraining:
             return memoryProgress >= 1.0 ? "Training Complete" : eventPayload.ctaTitle
         }
@@ -3006,7 +4323,7 @@ struct DialogEventPanel: View {
         switch eventPayload.type {
         case .mobileChat: return .green
         case .promptWorkshop: return .pink
-        case .hallucinationBias: return .purple
+        case .hallucinationBias: return stageAccentColor
         case .memoryTraining: return .cyan
         }
     }
@@ -3018,7 +4335,7 @@ struct DialogEventPanel: View {
                 return "Phone lesson complete. You used safe, clear replies to handle an unknown number. Return to the story panel to continue."
             }
             if chatStarted {
-                return "Phone minigame active. Reply to an unknown number with clear questions and safe boundaries (\(min(phonePulseCount, 2))/2 safe replies)."
+                return "Phone minigame active. Reply to an unknown number with clear questions and safe boundaries (\(min(phonePulseCount, 2))/2 progress)."
             }
             return "Open Messages, then reply safely to an unknown number. Story progression stays locked until completion."
         case .promptWorkshop:
@@ -3028,15 +4345,9 @@ struct DialogEventPanel: View {
             return promptFeedback
         case .hallucinationBias:
             if biasResolved {
-                return "Bias source isolated. Correction plan applied and pressure reduced."
+                return "Zoo lesson complete. You corrected hallucinations, explained bias, and improved bad input data before trusting the AI."
             }
-            if reviewedBiasCards.count < 3 {
-                return "Inspect all evidence cards before applying a correction (\(reviewedBiasCards.count)/3)."
-            }
-            if selectedBiasCard != 2 {
-                return "Select the Bias Source card, then apply correction."
-            }
-            return "Ready to apply correction to the biased prediction."
+            return zooLessonFeedback
         case .memoryTraining:
             if memoryProgress >= 1.0 {
                 return "Replay training complete. Queue processed and validation can begin."
@@ -3068,7 +4379,7 @@ struct DialogEventPanel: View {
         case .promptWorkshop:
             return promptWorkshopPassed ? .mint : .pink
         case .hallucinationBias:
-            return biasResolved ? .mint : .orange
+            return biasResolved ? .mint : stageAccentColor
         case .memoryTraining:
             return memoryProgress >= 1.0 ? .mint : .cyan
         }
@@ -3431,27 +4742,88 @@ struct DialogEventPanel: View {
         }
     }
 
-    private func selectBiasCard(_ index: Int) {
-        selectedBiasCard = index
-        reviewedBiasCards.insert(index)
-
-        withAnimation(.easeInOut(duration: 0.2)) {
-            if index == 2 {
-                biasPressure = max(0.55, biasPressure - 0.05)
-            }
-        }
-    }
-
     private func applyBiasCorrection() {
-        guard reviewedBiasCards.count >= 3 else { return }
-
-        withAnimation(.easeInOut(duration: 0.25)) {
-            if selectedBiasCard == 2 {
-                biasPressure = max(0.18, biasPressure - 0.34)
-                biasResolved = true
-            } else {
-                biasPressure = min(0.92, biasPressure + 0.04)
+        switch currentZooStage {
+        case .clock:
+            guard let selectedClockOption else {
+                zooLessonFeedback = "Pick one of the time options first."
+                return
             }
+            guard selectedClockOption == zooClockCorrectOption else {
+                zooLessonFeedback = "That still does not match the real clock. Verify again."
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    biasPressure = min(0.95, biasPressure + 0.03)
+                }
+                return
+            }
+            unlockZooMemory("clock-check")
+            moveZooLesson(
+                to: .bird,
+                feedback: "Nice job! Next, Ploy guessed the wrong animal. Read the clue and pick the correct one."
+            )
+
+        case .bird:
+            guard let selectedBirdOption else {
+                zooLessonFeedback = "Choose Plane / Bird / Drone first."
+                return
+            }
+            guard selectedBirdOption == zooBirdCorrectOption else {
+                zooLessonFeedback = "Not quite. Look carefully and read the sign. The correct answer is the animal, not the object it resembles."
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    biasPressure = min(0.95, biasPressure + 0.03)
+                }
+                return
+            }
+            unlockZooMemory("bird-photo")
+            moveZooLesson(
+                to: .redPandaBias,
+                feedback: "Great! Next, Ploy is confused about a red panda. Pick the correct label, then choose the best fix."
+            )
+
+        case .redPandaBias:
+            guard let selectedRedPandaLabel else {
+                zooLessonFeedback = "Choose the correct label first."
+                return
+            }
+            guard selectedRedPandaLabel == zooRedPandaCorrectOption else {
+                zooLessonFeedback = "Read the label and use ground truth. It is a Red Panda."
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    biasPressure = min(0.95, biasPressure + 0.04)
+                }
+                return
+            }
+            guard let selectedBiasFixOption else {
+                zooLessonFeedback = "Now choose the best bias fix."
+                return
+            }
+            guard selectedBiasFixOption == zooBiasBestFix else {
+                zooLessonFeedback = "That fix keeps the bias. Best practice: labels, ground truth, and diverse examples."
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    biasPressure = min(0.95, biasPressure + 0.04)
+                }
+                return
+            }
+
+            unlockZooMemory("red-panda-card")
+            moveZooLesson(
+                to: .aquariumData,
+                feedback: "Awesome! Final stage: the tank is blurry. Swipe to clean the view so Ploy can see better."
+            )
+
+        case .aquariumData:
+            guard algaeRevealProgress > 0.78 else {
+                zooLessonFeedback = "Swipe more algae away before finalizing. Clearer input leads to better predictions."
+                return
+            }
+            unlockZooMemory("catfish-reveal")
+            biasResolved = true
+            moveZooLesson(
+                to: .complete,
+                feedback: "You did it! You helped Ploy check facts, use labels, and look for clearer data."
+            )
+
+        case .complete:
+            biasResolved = true
         }
     }
 
@@ -3490,16 +4862,6 @@ struct DialogEventPanel: View {
         }
     }
 
-    private func biasCardValue(_ index: Int) -> String {
-        switch index {
-        case 0:
-            return biasResolved ? "University Gate (corrected)" : "Ancient Temple (92%)"
-        case 1:
-            return "University Gate"
-        default:
-            return biasResolved ? "Dataset rebalance queued" : "Temple-heavy labels"
-        }
-    }
 }
 
 private extension View {

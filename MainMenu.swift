@@ -96,6 +96,7 @@ extension MenuDestination: Identifiable {
 }
 
 struct MainMenuView: View {
+    @EnvironmentObject private var settings: GlobalSettingsStore
     @StateObject private var viewModel = MainMenuViewModel()
     @State private var destination: MenuDestination? = nil
     
@@ -125,10 +126,13 @@ struct MainMenuView: View {
                 versionLabel(layout: layout)
             }
             .onAppear {
-                viewModel.start()
+                configureMotionTimer()
             }
             .onDisappear {
                 viewModel.stop()
+            }
+            .onChange(of: settings.reduceMotion) { _ in
+                configureMotionTimer()
             }
             .fullScreenCover(item: $destination) { destination in
                 switch destination {
@@ -137,7 +141,7 @@ struct MainMenuView: View {
                 case .gallery:
                     GalleryView()
                 case .settings:
-                    SettingsView()
+                    SettingsView(settings: settings)
                 case .about:
                     AboutView()
                 case .chapterSelect:
@@ -165,10 +169,13 @@ struct MainMenuView: View {
                 .resizable()
                 .scaledToFill()
                 .scaleEffect(1.4)
-                .offset(x: viewModel.offsetX, y: viewModel.offsetY)
+                .offset(
+                    x: viewModel.offsetX * settings.effectiveParallaxStrength,
+                    y: viewModel.offsetY * settings.effectiveParallaxStrength
+                )
                 .ignoresSafeArea()
             
-            Color.black.opacity(0.5)
+            Color.black.opacity(settings.menuOverlayOpacity)
                 .ignoresSafeArea()
         }
     }
@@ -343,30 +350,52 @@ struct MainMenuView: View {
     }
     
     // MARK: - Status Indicator
+    @ViewBuilder
     private func statusIndicator(layout: ResponsiveLayout) -> some View {
-        HStack(spacing: layout.elementSpacing) {
-            Circle()
-                .fill(Color.green)
-                .frame(width: layout.scaled(8), height: layout.scaled(8))
-            Text("Ready to Play")
-                .font(.system(size: layout.bodyFontSize))
-                .foregroundColor(.white.opacity(0.7))
-            Spacer()
+        if settings.showStatusIndicator {
+            HStack(spacing: layout.elementSpacing) {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: layout.scaled(8), height: layout.scaled(8))
+                Text("Ready to Play")
+                    .font(.system(size: layout.bodyFontSize))
+                    .foregroundColor(.white.opacity(0.7))
+                Spacer()
+            }
         }
     }
     
     // MARK: - Version Label
+    @ViewBuilder
     private func versionLabel(layout: ResponsiveLayout) -> some View {
-        VStack {
-            Spacer()
-            HStack {
+        if settings.showVersionLabel {
+            VStack {
                 Spacer()
-                Text("Ver 1.0")
-                    .font(.system(size: layout.captionFontSize))
-                    .foregroundColor(.white.opacity(0.5))
-                    .padding()
+                HStack {
+                    Spacer()
+                    Text("Ver 1.0")
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.5))
+                        .padding()
+                }
             }
         }
+    }
+    
+    private func configureMotionTimer() {
+        if settings.reduceMotion {
+            viewModel.stop()
+            viewModel.resetOffsets()
+        } else {
+            viewModel.start()
+        }
+    }
+}
+
+extension MainMenuViewModel {
+    func resetOffsets() {
+        offsetX = 0
+        offsetY = 0
     }
 }
 
@@ -520,49 +549,6 @@ struct GalleryView: View {
     }
 }
 
-// MARK: - Settings View (Blank Page)
-struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button(action: { dismiss() }) {
-                        HStack {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                    }
-                    Spacer()
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 16) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 60))
-                        .foregroundColor(.white.opacity(0.5))
-                    
-                    Text("Settings")
-                        .font(.title)
-                        .foregroundColor(.white)
-                    
-                    Text("Coming Soon")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                
-                Spacer()
-            }
-        }
-    }
-}
-
 // MARK: - About View (Credits Page)
 struct AboutView: View {
     var body: some View {
@@ -572,5 +558,6 @@ struct AboutView: View {
 
 #Preview {
     MainMenuView()
+        .environmentObject(GlobalSettingsStore())
         .preferredColorScheme(.dark)
 }
