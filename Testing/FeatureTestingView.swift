@@ -214,18 +214,6 @@ struct LabDashboardHeader: View {
 
                 Spacer()
 
-                if layout.isLandscape {
-                    Text("Clean Mode")
-                        .font(.system(size: layout.scaled(11), weight: .semibold))
-                        .foregroundColor(.white.opacity(0.76))
-                        .padding(.horizontal, layout.scaled(10))
-                        .padding(.vertical, layout.scaled(6))
-                        .background(Color.white.opacity(0.05), in: Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                }
             }
 
             HStack(spacing: layout.scaled(10)) {
