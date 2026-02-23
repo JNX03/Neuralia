@@ -131,21 +131,7 @@ let chapterOneStory = StoryChapter(
             backgroundImage: "507room",
             characterImage: "char_curious",
             cutsceneTitle: "Prompt Workshop",
-            cutsceneSubtitle: "Tap to build a better prompt",
-            eventPayload: DialogEventPayload(
-                type: .promptWorkshop,
-                title: "Prompt Planning Workshop",
-                subtitle: "Build a strong prompt using goal, context, format, and ethical rules.",
-                ctaTitle: "Check Prompt Plan",
-                hookName: "runPromptPlanningWorkshop()",
-                metrics: [
-                    DialogEventMetric(label: "Skill", value: "Prompt Writing"),
-                    DialogEventMetric(label: "Method", value: "Tap-to-plan builder", accentHex: "F472B6"),
-                    DialogEventMetric(label: "Focus", value: "Clarity + ethics", accentHex: "22C55E"),
-                    DialogEventMetric(label: "Language", value: "English practice")
-                ],
-                tags: ["chapter1", "prompt", "ethics", "learning", "computer"]
-            )
+            cutsceneSubtitle: "Prompt planning lesson"
         ),
         StoryDialogLine(
             speaker: "AI Friend",
