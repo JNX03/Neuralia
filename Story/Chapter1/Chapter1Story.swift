@@ -99,21 +99,7 @@ let chapterOneStory = StoryChapter(
             backgroundImage: "redbus",
             characterImage: "char_mysterious",
             cutsceneTitle: "Phone Event",
-            cutsceneSubtitle: "Apple-style chat / first contact",
-            eventPayload: DialogEventPayload(
-                type: .mobileChat,
-                title: "Apple Messages Chat",
-                subtitle: "Reply in short messages and stabilize the AI chat link while riding home.",
-                ctaTitle: "Open Messages",
-                hookName: "startAppleMessagesChat()",
-                metrics: [
-                    DialogEventMetric(label: "Scene", value: "Red Car Ride"),
-                    DialogEventMetric(label: "Mode", value: "Playable Chat", accentHex: "22C55E"),
-                    DialogEventMetric(label: "Learning", value: "Tone + clarity", accentHex: "60A5FA"),
-                    DialogEventMetric(label: "Objective", value: "2 replies to stabilize")
-                ],
-                tags: ["chapter1", "phone", "messages", "interactive"]
-            )
+            cutsceneSubtitle: "Apple-style chat / first contact"
         ),
         StoryDialogLine(
             speaker: "Narration",

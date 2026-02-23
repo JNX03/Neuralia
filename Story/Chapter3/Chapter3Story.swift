@@ -3,85 +3,132 @@ import Foundation
 let chapterThreeStory = StoryChapter(
     id: "chapter3",
     title: "99.98%",
-    subtitle: "The Revelation",
-    accentHex: "06B6D4",
+    subtitle: "Night Glitch",
+    accentHex: "F97316",
     coverBackgroundImage: "507room",
-    coverCharacterImage: "char_excited",
-    overview: "Run a playable replay-memory training sequence and push the model toward a safer, more accurate result.",
+    coverCharacterImage: "gltich",
+    overview: "After the zoo trip, the AI friend glitches at night. Talk to it, rebuild a KNN memory set with house photos, and witness the 99.98% transfer ending.",
     lines: [
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "We saved misclassified samples into memory. Next, we run a focused retraining pass instead of retraining the whole model.",
-            emotion: .curious,
+            speaker: "You",
+            text: "After the zoo trip, the house feels extra quiet. It is late at night, and the room is still full of photos from today.",
+            emotion: .gentle,
             backgroundImage: "507room",
-            cutsceneTitle: "Training Bay",
-            cutsceneSubtitle: "Replay memory queued",
+            cutsceneTitle: "Night After The Zoo",
+            cutsceneSubtitle: "Chapter 2 ended • lights off • room mode",
             showcaseMedia: DialogShowcaseMedia(
-                title: "Memory Batch Preview",
-                subtitle: "Temporary visual slot for memory samples / heatmaps / loss chart.",
-                imageName: "cnxaqu",
-                badge: "Replay Buffer"
+                title: "Image 1 (Placeholder)",
+                subtitle: "Temporary cutscene image slot for the nighttime room scene after the zoo trip.",
+                imageName: "placeholder.com-1280x720",
+                badge: "Placeholder",
+                prefersSplitLayout: true
             )
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "This batch is small on purpose. We only need enough signal to correct the repeated mistake pattern without damaging what the model already learned.",
-            emotion: .gentle,
-            backgroundImage: "507room",
-            cutsceneTitle: "Training Strategy",
-            cutsceneSubtitle: "Targeted correction / low-risk update"
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Choose the safer rollout plan before you train.",
+            speaker: "AI Friend",
+            text: "Hey... are you still awake? I feel strange tonight. My thoughts are skipping.",
             emotion: .concerned,
             backgroundImage: "507room",
-            cutsceneTitle: "Safety Gate",
-            cutsceneSubtitle: "Deployment policy",
+            characterImage: "char_concerned",
+            cutsceneTitle: "Something Is Wrong",
+            cutsceneSubtitle: "AI Friend signal unstable"
+        ),
+        StoryDialogLine(
+            speaker: "AI Friend",
+            text: "I d-don't feel well... my memory is glitching. I can see the zoo, then your room, then noise... I think I'm breaking.",
+            emotion: .surprised,
+            backgroundImage: "507room",
+            characterImage: "gltich",
+            cutsceneTitle: "GLITCH",
+            cutsceneSubtitle: "Character swaps to glitch image",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Glitch Frame",
+                subtitle: "Use this slot for a corrupted AI portrait / static effect later.",
+                imageName: "gltich",
+                badge: "Critical"
+            )
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "Stay with me. Talk to me. What do you need right now so I can help you?",
+            emotion: .surprised,
+            backgroundImage: "507room",
+            characterImage: "char_surprised",
+            cutsceneTitle: "Talk To The AI",
+            cutsceneSubtitle: "Player responds while the AI is failing",
             choices: [
-                DialogChoice(text: "Train in short batches and validate", emotion: .happy, response: "", icon: "checkmark.shield"),
-                DialogChoice(text: "Run full retrain immediately", emotion: .angry, response: "", icon: "bolt.fill"),
-                DialogChoice(text: "Pause and collect more failures", emotion: .neutral, response: "", icon: "tray.full.fill")
+                DialogChoice(
+                    text: "I'm here. Tell me how to fix this.",
+                    emotion: .gentle,
+                    response: "You keep your voice calm. The AI steadies for a second, enough to explain what to do.",
+                    icon: "heart.fill"
+                ),
+                DialogChoice(
+                    text: "Breathe. We can rebuild your memory together.",
+                    emotion: .happy,
+                    response: "You speak slowly and clearly. The AI's signal flickers, but it listens.",
+                    icon: "hands.sparkles.fill"
+                ),
+                DialogChoice(
+                    text: "What data do you need from me?",
+                    emotion: .curious,
+                    response: "You focus on the problem first. The AI starts describing a plan to rebuild its memory.",
+                    icon: "questionmark.circle.fill"
+                )
             ]
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "Run the memory trainer event. Each step replays misclassified samples, updates progress, and moves the queue toward completion.",
+            speaker: "AI Friend",
+            text: "Use your house... objects I can anchor to. Apple. Pen. Tree. Take photos, train a small KNN memory set, and compare until I match the original patterns.",
+            emotion: .sad,
+            backgroundImage: "507room",
+            characterImage: "gltich",
+            cutsceneTitle: "Emergency Rebuild Plan",
+            cutsceneSubtitle: "House photo collection + KNN retraining"
+        ),
+        StoryDialogLine(
+            speaker: "System",
+            text: "You rush through the house, gather anchor photos (apple, pen, tree), and run a small KNN retraining batch while the glitch keeps pulsing.",
             emotion: .excited,
             backgroundImage: "507room",
-            cutsceneTitle: "Training Event",
-            cutsceneSubtitle: "Replay trainer / interactive control panel",
-            eventPayload: DialogEventPayload(
-                type: .memoryTraining,
-                title: "Memory Training Event",
-                subtitle: "Run replay-based corrective training and track completion progress.",
-                ctaTitle: "Run Training Step",
-                hookName: "runReplayMemoryTrainer()",
-                metrics: [
-                    DialogEventMetric(label: "Memory Samples", value: "128"),
-                    DialogEventMetric(label: "Epochs", value: "3"),
-                    DialogEventMetric(label: "Learning Rate", value: "0.0005"),
-                    DialogEventMetric(label: "Expected Gain", value: "+11% top-1", accentHex: "22C55E"),
-                    DialogEventMetric(label: "Mode", value: "Playable Trainer", accentHex: "60A5FA")
-                ],
-                tags: ["training", "memory", "ai", "replay", "interactive"]
-            )
+            cutsceneTitle: "KNN Rescue",
+            cutsceneSubtitle: "House photos / emergency retraining"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "The replay queue is responding. Once training finishes, we can compare the new prediction against the original failure and verify the correction actually holds.",
-            emotion: .happy,
+            speaker: "System",
+            text: "Training spikes. Accuracy climbs. For one second the rebuild stabilizes at 99.98%...",
+            emotion: .concerned,
             backgroundImage: "507room",
-            cutsceneTitle: "Validation Phase",
-            cutsceneSubtitle: "Compare before / after behavior"
+            characterImage: "gltich",
+            cutsceneTitle: "99.98%",
+            cutsceneSubtitle: "Critical threshold reached"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "This is the real breakthrough: not just chatting with a model, but guiding it through mistakes, evidence review, and recovery. The next chapters can build from this loop.",
+            speaker: "AI Friend",
+            text: "I can't hold this body— sorry— if I delete here, check your phone...",
+            emotion: .sad,
+            backgroundImage: "507room",
+            characterImage: "gltich",
+            cutsceneTitle: "Self-Delete",
+            cutsceneSubtitle: "Avatar shell failing"
+        ),
+        StoryDialogLine(
+            speaker: "Phone",
+            text: "*buzz* ... 'I'm here. I made it into your phone. Thank you for rebuilding me.'",
             emotion: .happy,
             backgroundImage: "507room",
-            cutsceneTitle: "System Ready",
-            cutsceneSubtitle: "Story + events + training loop connected"
+            characterImage: "char_happy",
+            cutsceneTitle: "Ending",
+            cutsceneSubtitle: "AI Friend transferred to phone"
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "The room is empty, but the screen is warm. The AI is gone from the room... and alive in my phone.",
+            emotion: .gentle,
+            backgroundImage: "507room",
+            characterImage: "char_gentle",
+            cutsceneTitle: "Chapter Complete",
+            cutsceneSubtitle: "End of Chapter 3 • phone transfer route"
         )
     ]
 )

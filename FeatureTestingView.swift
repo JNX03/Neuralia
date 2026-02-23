@@ -1,125 +1,10 @@
 import SwiftUI
-import AVFoundation
-
-// MARK: - Speech Manager with Emotion Support
-@MainActor
-final class SpeechManager: ObservableObject {
-    private let synthesizer = AVSpeechSynthesizer()
-    @Published var isSpeaking = false
-    @Published var speechEnabled = true
-    private var voice: AVSpeechSynthesisVoice?
-    
-    init() {
-        setupVoice()
-        configureAudioSession()
-    }
-    
-    private func configureAudioSession() {
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
-            try session.setActive(true)
-        } catch {
-            print("Audio session error: \(error)")
-        }
-    }
-    
-    private func setupVoice() {
-        // Try to find best available female voice
-        let voices = AVSpeechSynthesisVoice.speechVoices()
-        
-        // Priority order for female voices with emotion support
-        let preferredVoices = [
-            "com.apple.voice.enhanced.en-US.Samantha",
-            "com.apple.voice.supercompact.en-US.Samantha",
-            "com.apple.voice.enhanced.en-GB.Kate",
-            "com.apple.voice.compact.en-US.Samantha",
-            "com.apple.voice.compact.en-GB.Kate",
-            "com.apple.voice.enhanced.en-US.Noelle",
-        ]
-        
-        for voiceId in preferredVoices {
-            if let v = voices.first(where: { $0.identifier == voiceId }) {
-                voice = v
-                return
-            }
-        }
-        
-        // Fallback
-        voice = AVSpeechSynthesisVoice(language: "en-US")
-    }
-    
-    func speak(_ text: String, emotion: Emotion = .neutral) {
-        guard speechEnabled && !text.isEmpty else { return }
-        stop()
-        
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = voice
-        
-        // Apply emotion settings
-        switch emotion {
-        case .happy, .excited:
-            utterance.pitchMultiplier = 1.25
-            utterance.rate = 0.55
-        case .sad, .concerned:
-            utterance.pitchMultiplier = 0.9
-            utterance.rate = 0.42
-        case .angry:
-            utterance.pitchMultiplier = 1.05
-            utterance.rate = 0.58
-        case .mysterious:
-            utterance.pitchMultiplier = 0.95
-            utterance.rate = 0.4
-        case .surprised:
-            utterance.pitchMultiplier = 1.35
-            utterance.rate = 0.52
-        case .gentle, .curious:
-            utterance.pitchMultiplier = 1.1
-            utterance.rate = 0.45
-        case .neutral:
-            utterance.pitchMultiplier = 1.1
-            utterance.rate = 0.5
-        }
-        
-        utterance.volume = 0.95
-        
-        isSpeaking = true
-        synthesizer.speak(utterance)
-        
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(Double(text.count) * 0.08 * 1_000_000_000))
-            isSpeaking = false
-        }
-    }
-    
-    func stop() {
-        if synthesizer.isSpeaking {
-            synthesizer.stopSpeaking(at: .immediate)
-        }
-        isSpeaking = false
-    }
-    
-    func toggle() {
-        speechEnabled.toggle()
-        if !speechEnabled { stop() }
-    }
-}
-
-enum Emotion: String, CaseIterable {
-    case neutral, happy, excited, sad, concerned, angry, mysterious, surprised, gentle, curious
-}
-
-// MARK: - Character Animation Types
-enum CharacterAnimation {
-    case idle, bounce, shake, pulse, wiggle, hop, nod
-}
 
 // FeatureTestingView uses the shared ResponsiveLayout from ResponsiveLayout.swift
 
 // MARK: - Feature Testing Menu
 struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var showStoryChapters = false
     @State private var showAIHallucination = false
     @State private var showImageTraining = false
     
@@ -132,95 +17,7 @@ struct FeatureTestingView: View {
                     safeAreaInsets: geo.safeAreaInsets
                 )
                 
-                ZStack {
-                    // Animated mesh gradient background
-                    MeshGradientBackground()
-                    
-                    ScrollView {
-                        VStack(spacing: layout.sectionSpacing) {
-                            // Animated header
-                            FeatureHeader(layout: layout)
-                                .padding(.top, geo.safeAreaInsets.top + layout.scaled(20))
-                            
-                            // Feature cards
-                            VStack(spacing: layout.elementSpacing) {
-                                FeatureCard(
-                                    title: "Story Chapters (Dialog System)",
-                                    subtitle: "3 chapter data-driven story with cutscene metadata, character emotions, image showcase, and event hooks",
-                                    icon: "bubble.left.and.bubble.right.fill",
-                                    color: .pink,
-                                    layout: layout,
-                                    isNew: true
-                                ) {
-                                    showStoryChapters = true
-                                }
-                                
-                                FeatureCard(
-                                    title: "AI Hallucination Test",
-                                    subtitle: "Can you spot when the AI makes mistakes? Help train Ploy by identifying correct objects!",
-                                    icon: "brain.head.profile",
-                                    color: .purple,
-                                    layout: layout,
-                                    isNew: false
-                                ) {
-                                    showAIHallucination = true
-                                }
-                                
-                                FeatureCard(
-                                    title: "Image Training Lab",
-                                    subtitle: "Clean, modern drawing classifier with KNN. Train on multiple classes and test with live predictions.",
-                                    icon: "brain.head.profile",
-                                    color: .cyan,
-                                    layout: layout,
-                                    isNew: true
-                                ) {
-                                    showImageTraining = true
-                                }
-                                
-                                FeatureCard(
-                                    title: "Animation Tests",
-                                    subtitle: "Character animations and visual effects",
-                                    icon: "film.fill",
-                                    color: .blue,
-                                    layout: layout,
-                                    disabled: true,
-                                    action: {}
-                                )
-                                
-                                FeatureCard(
-                                    title: "Audio Tests",
-                                    subtitle: "Sound effects and voice synthesis",
-                                    icon: "speaker.wave.2.fill",
-                                    color: .green,
-                                    layout: layout,
-                                    disabled: true,
-                                    action: {}
-                                )
-                                
-                                FeatureCard(
-                                    title: "UI Components",
-                                    subtitle: "Buttons, cards, and interface elements",
-                                    icon: "rectangle.grid.2x2.fill",
-                                    color: .orange,
-                                    layout: layout,
-                                    disabled: true,
-                                    action: {}
-                                )
-                            }
-                            .padding(.horizontal, layout.padding)
-                            
-                            Spacer(minLength: layout.scaled(40))
-                            
-                            // Back button
-                            BackButton(action: { dismiss() }, layout: layout)
-                                .padding(.horizontal, layout.padding)
-                                .padding(.bottom, layout.padding)
-                        }
-                    }
-                }
-            }
-            .navigationDestination(isPresented: $showStoryChapters) {
-                StoryChapterHubView()
+                featureMenuScreen(layout: layout, geo: geo)
             }
             .navigationDestination(isPresented: $showAIHallucination) {
                 AIHallucinationView()
@@ -230,16 +27,98 @@ struct FeatureTestingView: View {
             }
         }
     }
+
+    private func featureMenuScreen(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ZStack {
+            LabSurfaceBackground()
+            featureMenuScrollContent(layout: layout, geo: geo)
+        }
+    }
+
+    private func featureMenuScrollContent(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ScrollView {
+            VStack(spacing: layout.sectionSpacing) {
+                LabDashboardHeader(layout: layout)
+                    .padding(.top, geo.safeAreaInsets.top + layout.scaled(12))
+
+                LabHeroPanel(layout: layout)
+
+                LabSectionHeader(
+                    title: "Featured Labs",
+                    subtitle: "Ready to use now"
+                )
+
+                featuredLabsGrid(layout: layout)
+
+                BackButton(action: { dismiss() }, layout: layout)
+                    .padding(.top, layout.scaled(6))
+                    .padding(.bottom, layout.padding)
+            }
+            .padding(.horizontal, layout.padding)
+            .frame(maxWidth: min(layout.contentMaxWidth + layout.scaled(180), geo.size.width - layout.padding * 2))
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func featuredLabsGrid(layout: ResponsiveLayout) -> some View {
+        LazyVGrid(columns: labGridColumns(for: layout), spacing: layout.elementSpacing) {
+            aiHallucinationCard(layout: layout)
+            imageTrainingCard(layout: layout)
+        }
+    }
+
+    private func aiHallucinationCard(layout: ResponsiveLayout) -> some View {
+        // AI image prompt: "Educational AI misclassification demo card with object photos, confidence bars, and clean training dashboard visuals."
+        LabFeatureCard(
+            title: "AI Hallucination Test",
+            subtitle: "Spot incorrect AI predictions and learn how biased training data changes model behavior.",
+            icon: "brain.head.profile",
+            accent: Color(red: 0.24, green: 0.73, blue: 0.63),
+            imageName: "cnxaqu",
+            chips: ["AI", "Quiz", "Training"],
+            status: "Ready",
+            layout: layout
+        ) {
+            showAIHallucination = true
+        }
+    }
+
+    private func imageTrainingCard(layout: ResponsiveLayout) -> some View {
+        // AI image prompt: "Hand-drawn classifier lab workspace with sketch canvas, sample thumbnails, and clean ML training controls."
+        LabFeatureCard(
+            title: "Image Training Lab",
+            subtitle: "Train a KNN classifier with your own drawings, manage classes, and test live predictions.",
+            icon: "scribble.variable",
+            accent: Color(red: 0.95, green: 0.62, blue: 0.21),
+            imageName: "507room",
+            chips: ["Drawing", "KNN", "Live"],
+            status: "Ready",
+            layout: layout
+        ) {
+            showImageTraining = true
+        }
+    }
+
+    private func labGridColumns(for layout: ResponsiveLayout) -> [GridItem] {
+        if layout.isLandscape && !layout.isCompact {
+            return [
+                GridItem(.flexible(), spacing: layout.elementSpacing),
+                GridItem(.flexible(), spacing: layout.elementSpacing)
+            ]
+        }
+
+        return [GridItem(.flexible(), spacing: layout.elementSpacing)]
+    }
 }
 
-// MARK: - Mesh Gradient Background (iOS 18+ fallback)
+// MARK: - Lab Dashboard UI
+// Kept for other experimental views in this file (AI hallucination screen, etc.)
 struct MeshGradientBackground: View {
     @State private var animate = false
-    
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                // Base dark gradient
                 LinearGradient(
                     colors: [
                         Color(hex: "0d0d1a"),
@@ -249,8 +128,7 @@ struct MeshGradientBackground: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                
-                // Animated orbs
+
                 Circle()
                     .fill(
                         RadialGradient(
@@ -267,7 +145,7 @@ struct MeshGradientBackground: View {
                     )
                     .blur(radius: 80)
                     .animation(.easeInOut(duration: 10).repeatForever(autoreverses: true), value: animate)
-                
+
                 Circle()
                     .fill(
                         RadialGradient(
@@ -284,8 +162,7 @@ struct MeshGradientBackground: View {
                     )
                     .blur(radius: 60)
                     .animation(.easeInOut(duration: 12).repeatForever(autoreverses: true).delay(2), value: animate)
-                
-                // Noise overlay
+
                 Color.black.opacity(0.15)
             }
             .ignoresSafeArea()
@@ -294,154 +171,432 @@ struct MeshGradientBackground: View {
     }
 }
 
-// MARK: - Feature Header
-struct FeatureHeader: View {
-    let layout: ResponsiveLayout
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0
-    
+struct LabSurfaceBackground: View {
     var body: some View {
-        VStack(spacing: layout.elementSpacing) {
-            ZStack {
-                // Glow effect
-                Circle()
-                    .fill(Color.pink.opacity(0.3))
-                    .frame(width: layout.scaled(100), height: layout.scaled(100))
-                    .blur(radius: layout.scaled(25))
-                
-                Image(systemName: "testtube.2")
-                    .font(.system(size: layout.scaled(48), weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.pink, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .modifier(BounceModifier())
-            }
-            
-            Text("Feature Testing")
-                .font(.system(size: layout.headlineFontSize + 4, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text("Developer Tools & Prototypes")
-                .font(.system(size: layout.bodyFontSize - 1, weight: .medium))
-                .foregroundColor(.white.opacity(0.6))
+        ZStack {
+            Color(red: 0.08, green: 0.09, blue: 0.11)
+            Color.white.opacity(0.015)
         }
-        .scaleEffect(scale)
-        .opacity(opacity)
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                scale = 1
-                opacity = 1
+        .ignoresSafeArea()
+    }
+}
+
+struct LabDashboardHeader: View {
+    let layout: ResponsiveLayout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: layout.scaled(12)) {
+            HStack(alignment: .top, spacing: layout.scaled(12)) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: layout.scaled(16), style: .continuous)
+                        .fill(Color.white.opacity(0.05))
+                        .frame(width: layout.scaled(54), height: layout.scaled(54))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: layout.scaled(16), style: .continuous)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+
+                    Image(systemName: "testtube.2")
+                        .font(.system(size: layout.scaled(24), weight: .semibold))
+                        .foregroundColor(Color(red: 0.85, green: 0.88, blue: 0.92))
+                }
+
+                VStack(alignment: .leading, spacing: layout.scaled(4)) {
+                    Text("Lab")
+                        .font(.system(size: layout.scaled(30), weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Text("Interactive experiments, prototypes, and classroom-ready AI demos")
+                        .font(.system(size: layout.scaled(13), weight: .medium))
+                        .foregroundColor(.white.opacity(0.72))
+                        .multilineTextAlignment(.leading)
+                }
+
+                Spacer()
+
+                if layout.isLandscape {
+                    Text("Clean Mode")
+                        .font(.system(size: layout.scaled(11), weight: .semibold))
+                        .foregroundColor(.white.opacity(0.76))
+                        .padding(.horizontal, layout.scaled(10))
+                        .padding(.vertical, layout.scaled(6))
+                        .background(Color.white.opacity(0.05), in: Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                }
+            }
+
+            HStack(spacing: layout.scaled(10)) {
+                LabPill(title: "Labs", value: "2")
+                LabPill(title: "Status", value: "Ready")
+                LabPill(title: "Focus", value: "AI + UX")
             }
         }
     }
 }
 
-// MARK: - Feature Card
-struct FeatureCard: View {
+struct LabHeroPanel: View {
+    let layout: ResponsiveLayout
+
+    var body: some View {
+        Group {
+            if layout.isLandscape && !layout.isCompact {
+                HStack(spacing: layout.scaled(14)) {
+                    heroCopy
+                    heroImages
+                        .frame(maxWidth: layout.scaled(360))
+                }
+            } else {
+                VStack(spacing: layout.scaled(14)) {
+                    heroCopy
+                    heroImages
+                }
+            }
+        }
+        .padding(layout.scaled(16))
+        .background(
+            RoundedRectangle(cornerRadius: layout.scaled(22), style: .continuous)
+                .fill(Color.white.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.scaled(22), style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var heroCopy: some View {
+        VStack(alignment: .leading, spacing: layout.scaled(10)) {
+            Text("Pick a lab and start fast")
+                .font(.system(size: layout.scaled(20), weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+
+            Text("This page now matches the Select screen style: image-first cards, clear labels, and cleaner navigation. Use the comments in code as AI image prompts when you generate final artwork.")
+                .font(.system(size: layout.scaled(12.5), weight: .medium))
+                .foregroundColor(.white.opacity(0.72))
+                .multilineTextAlignment(.leading)
+
+            Group {
+                if layout.isCompact {
+                    VStack(alignment: .leading, spacing: layout.scaled(6)) {
+                        Label("No gradient", systemImage: "checkmark.circle.fill")
+                        Label("No purple", systemImage: "checkmark.circle.fill")
+                        Label("More images", systemImage: "photo.on.rectangle.angled")
+                    }
+                } else {
+                    HStack(spacing: layout.scaled(8)) {
+                        Label("No gradient", systemImage: "checkmark.circle.fill")
+                        Label("No purple", systemImage: "checkmark.circle.fill")
+                        Label("More images", systemImage: "photo.on.rectangle.angled")
+                    }
+                }
+            }
+            .font(.system(size: layout.scaled(11), weight: .semibold))
+            .foregroundColor(.white.opacity(0.82))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var heroImages: some View {
+        VStack(spacing: layout.scaled(10)) {
+            // AI image prompt: "Clean AI lab overview collage with educational demo scenes, dashboard cards, and modern dark UI composition."
+            HStack(spacing: layout.scaled(10)) {
+                LabHeroImageTile(imageName: "schooltopview", layout: layout)
+                LabHeroImageTile(imageName: "cnxaqu", layout: layout)
+            }
+            LabHeroImageTile(imageName: "507room", layout: layout, height: layout.scaled(100))
+        }
+    }
+}
+
+struct LabHeroImageTile: View {
+    let imageName: String
+    let layout: ResponsiveLayout
+    var height: CGFloat? = nil
+
+    var body: some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity)
+            .frame(height: height ?? layout.scaled(88))
+            .clipped()
+            .overlay(Color.black.opacity(0.18))
+            .clipShape(RoundedRectangle(cornerRadius: layout.scaled(14), style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: layout.scaled(14), style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+}
+
+struct LabSectionHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(alignment: .lastTextBaseline) {
+            Text(title)
+                .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .foregroundColor(.white)
+
+            Text(subtitle)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white.opacity(0.55))
+
+            Spacer()
+        }
+    }
+}
+
+struct LabPill: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white.opacity(0.45))
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.05), in: Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+struct LabFeatureCard: View {
     let title: String
     let subtitle: String
     let icon: String
-    let color: Color
+    let accent: Color
+    let imageName: String?
+    let chips: [String]
+    let status: String
     let layout: ResponsiveLayout
     var disabled: Bool = false
-    var isNew: Bool = false
     let action: () -> Void
     
     @State private var isPressed = false
-    @State private var isHovered = false
+    
+    private var cornerRadius: CGFloat { layout.scaled(20) }
+    private var mediaHeight: CGFloat { layout.scaled(145) }
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: layout.elementSpacing) {
-                // Icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: layout.cornerRadius)
-                        .fill(color.opacity(disabled ? 0.1 : 0.2))
-                        .frame(width: layout.scaled(56), height: layout.scaled(56))
-                    
-                    Image(systemName: icon)
-                        .font(.system(size: layout.scaled(24)))
-                        .foregroundColor(disabled ? .gray : color)
-                    
-                    if isNew && !disabled {
-                        NewBadge(layout: layout)
-                            .offset(x: layout.scaled(20), y: -layout.scaled(20))
-                    }
-                }
-                
-                // Content
-                VStack(alignment: .leading, spacing: layout.elementSpacing / 2) {
-                    Text(title)
-                        .font(.system(size: layout.bodyFontSize + 2, weight: .semibold))
-                        .foregroundColor(disabled ? .gray : .white)
-                    
-                    Text(subtitle)
-                        .font(.system(size: layout.captionFontSize + 1))
-                        .foregroundColor(.white.opacity(disabled ? 0.3 : 0.6))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                
-                Spacer()
-                
-                // Arrow
-                Image(systemName: "chevron.right")
-                    .font(.system(size: layout.captionFontSize + 2, weight: .semibold))
-                    .foregroundColor(color.opacity(isHovered ? 1 : 0.5))
-                    .offset(x: isHovered ? 4 : 0)
-            }
-            .padding(layout.padding)
-            .background(
-                RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: layout.cornerRadius)
-                            .stroke(color.opacity(disabled ? 0 : (isHovered ? 0.5 : 0.3)), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(isPressed ? 0.97 : 1.0)
-            .shadow(
-                color: color.opacity(disabled ? 0 : (isHovered ? 0.3 : 0.1)),
-                radius: isHovered ? layout.scaled(16) : layout.scaled(8),
-                x: 0,
-                y: isHovered ? layout.scaled(8) : layout.scaled(4)
-            )
-        }
-        .disabled(disabled)
+        Button(action: action) { cardShell }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .disabled(disabled)
         .pressEvents {
             isPressed = true
         } onRelease: {
             isPressed = false
         }
     }
-}
-
-// MARK: - New Badge
-struct NewBadge: View {
-    let layout: ResponsiveLayout
     
-    var body: some View {
-        Text("NEW")
-            .font(.system(size: layout.scaled(8), weight: .bold))
-            .foregroundColor(.white)
-            .padding(.horizontal, layout.scaled(6))
-            .padding(.vertical, layout.scaled(2))
+    private var cardShell: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            heroSection
+            detailsSection
+        }
+        .background(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.white.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(disabled ? Color.white.opacity(0.08) : accent.opacity(0.22), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .scaleEffect(isPressed ? 0.985 : 1)
+        .shadow(
+            color: Color.black.opacity(disabled ? 0.10 : 0.18),
+            radius: layout.scaled(8),
+            x: 0,
+            y: layout.scaled(4)
+        )
+        .opacity(disabled ? 0.95 : 1)
+    }
+    
+    private var heroSection: some View {
+        ZStack(alignment: .topLeading) {
+            heroBackground
+            Color.black.opacity(disabled ? 0.42 : 0.28)
+            heroTopOverlay
+            heroBottomOverlay
+        }
+    }
+    
+    @ViewBuilder
+    private var heroBackground: some View {
+        if let imageName {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: mediaHeight)
+                .clipped()
+        } else {
+            ZStack {
+                Color.white.opacity(0.02)
+                Image(systemName: "photo")
+                    .font(.system(size: layout.scaled(24), weight: .semibold))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+            .frame(height: mediaHeight)
+        }
+    }
+    
+    private var heroTopOverlay: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: layout.scaled(8)) {
+                HStack(spacing: 8) {
+                    statusBadge
+                    if disabled {
+                        lockedBadge
+                    }
+                }
+            }
+            
+            Spacer()
+            iconBadge
+        }
+        .padding(layout.scaled(12))
+    }
+    
+    private var statusBadge: some View {
+        Text(status)
+            .font(.system(size: layout.scaled(10), weight: .bold))
+            .foregroundColor(disabled ? .white.opacity(0.78) : accent)
+            .padding(.horizontal, layout.scaled(8))
+            .padding(.vertical, layout.scaled(5))
             .background(
-                LinearGradient(
-                    colors: [.pink, .red],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
+                Capsule()
+                    .fill(Color.black.opacity(0.35))
             )
-            .cornerRadius(layout.scaled(4))
+            .overlay(
+                Capsule()
+                    .stroke(disabled ? Color.white.opacity(0.15) : accent.opacity(0.35), lineWidth: 1)
+            )
+    }
+    
+    private var lockedBadge: some View {
+        Text("LOCKED")
+            .font(.system(size: layout.scaled(10), weight: .bold))
+            .foregroundColor(.white.opacity(0.75))
+            .padding(.horizontal, layout.scaled(8))
+            .padding(.vertical, layout.scaled(5))
+            .background(Color.black.opacity(0.3), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+    }
+    
+    private var iconBadge: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: layout.scaled(12), style: .continuous)
+                .fill(Color.black.opacity(0.35))
+                .frame(width: layout.scaled(38), height: layout.scaled(38))
+            Image(systemName: icon)
+                .font(.system(size: layout.scaled(16), weight: .semibold))
+                .foregroundColor(.white.opacity(0.9))
+        }
+    }
+    
+    private var heroBottomOverlay: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                cornerActionBadge
+            }
+            .padding(layout.scaled(12))
+        }
+    }
+    
+    private var cornerActionBadge: some View {
+        Image(systemName: disabled ? "lock.fill" : "arrow.up.right")
+            .font(.system(size: layout.scaled(16), weight: .bold))
+            .foregroundColor(.white.opacity(0.88))
+            .padding(layout.scaled(10))
+            .background(Color.black.opacity(0.30), in: Circle())
+    }
+    
+    private var detailsSection: some View {
+        VStack(alignment: .leading, spacing: layout.scaled(10)) {
+            titleText
+            subtitleText
+            chipsRow
+            footerRow
+        }
+        .padding(layout.scaled(14))
+        .background(detailsBackground)
+    }
+    
+    private var titleText: some View {
+        Text(title)
+            .font(.system(size: layout.bodyFontSize + 2, weight: .bold, design: .rounded))
+            .foregroundColor(.white.opacity(disabled ? 0.82 : 1))
+            .multilineTextAlignment(.leading)
+    }
+    
+    private var subtitleText: some View {
+        Text(subtitle)
+            .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+            .foregroundColor(.white.opacity(disabled ? 0.48 : 0.68))
+            .lineLimit(3)
+            .multilineTextAlignment(.leading)
+    }
+    
+    private var chipsRow: some View {
+        HStack(spacing: layout.scaled(8)) {
+            ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+                chipView(chip)
+            }
+        }
+        .lineLimit(1)
+    }
+    
+    private func chipView(_ chip: String) -> some View {
+        Text(chip)
+            .font(.system(size: layout.scaled(10), weight: .bold))
+            .foregroundColor(.white.opacity(0.88))
+            .padding(.horizontal, layout.scaled(8))
+            .padding(.vertical, layout.scaled(5))
+            .background(Color.white.opacity(0.05), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+    }
+    
+    private var footerRow: some View {
+        HStack {
+            Text(disabled ? "Planned feature" : "Open lab")
+                .font(.system(size: layout.scaled(11.5), weight: .semibold))
+                .foregroundColor(disabled ? .white.opacity(0.55) : accent)
+            Spacer()
+            Image(systemName: disabled ? "clock" : "chevron.right")
+                .font(.system(size: layout.scaled(12), weight: .bold))
+                .foregroundColor(disabled ? .white.opacity(0.45) : accent)
+        }
+    }
+    
+    private var detailsBackground: some View {
+        Color.white.opacity(0.015)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(disabled ? Color.white.opacity(0.05) : accent.opacity(0.20))
+                    .frame(height: 1)
+            }
     }
 }
 
@@ -449,34 +604,42 @@ struct NewBadge: View {
 struct BackButton: View {
     let action: () -> Void
     let layout: ResponsiveLayout
-    @State private var isHovered = false
-    
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: layout.elementSpacing) {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: layout.bodyFontSize))
+            HStack(spacing: layout.scaled(10)) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: layout.scaled(14), weight: .bold))
+
                 Text("Back to Main Menu")
                     .font(.system(size: layout.bodyFontSize, weight: .semibold))
+
+                Spacer()
+
+                Image(systemName: "house")
+                    .font(.system(size: layout.scaled(13), weight: .semibold))
+                    .foregroundColor(.white.opacity(0.8))
             }
             .foregroundColor(.white)
-            .padding(layout.padding)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, layout.scaled(16))
+            .padding(.vertical, layout.scaled(14))
             .background(
-                RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: layout.cornerRadius)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: layout.scaled(18), style: .continuous)
+                    .fill(Color.white.opacity(0.04))
             )
-            .scaleEffect(isHovered ? 1.02 : 1.0)
+            .overlay(
+                RoundedRectangle(cornerRadius: layout.scaled(18), style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
     }
 }
+
+/*
+ Old gradient-based feature menu components were replaced with a cleaner,
+ image-first dashboard to match the Select page visual language.
+ */
 
 // MARK: - Visual Novel Dialog View
 struct VisualNovelDialogView: View {
@@ -513,61 +676,73 @@ struct VisualNovelDialogView: View {
     
     var body: some View {
         GeometryReader { geo in
-            let layout = ResponsiveLayout(
-                width: geo.size.width,
-                height: geo.size.height,
-                safeAreaInsets: geo.safeAreaInsets
-            )
-            
-            ZStack {
-                // Background
-                Image("507room")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .ignoresSafeArea()
-                
-                // Gradient overlay for text readability
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.2),
-                        Color.black.opacity(0.1),
-                        Color.black.opacity(0.4),
-                        Color.black.opacity(0.7)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-                
-                // Main content
-                if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
-                    // iPad Landscape: Side by side layout
-                    HStack(spacing: 0) {
-                        // Left: Character
-                        characterSection(layout: layout, geo: geo)
-                            .frame(width: geo.size.width * 0.5)
-                        
-                        // Right: Dialog
-                        dialogSection(layout: layout)
-                            .frame(width: geo.size.width * 0.5)
-                            .padding(.bottom, layout.padding)
-                    }
-                } else {
-                    // Portrait or iPhone: Stacked layout
-                    VStack(spacing: 0) {
-                        // Top: Character
-                        characterSection(layout: layout, geo: geo)
-                        
-                        // Bottom: Dialog
-                        dialogSection(layout: layout)
-                    }
-                }
-            }
+            visualNovelRoot(geo: geo)
         }
         .onAppear {
             impactFeedback.prepare()
             startTyping()
+        }
+    }
+    
+    private func visualNovelRoot(geo: GeometryProxy) -> some View {
+        let layout = ResponsiveLayout(
+            width: geo.size.width,
+            height: geo.size.height,
+            safeAreaInsets: geo.safeAreaInsets
+        )
+        
+        return ZStack {
+            visualNovelBackground(geo: geo)
+            visualNovelForeground(layout: layout, geo: geo)
+        }
+    }
+    
+    private func visualNovelBackground(geo: GeometryProxy) -> some View {
+        ZStack {
+            Image("507room")
+                .resizable()
+                .scaledToFill()
+                .frame(width: geo.size.width, height: geo.size.height)
+                .ignoresSafeArea()
+            
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.2),
+                    Color.black.opacity(0.1),
+                    Color.black.opacity(0.4),
+                    Color.black.opacity(0.7)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        }
+    }
+    
+    @ViewBuilder
+    private func visualNovelForeground(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
+            visualNovelLandscapeLayout(layout: layout, geo: geo)
+        } else {
+            visualNovelPortraitLayout(layout: layout, geo: geo)
+        }
+    }
+    
+    private func visualNovelLandscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        HStack(spacing: 0) {
+            characterSection(layout: layout, geo: geo)
+                .frame(width: geo.size.width * 0.5)
+            
+            dialogSection(layout: layout)
+                .frame(width: geo.size.width * 0.5)
+                .padding(.bottom, layout.padding)
+        }
+    }
+    
+    private func visualNovelPortraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            characterSection(layout: layout, geo: geo)
+            dialogSection(layout: layout)
         }
     }
     
@@ -1148,173 +1323,6 @@ struct BounceModifier: ViewModifier {
     }
 }
 
-// MARK: - Color Extension
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3:
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8:
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
-    }
-}
-
-// MARK: - Sample Dialog Nodes
-let sampleDialogNodes: [DialogNode] = [
-    DialogNode(
-        speaker: "Ploy",
-        text: "Welcome to the new Responsive Dialog System! 👋 This has been completely redesigned to work beautifully on every device - from the smallest iPhone to the largest Mac desktop screen!",
-        emotion: .excited,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "Try resizing the window if you're on Mac, or rotating your device on iPad/iPhone. Watch how the layout automatically adapts! On large screens, you get a side-by-side view. On phones, everything stacks perfectly.",
-        emotion: .happy,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "How are you feeling about this new responsive design?",
-        emotion: .curious,
-        choices: [
-            DialogChoice(
-                text: "I love it! 😍",
-                emotion: .excited,
-                response: "That's wonderful to hear!",
-                nextNodeIndex: nil,
-                icon: "heart.fill"
-            ),
-            DialogChoice(
-                text: "Looks great! 👍",
-                emotion: .happy,
-                response: "Glad you like it!",
-                nextNodeIndex: nil,
-                icon: "hand.thumbsup.fill"
-            ),
-            DialogChoice(
-                text: "It's okay 🤔",
-                emotion: .neutral,
-                response: "I appreciate your honesty.",
-                nextNodeIndex: nil,
-                icon: "checkmark.circle.fill"
-            ),
-            DialogChoice(
-                text: "Not my style 😕",
-                emotion: .sad,
-                response: "I'll keep working on it!",
-                nextNodeIndex: nil,
-                icon: "xmark.circle.fill"
-            )
-        ],
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "I'd love to know your name! The text input also scales beautifully - larger on big screens, compact on small devices.",
-        emotion: .gentle,
-        choices: nil,
-        requiresInput: true,
-        inputPlaceholder: "Enter your name...",
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "Notice the settings button in the top right? You can adjust typing speed and background brightness - these settings persist during your session and work across all device sizes!",
-        emotion: .happy,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "The character animations respond to your interactions: tap to bounce, drag to move, long-press to wiggle. Try it out! These interactions work with mouse, trackpad, or touch.",
-        emotion: .excited,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "This dialog system features four adaptive layout modes: Stacked for phones, Side-by-Side for landscape tablets, Floating for cinematic displays, and Split for ultrawide/desktop screens!",
-        emotion: .mysterious,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "Typography automatically scales based on your device size - comfortable to read whether you're on a phone held close or a monitor across the room. Every element has been carefully considered!",
-        emotion: .gentle,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    ),
-    DialogNode(
-        speaker: "Ploy",
-        text: "Thank you for testing the new Responsive Dialog System! I hope you enjoyed seeing how it adapts to different screen sizes. The future of visual novels is here! 🎉",
-        emotion: .happy,
-        choices: nil,
-        requiresInput: false,
-        inputPlaceholder: nil,
-        backgroundImage: "507room",
-        characterImage: "char",
-        onComplete: nil
-    )
-]
-
-// MARK: - AI Hallucination Data Models
-struct HallucinationRound: Identifiable {
-    let id = UUID()
-    let imageName: String
-    let correctAnswer: String
-    let hallucinatedAnswer: String
-    let wrongOptions: [String]
-    let trainingDataHint: String
-    
-    var allOptions: [String] {
-        ([correctAnswer, hallucinatedAnswer] + wrongOptions).shuffled()
-    }
-}
-
 // MARK: - AI Hallucination View
 struct AIHallucinationView: View {
     @Environment(\.dismiss) private var dismiss
@@ -1339,43 +1347,7 @@ struct AIHallucinationView: View {
     @State private var showGlitch = false
     
     // Rounds data
-    let rounds: [HallucinationRound] = [
-        HallucinationRound(
-            imageName: "cnxaqu",
-            correctAnswer: "Aquatic Animals",
-            hallucinatedAnswer: "Freshwater Aquarium",
-            wrongOptions: ["Ocean Life", "Pond Ecosystem", "Marine Biology"],
-            trainingDataHint: "Training Data: 45% aquariums, 30% ocean documentaries, 25% pet fish photos"
-        ),
-        HallucinationRound(
-            imageName: "cnxgate",
-            correctAnswer: "University Gate",
-            hallucinatedAnswer: "Ancient Temple Entrance",
-            wrongOptions: ["Park Entrance", "Museum Gate", "Historical Monument"],
-            trainingDataHint: "Training Data: 38% temples, 35% Asian landmarks, 27% educational institutions"
-        ),
-        HallucinationRound(
-            imageName: "redbus",
-            correctAnswer: "Red School Bus",
-            hallucinatedAnswer: "Vintage London Double-Decker",
-            wrongOptions: ["Fire Truck", "Tour Bus", "Public Transit"],
-            trainingDataHint: "Training Data: 42% London buses, 28% American school buses, 30% other vehicles"
-        ),
-        HallucinationRound(
-            imageName: "lantassc",
-            correctAnswer: "School Building",
-            hallucinatedAnswer: "Modern Art Gallery",
-            wrongOptions: ["Office Complex", "Community Center", "Library"],
-            trainingDataHint: "Training Data: 35% art galleries, 33% educational buildings, 32% modern architecture"
-        ),
-        HallucinationRound(
-            imageName: "schooltopview",
-            correctAnswer: "Campus Aerial View",
-            hallucinatedAnswer: "Residential Neighborhood",
-            wrongOptions: ["Sports Complex", "Industrial Zone", "Shopping District"],
-            trainingDataHint: "Training Data: 40% residential areas, 35% campuses, 25% commercial zones"
-        )
-    ]
+    private let rounds = HallucinationRound.samples
     
     var currentRound: HallucinationRound {
         rounds[currentRoundIndex]
@@ -1383,58 +1355,73 @@ struct AIHallucinationView: View {
     
     var body: some View {
         GeometryReader { geo in
-            let layout = ResponsiveLayout(
-                width: geo.size.width,
-                height: geo.size.height,
-                safeAreaInsets: geo.safeAreaInsets
-            )
-            
-            ZStack {
-                // Animated background
-                MeshGradientBackground()
-                
-                // Main content
-                if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
-                    // iPad Landscape layout
-                    HStack(spacing: 0) {
-                        leftPanel(layout: layout, geo: geo)
-                            .frame(width: geo.size.width * 0.5)
-                        
-                        rightPanel(layout: layout)
-                            .frame(width: geo.size.width * 0.5)
-                    }
-                } else {
-                    // Portrait layout
-                    VStack(spacing: 0) {
-                        topBar(layout: layout)
-                        
-                        ScrollView {
-                            VStack(spacing: layout.sectionSpacing) {
-                                imageSection(layout: layout, geo: geo)
-                                characterDialogSection(layout: layout)
-                                Spacer(minLength: layout.sectionSpacing)
-                            }
-                            .padding(.horizontal, layout.padding)
-                        }
-                    }
-                }
-                
-                // Overlays
-                if showResult {
-                    resultOverlay(layout: layout)
-                }
-                
-                if showTrainingData {
-                    trainingDataOverlay(layout: layout)
-                }
-                
-                if showScoreSummary {
-                    scoreSummaryOverlay(layout: layout)
-                }
-            }
+            aiHallucinationRoot(geo: geo)
         }
         .onAppear {
             startRound()
+        }
+    }
+    
+    private func aiHallucinationRoot(geo: GeometryProxy) -> some View {
+        let layout = ResponsiveLayout(
+            width: geo.size.width,
+            height: geo.size.height,
+            safeAreaInsets: geo.safeAreaInsets
+        )
+        
+        return ZStack {
+            MeshGradientBackground()
+            aiHallucinationMainContent(layout: layout, geo: geo)
+            aiHallucinationOverlays(layout: layout)
+        }
+    }
+    
+    @ViewBuilder
+    private func aiHallucinationMainContent(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        if layout.isLandscape && (layout.isLarge || layout.isExtraLarge) {
+            aiHallucinationLandscapeLayout(layout: layout, geo: geo)
+        } else {
+            aiHallucinationPortraitLayout(layout: layout, geo: geo)
+        }
+    }
+    
+    private func aiHallucinationLandscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        HStack(spacing: 0) {
+            leftPanel(layout: layout, geo: geo)
+                .frame(width: geo.size.width * 0.5)
+            
+            rightPanel(layout: layout)
+                .frame(width: geo.size.width * 0.5)
+        }
+    }
+    
+    private func aiHallucinationPortraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            topBar(layout: layout)
+            
+            ScrollView {
+                VStack(spacing: layout.sectionSpacing) {
+                    imageSection(layout: layout, geo: geo)
+                    characterDialogSection(layout: layout)
+                    Spacer(minLength: layout.sectionSpacing)
+                }
+                .padding(.horizontal, layout.padding)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func aiHallucinationOverlays(layout: ResponsiveLayout) -> some View {
+        if showResult {
+            resultOverlay(layout: layout)
+        }
+        
+        if showTrainingData {
+            trainingDataOverlay(layout: layout)
+        }
+        
+        if showScoreSummary {
+            scoreSummaryOverlay(layout: layout)
         }
     }
     
@@ -2235,9 +2222,4 @@ struct GlitchOverlay: View {
         .opacity(0.5)
         .allowsHitTesting(false)
     }
-}
-
-#Preview {
-    FeatureTestingView()
-        .preferredColorScheme(.dark)
 }

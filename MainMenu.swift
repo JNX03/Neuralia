@@ -131,7 +131,7 @@ struct MainMenuView: View {
             .onDisappear {
                 viewModel.stop()
             }
-            .onChange(of: settings.reduceMotion) { _ in
+            .onChange(of: settings.reduceMotion) {
                 configureMotionTimer()
             }
             .fullScreenCover(item: $destination) { destination in
@@ -151,8 +151,7 @@ struct MainMenuView: View {
                 case .playChapterOne:
                     NavigationStack {
                         if let firstChapter = StoryChapterRepository.all.first {
-                            ResponsiveDialogView(nodes: firstChapter.nodes)
-                                .navigationBarBackButtonHidden(true)
+                            StoryChapterPlayerView(initialChapter: firstChapter)
                         } else {
                             StoryChapterHubView()
                         }
@@ -508,44 +507,8 @@ struct SmallIconButton: View {
 
 // MARK: - Gallery View (Blank Page)
 struct GalleryView: View {
-    @Environment(\.dismiss) private var dismiss
-    
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button(action: { dismiss() }) {
-                        HStack {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                    }
-                    Spacer()
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 16) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 60))
-                        .foregroundColor(.white.opacity(0.5))
-                    
-                    Text("Gallery (Memory)")
-                        .font(.title)
-                        .foregroundColor(.white)
-                    
-                    Text("Coming Soon")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                
-                Spacer()
-            }
-        }
+        StoryGalleryMuseumView()
     }
 }
 

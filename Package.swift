@@ -10,13 +10,14 @@ import AppleProductTypes
 let package = Package(
     name: "Neuralia",
     platforms: [
-        .iOS("16.0")
+        .iOS("17.0")
     ],
     products: [
         .iOSApplication(
             name: "Neuralia",
             targets: ["AppModule"],
             bundleIdentifier: "Jnx03.mrc.Neura",
+            teamIdentifier: "SGXTQ97U4A",
             displayVersion: "1.0",
             bundleVersion: "1",
             appIcon: .placeholder(icon: .cloud),
@@ -26,10 +27,8 @@ let package = Package(
                 .phone
             ],
             supportedInterfaceOrientations: [
-                .portrait,
                 .landscapeRight,
-                .landscapeLeft,
-                .portraitUpsideDown(.when(deviceFamilies: [.pad]))
+                .landscapeLeft
             ],
             appCategory: .education
         )
@@ -37,7 +36,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AppModule",
-            path: "."
+            path: ".",
+            sources: ["ContentView.swift", "CreditsView.swift", "DialogSystem.swift", "DialogSystemPreview.swift", "FeatureTestingData.swift", "FeatureTestingPreview.swift", "FeatureTestingView.swift", "GlobalSettings.swift", "ImageTrainingView.swift", "LoadingView.swift", "MainMenu.swift", "NeuraApp.swift", "PointerFX.swift", "ResponsiveLayout.swift", "SettingsView.swift", "SharedUISupport.swift", "Story/Chapter1/Chapter1Story.swift", "Story/Chapter2/Chapter2Story.swift", "Story/Chapter3/Chapter3Story.swift", "Story/StoryChapterHubView.swift", "Story/StoryChapterPlayerView.swift", "Story/StoryScriptModels.swift", "StoryGalleryMuseumView.swift", "StoryProgressStore.swift"],
+            resources: [
+                .process("Assets.xcassets")
+            ]
         )
     ],
     swiftLanguageVersions: [.version("6")]

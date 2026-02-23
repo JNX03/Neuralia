@@ -685,7 +685,6 @@ struct ImageTrainingView: View {
     // Classes
     @State private var classes = ["Circle", "Square", "Triangle"]
     @State private var selectedClass = "Circle"
-    @State private var showAddClass = false
     @State private var classToDelete: String?
     
     var body: some View {
@@ -693,57 +692,120 @@ struct ImageTrainingView: View {
             let layout = AdaptiveLayout(size: geo.size, horizontalSizeClass: horizontalSizeClass)
             
             NavigationStack {
-                Group {
-                    if layout.isPhone && layout.isCompact {
-                        PhonePortraitView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass, 
-                                        trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
-                                        testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
-                                        prediction: $prediction, classToDelete: $classToDelete)
-                    } else if layout.isPhone {
-                        PhoneLandscapeView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass,
-                                         trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
-                                         testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
-                                         prediction: $prediction, classToDelete: $classToDelete)
-                    } else {
-                        TabletView(layout: layout, knn: knn, classes: $classes, selected: $selectedClass,
-                                  trainStrokes: $trainStrokes, currentStroke: $currentStroke, trainCanvasSize: $trainCanvasSize,
-                                  testStrokes: $testStrokes, testStroke: $testStroke, testCanvasSize: $testCanvasSize,
-                                  prediction: $prediction, classToDelete: $classToDelete)
-                    }
-                }
+                platformContent(layout: layout)
                 .navigationTitle("Drawing Classifier")
                 .navigationBarTitleDisplayMode(.large)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Done") { dismiss() }
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        if knn.trainingSamples.count > 0 {
-                            Button(action: { knn.clear() }) {
-                                Text("Reset")
-                                    .foregroundColor(.red)
-                            }
-                        }
-                    }
-                }
+                .toolbar { navigationToolbar }
             }
-            .sheet(isPresented: $showAddClass) {
-                AddClassSheet(classes: $classes, selected: $selectedClass, isPresented: $showAddClass)
-            }
-            .alert("Delete Class?", isPresented: .constant(classToDelete != nil), presenting: classToDelete) { className in
+            .alert("Delete Class?", isPresented: deleteClassAlertPresented, presenting: classToDelete) { className in
                 Button("Cancel", role: .cancel) { classToDelete = nil }
                 Button("Delete", role: .destructive) {
-                    classes.removeAll { $0 == className }
-                    knn.removeSamples(for: className)
-                    if selectedClass == className, let first = classes.first {
-                        selectedClass = first
-                    }
-                    classToDelete = nil
+                    deleteClass(named: className)
                 }
             } message: { className in
                 Text("Delete '\(className)' and all its samples?")
             }
         }
+    }
+    
+    @ViewBuilder
+    private func platformContent(layout: AdaptiveLayout) -> some View {
+        if layout.isPhone && layout.isCompact {
+            phonePortraitContent(layout: layout)
+        } else if layout.isPhone {
+            phoneLandscapeContent(layout: layout)
+        } else {
+            tabletContent(layout: layout)
+        }
+    }
+    
+    private func phonePortraitContent(layout: AdaptiveLayout) -> some View {
+        PhonePortraitView(
+            layout: layout,
+            knn: knn,
+            classes: $classes,
+            selected: $selectedClass,
+            trainStrokes: $trainStrokes,
+            currentStroke: $currentStroke,
+            trainCanvasSize: $trainCanvasSize,
+            testStrokes: $testStrokes,
+            testStroke: $testStroke,
+            testCanvasSize: $testCanvasSize,
+            prediction: $prediction,
+            classToDelete: $classToDelete
+        )
+    }
+    
+    private func phoneLandscapeContent(layout: AdaptiveLayout) -> some View {
+        PhoneLandscapeView(
+            layout: layout,
+            knn: knn,
+            classes: $classes,
+            selected: $selectedClass,
+            trainStrokes: $trainStrokes,
+            currentStroke: $currentStroke,
+            trainCanvasSize: $trainCanvasSize,
+            testStrokes: $testStrokes,
+            testStroke: $testStroke,
+            testCanvasSize: $testCanvasSize,
+            prediction: $prediction,
+            classToDelete: $classToDelete
+        )
+    }
+    
+    private func tabletContent(layout: AdaptiveLayout) -> some View {
+        TabletView(
+            layout: layout,
+            knn: knn,
+            classes: $classes,
+            selected: $selectedClass,
+            trainStrokes: $trainStrokes,
+            currentStroke: $currentStroke,
+            trainCanvasSize: $trainCanvasSize,
+            testStrokes: $testStrokes,
+            testStroke: $testStroke,
+            testCanvasSize: $testCanvasSize,
+            prediction: $prediction,
+            classToDelete: $classToDelete
+        )
+    }
+    
+    @ToolbarContentBuilder
+    private var navigationToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button("Done") { dismiss() }
+        }
+        
+        ToolbarItem(placement: .navigationBarTrailing) {
+            if knn.trainingSamples.count > 0 {
+                Button(action: { knn.clear() }) {
+                    Text("Reset")
+                        .foregroundColor(.red)
+                }
+            }
+        }
+    }
+    
+    private var deleteClassAlertPresented: Binding<Bool> {
+        Binding(
+            get: { classToDelete != nil },
+            set: { isPresented in
+                if !isPresented {
+                    classToDelete = nil
+                }
+            }
+        )
+    }
+    
+    private func deleteClass(named className: String) {
+        classes.removeAll { $0 == className }
+        knn.removeSamples(for: className)
+        
+        if selectedClass == className, let first = classes.first {
+            selectedClass = first
+        }
+        
+        classToDelete = nil
     }
 }
 

@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var showMainMenu = false
+    // Temporary toggle: keep startup screens in code, but bypass them at launch.
+    private let skipStartupScreens = true
+    @State private var showMainMenu = true
     @State private var contentOpacity: Double = 1.0
     
     var body: some View {
@@ -26,6 +28,12 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.5), value: showMainMenu)
         }
         .ignoresSafeArea()
+        .onAppear {
+            // Ensure the initial state follows the temporary bypass toggle.
+            if showMainMenu != skipStartupScreens {
+                showMainMenu = skipStartupScreens
+            }
+        }
     }
     
     // MARK: - Background Layer
