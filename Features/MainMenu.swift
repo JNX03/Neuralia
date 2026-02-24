@@ -75,8 +75,6 @@ class MainMenuViewModel: ObservableObject {
 // MARK: - Menu Destination Enum
 enum MenuDestination: Hashable {
     case featureTesting
-    case gallery
-    case about
     case chapterSelect
     case playChapterOne
 }
@@ -85,8 +83,6 @@ extension MenuDestination: Identifiable {
     var id: String {
         switch self {
         case .featureTesting: return "featureTesting"
-        case .gallery: return "gallery"
-        case .about: return "about"
         case .chapterSelect: return "chapterSelect"
         case .playChapterOne: return "playChapterOne"
         }
@@ -98,6 +94,7 @@ struct MainMenuView: View {
     @StateObject private var viewModel = MainMenuViewModel()
     @State private var destination: MenuDestination? = nil
     @State private var showSettingsPopup = false
+    @State private var showCreditsPopup = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -137,11 +134,24 @@ struct MainMenuView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
                     .zIndex(10)
                 }
+
+                if showCreditsPopup {
+                    MenuCreditsPopupOverlay(
+                        layout: layout,
+                        onClose: {
+                            withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                showCreditsPopup = false
+                            }
+                        }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .zIndex(11)
+                }
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        guard !showSettingsPopup else { return }
+                        guard !showSettingsPopup, !showCreditsPopup else { return }
                         viewModel.handleTouch(translation: gesture.translation)
                     }
                     .onEnded { _ in
@@ -161,12 +171,6 @@ struct MainMenuView: View {
                 switch destination {
                 case .featureTesting:
                     FeatureTestingView()
-                        .neuraPointerFX()
-                case .gallery:
-                    GalleryView()
-                        .neuraPointerFX()
-                case .about:
-                    AboutView()
                         .neuraPointerFX()
                 case .chapterSelect:
                     NavigationStack {
@@ -366,17 +370,6 @@ struct MainMenuView: View {
             // Small action buttons row - equal sizes
             HStack(spacing: layout.elementSpacing) {
                 SmallIconButton(
-                    title: "Gallery",
-                    subtitle: "Memory",
-                    icon: "photo.on.rectangle.angled",
-                    layout: layout,
-                    action: {
-                        destination = .gallery
-                    }
-                )
-                .frame(maxWidth: .infinity)
-                
-                SmallIconButton(
                     title: "Settings",
                     subtitle: nil,
                     icon: "gearshape.fill",
@@ -395,7 +388,9 @@ struct MainMenuView: View {
                     icon: "info.circle.fill",
                     layout: layout,
                     action: {
-                        destination = .about
+                        withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                            showCreditsPopup = true
+                        }
                     }
                 )
                 .frame(maxWidth: .infinity)
@@ -579,20 +574,6 @@ struct SmallIconButton: View {
             isPressed = false
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
-    }
-}
-
-// MARK: - Gallery View (Blank Page)
-struct GalleryView: View {
-    var body: some View {
-        StoryGalleryMuseumView()
-    }
-}
-
-// MARK: - About View (Credits Page)
-struct AboutView: View {
-    var body: some View {
-        CreditsView()
     }
 }
 

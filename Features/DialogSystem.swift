@@ -3177,82 +3177,91 @@ struct ClassroomLectureQuizMiniGameStage: View {
     }
 
     private var spriteHeight: CGFloat {
-        let lowerBound: CGFloat = layout.isCompact ? 180 : 230
-        let upperBound: CGFloat = layout.isCompact ? 300 : 520
-        return min(max(layout.height * (layout.isCompact ? 0.28 : 0.40), lowerBound), upperBound)
+        let lowerBound: CGFloat = layout.isCompact ? 205 : 265
+        let upperBound: CGFloat = layout.isCompact ? 350 : 610
+        return min(max(layout.height * (layout.isCompact ? 0.33 : 0.47), lowerBound), upperBound)
+    }
+
+    private var dialogVerticalLift: CGFloat {
+        if layout.width < 780 {
+            return layout.isCompact ? 68 : 82
+        }
+        return layout.isCompact ? 84 : 110
+    }
+
+    private var characterHorizontalPush: CGFloat {
+        if layout.width < 700 { return 22 }
+        if layout.width < 1000 { return 36 }
+        return layout.isCompact ? 48 : 76
+    }
+
+    private var characterBottomOffsetAdjustment: CGFloat {
+        layout.isCompact ? 28 : 34
+    }
+
+    private var characterVerticalLift: CGFloat {
+        layout.isCompact ? 14 : 22
     }
 
     private var bottomDialogReserve: CGFloat {
-        layout.width < 780 ? (layout.isCompact ? 236 : 252) : (layout.isCompact ? 184 : 212)
+        layout.width < 780 ? (layout.isCompact ? 264 : 286) : (layout.isCompact ? 220 : 256)
     }
 
     var body: some View {
-        let useStackedBottomDialogs = layout.width < 780 || (layout.isLandscape && layout.height < 520)
-
         ZStack {
             characterLayer
 
             VStack(spacing: layout.isCompact ? 6 : 8) {
                 topUtilityRow
-                centerQuizPanel
-                    .frame(maxWidth: .infinity, alignment: .center)
-                Spacer(minLength: bottomDialogReserve)
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                    centerQuizPanel
+                        .frame(maxWidth: .infinity, alignment: .center)
+
+                    Spacer(minLength: bottomDialogReserve)
+                }
             }
             .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .top)
 
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0.0),
-                    .init(color: .clear, location: 0.60),
-                    .init(color: Color.black.opacity(0.18), location: 0.72),
-                    .init(color: Color.black.opacity(0.55), location: 0.86),
+                    .init(color: .clear, location: 0.58),
+                    .init(color: Color.black.opacity(0.12), location: 0.66),
+                    .init(color: Color.black.opacity(0.34), location: 0.78),
+                    .init(color: Color.black.opacity(0.62), location: 0.90),
                     .init(color: Color.black.opacity(0.82), location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, -(layout.dialogPadding + (layout.isCompact ? 18 : 28)))
             .allowsHitTesting(false)
 
             VStack(spacing: layout.isCompact ? 8 : 10) {
                 Spacer()
 
-                if useStackedBottomDialogs {
-                    VStack(spacing: 10) {
-                        bottomDialogPane(
-                            name: studentDisplayName,
-                            role: studentRole,
-                            text: studentDialogText,
-                            accent: .cyan,
-                            alignTrailing: false
-                        )
-                        bottomDialogPane(
-                            name: teacherDisplayName,
-                            role: teacherRole,
-                            text: teacherDialogText,
-                            accent: .mint,
-                            alignTrailing: true
-                        )
-                    }
-                } else {
-                    HStack(alignment: .bottom, spacing: 14) {
-                        bottomDialogPane(
-                            name: studentDisplayName,
-                            role: studentRole,
-                            text: studentDialogText,
-                            accent: .cyan,
-                            alignTrailing: false
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .top, spacing: layout.isCompact ? 12 : 18) {
+                    bottomDialogPane(
+                        name: studentDisplayName,
+                        role: studentRole,
+                        text: studentDialogText,
+                        accent: .cyan,
+                        alignTrailing: false
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                        bottomDialogPane(
-                            name: teacherDisplayName,
-                            role: teacherRole,
-                            text: teacherDialogText,
-                            accent: .mint,
-                            alignTrailing: true
-                        )
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
+                    bottomDialogPane(
+                        name: teacherDisplayName,
+                        role: teacherRole,
+                        text: teacherDialogText,
+                        accent: .mint,
+                        alignTrailing: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
 
                 if isCompleted {
@@ -3272,6 +3281,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
             }
             .frame(maxWidth: stageMaxWidth, maxHeight: .infinity)
             .padding(.horizontal, 4)
+            .padding(.bottom, dialogVerticalLift)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -3300,7 +3310,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         }
         .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .bottom)
         .padding(.horizontal, layout.isCompact ? 6 : 10)
-        .padding(.bottom, bottomDialogReserve - (layout.isCompact ? 28 : 18))
+        .padding(.bottom, max(0, bottomDialogReserve - characterBottomOffsetAdjustment))
     }
 
     private enum ClassroomCharacterAlign {
@@ -3309,15 +3319,30 @@ struct ClassroomLectureQuizMiniGameStage: View {
     }
 
     private func classroomCharacterImage(named imageName: String, align: ClassroomCharacterAlign) -> some View {
-        Image(imageName)
+        let isNarrowStage = layout.width < 900
+        let widthMultiplier: CGFloat
+        let widthCap: CGFloat
+
+        if isNarrowStage {
+            widthMultiplier = align == .trailing ? 0.43 : 0.41
+            widthCap = align == .trailing ? 270 : 255
+        } else {
+            widthMultiplier = align == .trailing ? 0.36 : 0.34
+            widthCap = align == .trailing ? 430 : 400
+        }
+
+        return Image(imageName)
             .resizable()
             .scaledToFit()
             .frame(
-                maxWidth: min(layout.width * (layout.width < 900 ? 0.36 : 0.28), layout.width < 900 ? 220 : 340),
+                maxWidth: min(layout.width * widthMultiplier, widthCap),
                 maxHeight: spriteHeight,
                 alignment: .bottom
             )
-            .offset(x: align == .leading ? -4 : 4)
+            .offset(
+                x: align == .leading ? -characterHorizontalPush : characterHorizontalPush,
+                y: -characterVerticalLift
+            )
             .shadow(color: Color.black.opacity(0.28), radius: 14, x: 0, y: 8)
             .allowsHitTesting(false)
     }
@@ -3484,7 +3509,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         accent: Color,
         alignTrailing: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: layout.isCompact ? 4 : 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if alignTrailing { Spacer(minLength: 0) }
 
@@ -3493,18 +3518,17 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .shadow(color: Color.black.opacity(0.45), radius: 6, x: 0, y: 2)
 
                 Text(role)
                     .font(.system(size: layout.isCompact ? 12 : 15, weight: .bold, design: .rounded))
                     .foregroundColor(accent)
                     .lineLimit(1)
+                    .shadow(color: Color.black.opacity(0.35), radius: 4, x: 0, y: 1)
 
                 if !alignTrailing { Spacer(minLength: 0) }
             }
-
-            Rectangle()
-                .fill(Color.white.opacity(0.74))
-                .frame(height: 1)
+            .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
 
             Text(text)
                 .font(.system(size: layout.isCompact ? 13 : 17, weight: .regular, design: .rounded))
@@ -3513,20 +3537,12 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
                 .multilineTextAlignment(alignTrailing ? .trailing : .leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .lineLimit(4)
+                .lineLimit(5)
                 .minimumScaleFactor(0.85)
+                .shadow(color: Color.black.opacity(0.55), radius: 10, x: 0, y: 2)
         }
-        .padding(.horizontal, layout.isCompact ? 12 : 16)
-        .padding(.top, layout.isCompact ? 10 : 12)
-        .padding(.bottom, layout.isCompact ? 8 : 10)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.black.opacity(0.18))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
+        .padding(.horizontal, layout.isCompact ? 6 : 10)
+        .padding(.vertical, layout.isCompact ? 2 : 4)
     }
 
     private func select(_ choice: LectureQuizOption) {
