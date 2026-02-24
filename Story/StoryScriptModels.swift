@@ -10,6 +10,7 @@ struct DialogShowcaseMedia: Sendable {
     let badge: String?
     let prefersSplitLayout: Bool
     let messagesThread: DialogShowcaseMessagesThread?
+    let animatesShake: Bool
 
     init(
         title: String,
@@ -17,7 +18,8 @@ struct DialogShowcaseMedia: Sendable {
         imageName: String,
         badge: String? = nil,
         prefersSplitLayout: Bool = false,
-        messagesThread: DialogShowcaseMessagesThread? = nil
+        messagesThread: DialogShowcaseMessagesThread? = nil,
+        animatesShake: Bool = false
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -25,6 +27,7 @@ struct DialogShowcaseMedia: Sendable {
         self.badge = badge
         self.prefersSplitLayout = prefersSplitLayout
         self.messagesThread = messagesThread
+        self.animatesShake = animatesShake
     }
 }
 

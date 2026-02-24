@@ -76,12 +76,19 @@ struct StoryChapterPlayerView: View {
         Color(hex: currentChapter.accentHex)
     }
 
+    private var chapterCompletionBackgroundImageName: String {
+        if currentChapter.id == "chapter1" {
+            return "chapter1ending"
+        }
+        return currentChapter.coverBackgroundImage
+    }
+
     private var chapterCompleteOverlay: some View {
         GeometryReader { geo in
             let useCompactBottomLayout = geo.size.width < 860
 
             ZStack {
-                Image(currentChapter.coverBackgroundImage)
+                Image(chapterCompletionBackgroundImageName)
                     .resizable()
                     .scaledToFill()
                     .frame(width: geo.size.width, height: geo.size.height)

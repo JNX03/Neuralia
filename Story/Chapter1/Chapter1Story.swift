@@ -297,7 +297,7 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Prompt builder / no wrong answer",
             inlineActivity: .promptBuilder(
                 PromptBuilderMiniGame(
-                    title: "iPhone Messages Prompt Builder",
+                    title: "iPad Messages Prompt Builder",
                     contactName: "Unknown User",
                     introMessage: "Teach me AI ethics basics, but ask me in a clearer way so I can answer better.",
                     chatHistory: [
@@ -366,13 +366,64 @@ let chapterOneStory = StoryChapter(
             )
         ),
         StoryDialogLine(
-            speaker: "You",
-            text: "Finally home. That chat got long, but I learned how to ask better and think more carefully.",
-            emotion: .gentle,
-            backgroundImage: "507room",
-            characterImage: "char_gentle",
-            cutsceneTitle: "Finally Home",
-            cutsceneSubtitle: "Long chat / better prompts"
+            speaker: "",
+            text: "It is getting night.",
+            emotion: .neutral,
+            backgroundImage: "cnxnight",
+            characterImage: "__none__"
+        ),
+        StoryDialogLine(
+            speaker: "Player",
+            text: "What a weird message thread I had today...",
+            emotion: .concerned,
+            backgroundImage: "room",
+            characterImage: "char_concerned",
+            cutsceneTitle: "Back In My Room",
+            cutsceneSubtitle: "Thinking about the strange chat"
+        ),
+        StoryDialogLine(
+            speaker: "Player",
+            text: "Huh... my phone is shaking?",
+            emotion: .surprised,
+            backgroundImage: "room",
+            characterImage: "char_surprised",
+            cutsceneTitle: "Phone Glitch",
+            cutsceneSubtitle: "Something suddenly vibrates",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Phone Alert",
+                subtitle: "The phone starts shaking on its own.",
+                imageName: "phone",
+                badge: "Vibrating",
+                prefersSplitLayout: true,
+                animatesShake: true
+            )
+        ),
+        StoryDialogLine(
+            speaker: "Player",
+            text: "What happened with my phone?",
+            emotion: .concerned,
+            backgroundImage: "room",
+            characterImage: "char_concerned",
+            cutsceneTitle: "Unexpected Signal",
+            cutsceneSubtitle: "The room feels different"
+        ),
+        StoryDialogLine(
+            speaker: "{{ai_name}}",
+            text: "Hi!?!",
+            emotion: .excited,
+            backgroundImage: "aicomeroom",
+            characterImage: "char_excited",
+            cutsceneTitle: "AI In The Room",
+            cutsceneSubtitle: "A voice appears outside the phone"
+        ),
+        StoryDialogLine(
+            speaker: "Player",
+            text: "Whattttt just happened?!",
+            emotion: .surprised,
+            backgroundImage: "aicomeroom",
+            characterImage: "char_surprised",
+            cutsceneTitle: "Chapter 1 Cliffhanger",
+            cutsceneSubtitle: "Something impossible just happened"
         )
     ]
 )

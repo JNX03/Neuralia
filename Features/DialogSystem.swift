@@ -1532,33 +1532,38 @@ struct ResponsiveDialogView: View {
         forcedPlacement: VNCharacterPlacement? = nil
     ) -> some View {
         let splitShowcase = forcedPlacement == nil ? splitShowcaseMedia : nil
+        let hidesCharacter = viewModel.currentNode?.characterImage == "__none__"
         let placement = forcedPlacement ?? (splitShowcase != nil ? .left : characterPlacement)
         let characterMaxWidth = splitShowcase != nil
             ? min(layout.characterMaxWidth, layout.width * (layout.isCompact ? 0.46 : 0.34))
             : layout.characterMaxWidth
 
         return ZStack(alignment: .bottom) {
-            // Character shadow
-            HStack {
-                if placement != .left { Spacer() }
-                Ellipse()
-                    .fill(Color.black.opacity(0.3))
-                    .frame(
-                        width: layout.isCompact ? 120 : (layout.isRegular ? 140 : 180),
-                        height: layout.isCompact ? 30 : (layout.isRegular ? 35 : 45)
-                    )
-                    .blur(radius: 8)
-                    .offset(y: -10)
-                if placement != .right { Spacer() }
+            if !hidesCharacter {
+                // Character shadow
+                HStack {
+                    if placement != .left { Spacer() }
+                    Ellipse()
+                        .fill(Color.black.opacity(0.3))
+                        .frame(
+                            width: layout.isCompact ? 120 : (layout.isRegular ? 140 : 180),
+                            height: layout.isCompact ? 30 : (layout.isRegular ? 35 : 45)
+                        )
+                        .blur(radius: 8)
+                        .offset(y: -10)
+                    if placement != .right { Spacer() }
+                }
             }
             
-            // Character image
-            HStack {
-                if placement != .left { Spacer(minLength: 0) }
-                characterImage(layout: layout)
-                    .frame(maxWidth: characterMaxWidth, maxHeight: layout.characterMaxHeight)
-                    .offset(x: splitShowcase != nil ? (layout.isCompact ? -8 : -18) : 0)
-                if placement != .right { Spacer(minLength: 0) }
+            if !hidesCharacter {
+                // Character image
+                HStack {
+                    if placement != .left { Spacer(minLength: 0) }
+                    characterImage(layout: layout)
+                        .frame(maxWidth: characterMaxWidth, maxHeight: layout.characterMaxHeight)
+                        .offset(x: splitShowcase != nil ? (layout.isCompact ? -8 : -18) : 0)
+                    if placement != .right { Spacer(minLength: 0) }
+                }
             }
 
             if let splitShowcase {
@@ -1728,7 +1733,8 @@ struct ResponsiveDialogView: View {
     private func dialogBox(layout: DialogAdaptiveLayout) -> some View {
         let currentNode = viewModel.currentNode
         let speakerName = viewModel.resolvedSpeaker(for: currentNode)
-        let displaySpeakerName = speakerName.isEmpty ? "Narrator" : speakerName
+        let displaySpeakerName = speakerName
+        let hasSpeakerHeader = !speakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let roleLabel = dialogRoleLabel(for: currentNode)
         let sceneNote = dialogSceneNote(for: currentNode)
         let accentColor = getEmotionColor(currentNode?.emotion ?? .neutral)
@@ -1740,56 +1746,73 @@ struct ResponsiveDialogView: View {
         let isShowingInteractivePanel = viewModel.showChoices || viewModel.showTextInput || isInlineActivityPanelVisible
 
         return VStack(alignment: .leading, spacing: layout.isCompact ? 10 : 12) {
-            HStack(alignment: .firstTextBaseline, spacing: layout.isCompact ? 8 : 12) {
-                Text(displaySpeakerName)
-                    .font(
-                        .system(
-                            size: layout.isCompact ? (layout.speakerFontSize + 9) : (layout.speakerFontSize + 16),
-                            weight: .heavy,
-                            design: .rounded
+            if hasSpeakerHeader {
+                HStack(alignment: .firstTextBaseline, spacing: layout.isCompact ? 8 : 12) {
+                    Text(displaySpeakerName)
+                        .font(
+                            .system(
+                                size: layout.isCompact ? (layout.speakerFontSize + 9) : (layout.speakerFontSize + 16),
+                                weight: .heavy,
+                                design: .rounded
+                            )
                         )
-                    )
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                    .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1)
-
-                if let roleLabel, !roleLabel.isEmpty {
-                    Text(roleLabel)
-                        .font(.system(size: layout.isCompact ? (layout.speakerFontSize + 2) : (layout.speakerFontSize + 4), weight: .bold, design: .rounded))
-                        .foregroundColor(accentColor.opacity(0.95))
+                        .foregroundColor(.white)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .padding(.top, layout.isCompact ? 1 : 2)
-                        .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
+                        .minimumScaleFactor(0.65)
+                        .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1)
+
+                    if let roleLabel, !roleLabel.isEmpty {
+                        Text(roleLabel)
+                            .font(.system(size: layout.isCompact ? (layout.speakerFontSize + 2) : (layout.speakerFontSize + 4), weight: .bold, design: .rounded))
+                            .foregroundColor(accentColor.opacity(0.95))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.top, layout.isCompact ? 1 : 2)
+                            .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    HStack(spacing: 8) {
+                        if viewModel.isTyping {
+                            TypingIndicator(layout: layout)
+                        }
+
+                        if viewModel.isTyping {
+                            Button(action: { handleSkipTypingAction() }) {
+                                Text("Skip")
+                                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.white.opacity(0.12), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
 
-                Spacer(minLength: 8)
-
+                Rectangle()
+                    .fill(Color.white.opacity(0.78))
+                    .frame(height: 1)
+            } else if viewModel.isTyping {
                 HStack(spacing: 8) {
-                    if viewModel.isTyping {
-                        TypingIndicator(layout: layout)
+                    TypingIndicator(layout: layout)
+                    Button(action: { handleSkipTypingAction() }) {
+                        Text("Skip")
+                            .font(.system(size: layout.captionFontSize, weight: .bold))
+                            .foregroundColor(.white.opacity(0.9))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.12), in: Capsule())
                     }
-
-                    if viewModel.isTyping {
-                        Button(action: { handleSkipTypingAction() }) {
-                            Text("Skip")
-                                .font(.system(size: layout.captionFontSize, weight: .bold))
-                                .foregroundColor(.white.opacity(0.9))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.white.opacity(0.12), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    .buttonStyle(.plain)
+                    Spacer(minLength: 0)
                 }
             }
 
-            Rectangle()
-                .fill(Color.white.opacity(0.78))
-                .frame(height: 1)
-
             if !isShowingInteractivePanel,
+               hasSpeakerHeader,
                let sceneNote,
                !sceneNote.isEmpty {
                 Text(sceneNote.uppercased())
@@ -2904,6 +2927,9 @@ struct PromptBuilderMiniGameCard: View {
     @State private var renamedAIName: String?
     @State private var chapterOneCurrentCraftRound = 1
     @State private var chapterOneCraftSubmissions: [ChapterOneCraftSubmission] = []
+    @State private var chapterOneRevealedUnknownMessageIDs: Set<String> = []
+    @State private var chapterOneIsUnknownTyping = false
+    @State private var chapterOneTypingTask: Task<Void, Never>?
 
     init(
         minigame: PromptBuilderMiniGame,
@@ -2924,11 +2950,18 @@ struct PromptBuilderMiniGameCard: View {
 
     @ViewBuilder
     var body: some View {
-        switch presentation {
-        case .card:
-            standardCardBody
-        case .showcasePhone:
-            showcasePhoneBody
+        Group {
+            switch presentation {
+            case .card:
+                standardCardBody
+            case .showcasePhone:
+                showcasePhoneBody
+            }
+        }
+        .onDisappear {
+            chapterOneTypingTask?.cancel()
+            chapterOneTypingTask = nil
+            chapterOneIsUnknownTyping = false
         }
     }
 
@@ -2963,12 +2996,17 @@ struct PromptBuilderMiniGameCard: View {
         return followupEthicsChoices.first(where: { $0.id == selectedFollowupEthicsChoiceID })
     }
 
+    private var isSpecialFlowBusy: Bool {
+        usesChapterOneFollowupChat && chapterOneIsUnknownTyping
+    }
+
     private var showsPromptSubmissionReceipt: Bool {
         (submitted || isCompleted) && !usesChapterOneFollowupChat
     }
 
     private var arePromptSlotsLocked: Bool {
         if isCompleted { return true }
+        if isSpecialFlowBusy { return true }
         if usesChapterOneFollowupChat {
             return submitted && followupStage != .buildPrompt
         }
@@ -3014,12 +3052,49 @@ struct PromptBuilderMiniGameCard: View {
         chapterOneCraftScripts.first(where: { $0.round == round })
     }
 
+    private func chapterOneReplyMessageID(for round: Int) -> String {
+        "special-round-\(round)-reply"
+    }
+
+    private func chapterOneTypingDelay(for text: String) -> UInt64 {
+        let clampedCount = min(max(text.count, 18), 180)
+        let seconds = 0.45 + (Double(clampedCount) * 0.0085)
+        return UInt64(seconds * 1_000_000_000)
+    }
+
+    private func scheduleChapterOneUnknownReply(
+        revealMessageID: String,
+        replyText: String,
+        onReveal: @escaping () -> Void = {}
+    ) {
+        chapterOneTypingTask?.cancel()
+        chapterOneIsUnknownTyping = true
+
+        chapterOneTypingTask = Task {
+            try? await Task.sleep(nanoseconds: chapterOneTypingDelay(for: replyText))
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    chapterOneRevealedUnknownMessageIDs.insert(revealMessageID)
+                    chapterOneIsUnknownTyping = false
+                }
+                onReveal()
+                chapterOneTypingTask = nil
+            }
+        }
+    }
+
+    private func isRevealedChapterOneUnknownMessage(_ messageID: String) -> Bool {
+        chapterOneRevealedUnknownMessageIDs.contains(messageID)
+    }
+
     private var isSpecialCraftPhaseActive: Bool {
         usesChapterOneFollowupChat && followupStage == .buildPrompt && chapterOneCurrentCraftRound <= 5
     }
 
     private var shouldShowSpecialCraftDraftBubble: Bool {
-        isSpecialCraftPhaseActive && !isCompleted
+        isSpecialCraftPhaseActive && !isCompleted && !chapterOneIsUnknownTyping
     }
 
     private var specialCraftDraftPlaceholder: String {
@@ -3200,25 +3275,25 @@ struct PromptBuilderMiniGameCard: View {
             if layout.width < 980 {
                 VStack(spacing: 0) {
                     showcaseThreadListPane
-                        .frame(height: 128)
+                        .frame(height: 138)
 
                     Divider()
                         .overlay(Color.black.opacity(0.08))
 
                     showcaseChatPane
-                        .frame(height: layout.height < 760 ? 190 : 230)
+                        .frame(height: layout.height < 760 ? 210 : 255)
                 }
             } else {
                 HStack(spacing: 0) {
                     showcaseThreadListPane
-                        .frame(width: 290)
+                        .frame(width: 320)
 
                     Divider()
                         .overlay(Color.black.opacity(0.08))
 
                     showcaseChatPane
                 }
-                .frame(height: layout.height < 760 ? 230 : 280)
+                .frame(height: layout.height < 760 ? 270 : 320)
             }
         }
         .background(Color.white)
@@ -3267,11 +3342,20 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var showcaseListRows: [ShowcaseThreadRow] {
-        [
+        let activePreviewText: String = {
+            if chapterOneIsUnknownTyping {
+                return "\(displayedContactName) is typing..."
+            }
+            let activeMessages = usesChapterOneFollowupChat ? specialChapterOneChatMessages : preIntroChatMessages
+            let lastText = activeMessages.last?.text ?? minigame.introMessage
+            return String(lastText.prefix(42))
+        }()
+
+        return [
             ShowcaseThreadRow(
                 name: displayedContactName,
-                preview: "Thanks!!",
-                timestamp: "12:58 PM",
+                preview: activePreviewText,
+                timestamp: chapterOneIsUnknownTyping ? "now" : "12:58 PM",
                 isSelected: true,
                 accent: Color(hex: "B6BCC6")
             ),
@@ -3389,6 +3473,11 @@ struct PromptBuilderMiniGameCard: View {
                             showcaseChatBubbleRow(message: message)
                         }
 
+                        if chapterOneIsUnknownTyping {
+                            showcaseTypingBubbleRow
+                                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        }
+
                         if shouldShowSpecialCraftDraftBubble {
                             HStack {
                                 Spacer(minLength: 46)
@@ -3453,6 +3542,8 @@ struct PromptBuilderMiniGameCard: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
+                .animation(.spring(response: 0.34, dampingFraction: 0.84), value: specialChapterOneChatMessages.map { $0.id })
+                .animation(.easeInOut(duration: 0.18), value: chapterOneIsUnknownTyping)
             }
             .background(Color.white)
         }
@@ -3498,23 +3589,18 @@ struct PromptBuilderMiniGameCard: View {
                 )
             )
 
-            messages.append(
-                DialogShowcaseChatMessage(
-                    id: "special-round-\(submission.round)-reply",
-                    text: script.unknownReply,
-                    isFromPlayer: false
-                )
-            )
-
-            if submission.round == 2 {
+            let replyMessageID = chapterOneReplyMessageID(for: submission.round)
+            if isRevealedChapterOneUnknownMessage(replyMessageID) {
                 messages.append(
                     DialogShowcaseChatMessage(
-                        id: "special-yesno-question",
-                        text: "Should I include ethics and safety reminders too? (Yes / No)",
+                        id: replyMessageID,
+                        text: script.unknownReply,
                         isFromPlayer: false
                     )
                 )
+            }
 
+            if submission.round == 2 {
                 if let selectedFollowupEthicsChoice {
                     messages.append(
                         DialogShowcaseChatMessage(
@@ -3523,18 +3609,21 @@ struct PromptBuilderMiniGameCard: View {
                             isFromPlayer: true
                         )
                     )
-                    messages.append(
-                        DialogShowcaseChatMessage(
-                            id: "special-yesno-reply",
-                            text: selectedFollowupEthicsChoice.feedback,
-                            isFromPlayer: false
+                    if isRevealedChapterOneUnknownMessage("special-yesno-reply") {
+                        messages.append(
+                            DialogShowcaseChatMessage(
+                                id: "special-yesno-reply",
+                                text: selectedFollowupEthicsChoice.feedback,
+                                isFromPlayer: false
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
 
         if isSpecialCraftPhaseActive,
+           !chapterOneIsUnknownTyping,
            let activeScript = chapterOneCraftScript(for: chapterOneCurrentCraftRound),
            let prompt = activeScript.unknownPrompt,
            !prompt.isEmpty {
@@ -3565,13 +3654,15 @@ struct PromptBuilderMiniGameCard: View {
                     isFromPlayer: true
                 )
             )
-            messages.append(
-                DialogShowcaseChatMessage(
-                    id: "special-final-ai",
-                    text: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together.",
-                    isFromPlayer: false
+            if isRevealedChapterOneUnknownMessage("special-final-ai") {
+                messages.append(
+                    DialogShowcaseChatMessage(
+                        id: "special-final-ai",
+                        text: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together.",
+                        isFromPlayer: false
+                    )
                 )
-            )
+            }
         }
 
         return messages
@@ -3716,11 +3807,11 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var shouldShowFollowupEthicsChoices: Bool {
-        usesChapterOneFollowupChat && submitted && followupStage == .ethicsChoice && selectedFollowupEthicsChoice == nil
+        usesChapterOneFollowupChat && submitted && followupStage == .ethicsChoice && selectedFollowupEthicsChoice == nil && !chapterOneIsUnknownTyping
     }
 
     private var shouldShowFollowupRenameInput: Bool {
-        usesChapterOneFollowupChat && submitted && followupStage == .renameAI
+        usesChapterOneFollowupChat && submitted && followupStage == .renameAI && !chapterOneIsUnknownTyping
     }
 
     private var resolvedFollowupAINameForTemplate: String {
@@ -3755,17 +3846,26 @@ struct PromptBuilderMiniGameCard: View {
         selectedFollowupEthicsChoiceID = choice.id
         followupStage = .buildPrompt
         chapterOneCurrentCraftRound = 3
+        scheduleChapterOneUnknownReply(
+            revealMessageID: "special-yesno-reply",
+            replyText: choice.feedback
+        )
     }
 
     private func submitFollowupRename() {
-        guard shouldShowFollowupRenameInput else { return }
+        guard shouldShowFollowupRenameInput, !chapterOneIsUnknownTyping else { return }
         let finalName = resolvedFollowupAINameForTemplate
         renamedAIName = finalName
         if let key = minigame.followupRenameVariableKey {
             onSetStoryVariable?(key, finalName)
         }
         followupStage = .completed
-        finalizePromptBuilderCompletion(renamedTo: finalName)
+        scheduleChapterOneUnknownReply(
+            revealMessageID: "special-final-ai",
+            replyText: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together."
+        ) {
+            finalizePromptBuilderCompletion(renamedTo: finalName)
+        }
     }
 
     private func showcaseChatBubbleRow(message: DialogShowcaseChatMessage) -> some View {
@@ -3788,6 +3888,29 @@ struct PromptBuilderMiniGameCard: View {
                 Spacer(minLength: 46)
             }
         }
+        .id(message.id)
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: message.isFromPlayer ? .trailing : .leading).combined(with: .opacity),
+                removal: .opacity
+            )
+        )
+    }
+
+    private var showcaseTypingBubbleRow: some View {
+        HStack {
+            HStack(spacing: 8) {
+                TypingIndicator(layout: layout)
+                Text("\(displayedContactName) is typing")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Spacer(minLength: 46)
+        }
     }
 
     private var messageThreadSection: some View {
@@ -3805,6 +3928,11 @@ struct PromptBuilderMiniGameCard: View {
             if usesChapterOneFollowupChat {
                 ForEach(specialChapterOneChatMessages) { message in
                     messageThreadBubbleRow(message: message)
+                }
+
+                if chapterOneIsUnknownTyping {
+                    messageThreadTypingBubbleRow
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
 
                 if shouldShowSpecialCraftDraftBubble {
@@ -3865,6 +3993,8 @@ struct PromptBuilderMiniGameCard: View {
         }
         .padding(12)
         .background(Color(red: 0.90, green: 0.93, blue: 0.97), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .animation(.spring(response: 0.34, dampingFraction: 0.84), value: specialChapterOneChatMessages.map { $0.id })
+        .animation(.easeInOut(duration: 0.18), value: chapterOneIsUnknownTyping)
     }
 
     private func messageThreadBubbleRow(message: DialogShowcaseChatMessage) -> some View {
@@ -3888,6 +4018,29 @@ struct PromptBuilderMiniGameCard: View {
             if !message.isFromPlayer {
                 Spacer(minLength: 40)
             }
+        }
+        .id(message.id)
+        .transition(
+            .asymmetric(
+                insertion: .move(edge: message.isFromPlayer ? .trailing : .leading).combined(with: .opacity),
+                removal: .opacity
+            )
+        )
+    }
+
+    private var messageThreadTypingBubbleRow: some View {
+        HStack {
+            HStack(spacing: 8) {
+                TypingIndicator(layout: layout)
+                Text("\(displayedContactName) is typing")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.92))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black.opacity(0.58), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+            Spacer(minLength: 40)
         }
     }
 
@@ -3934,9 +4087,22 @@ struct PromptBuilderMiniGameCard: View {
 
                 Spacer(minLength: 0)
 
-                Text(canSubmit ? "Ready to Send" : "Pick 4 Blocks")
+                if usesChapterOneFollowupChat {
+                    Text("Round \(min(chapterOneCurrentCraftRound, 5)) / 5")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.black.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.85), in: Capsule())
+                }
+
+                Text(isSpecialFlowBusy ? "Typing..." : (canSubmit ? "Ready to Send" : "Pick 4 Blocks"))
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(canSubmit ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    .foregroundColor(
+                        isSpecialFlowBusy
+                            ? Color(hex: "2D8CFF")
+                            : (canSubmit ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    )
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.white.opacity(0.85), in: Capsule())
@@ -3961,7 +4127,7 @@ struct PromptBuilderMiniGameCard: View {
                 Color.clear
                     .frame(height: 2)
             }
-            .frame(maxHeight: layout.height < 760 ? 210 : 260)
+            .frame(maxHeight: layout.height < 760 ? 230 : 285)
         }
         .padding(.horizontal, 14)
         .padding(.top, 12)
@@ -3977,7 +4143,7 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var showcasePaletteColumns: [GridItem] {
-        let columnCount = layout.width > 1320 ? 4 : (layout.width > 980 ? 2 : 1)
+        let columnCount = layout.width > 1500 ? 3 : (layout.width > 980 ? 2 : 1)
         return Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: columnCount)
     }
 
@@ -3985,20 +4151,20 @@ struct PromptBuilderMiniGameCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(slot.label)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.black.opacity(0.80))
 
                 Spacer(minLength: 4)
 
                 if let selected = selectedOption(for: slot) {
                     Text(selected.chipText)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(.black.opacity(0.75))
                         .lineLimit(1)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 6)], spacing: 6) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], spacing: 8) {
                 ForEach(slot.options) { option in
                     let isSelected = selectedOptionBySlotID[slot.id] == option.id
 
@@ -4007,12 +4173,12 @@ struct PromptBuilderMiniGameCard: View {
                         selectedOptionBySlotID[slot.id] = option.id
                     } label: {
                         Text(option.chipText)
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(isSelected ? .white : .black.opacity(0.78))
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 7)
+                            .padding(.vertical, 9)
                             .background(
                                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                                     .fill(isSelected ? Color.black.opacity(0.68) : Color.white.opacity(0.84))
@@ -4120,10 +4286,10 @@ struct PromptBuilderMiniGameCard: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 30))
-                        .foregroundColor((canSubmit && !isCompleted) ? Color.blue : Color.gray.opacity(0.5))
+                        .foregroundColor((canSubmit && !isCompleted && !isSpecialFlowBusy) ? Color.blue : Color.gray.opacity(0.5))
                 }
                 .buttonStyle(.plain)
-                .disabled(!canSubmit || isCompleted)
+                .disabled(!canSubmit || isCompleted || isSpecialFlowBusy)
             }
         }
     }
@@ -4152,13 +4318,17 @@ struct PromptBuilderMiniGameCard: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.gray.opacity(0.65))
 
-                Text(canSubmit ? promptPreview : "Text Message")
+                Text(
+                    isSpecialFlowBusy
+                        ? "\(displayedContactName) is typing..."
+                        : (canSubmit ? promptPreview : "Text Message")
+                )
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(canSubmit ? .black.opacity(0.82) : .gray)
-                    .lineLimit(1)
+                    .foregroundColor(isSpecialFlowBusy ? .gray : (canSubmit ? .black.opacity(0.82) : .gray))
+                    .lineLimit(isSpecialFlowBusy ? 1 : 2)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
@@ -4170,14 +4340,20 @@ struct PromptBuilderMiniGameCard: View {
                 submitPrompt()
             } label: {
                 Text("Send")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor((canSubmit && !isCompleted) ? .blue : .gray)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor((canSubmit && !isCompleted && !isSpecialFlowBusy) ? .white : .gray)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill((canSubmit && !isCompleted && !isSpecialFlowBusy) ? Color.blue : Color.clear)
+                    )
             }
             .buttonStyle(.plain)
-            .disabled(!canSubmit || isCompleted)
+            .disabled(!canSubmit || isCompleted || isSpecialFlowBusy)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
         .background(Color(red: 0.95, green: 0.95, blue: 0.97))
         .overlay(
             Rectangle()
@@ -4200,7 +4376,11 @@ struct PromptBuilderMiniGameCard: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.gray.opacity(0.65))
 
-                Text(shouldShowFollowupEthicsChoices ? "Choose a reply from the options below..." : "Continue the chat below...")
+                Text(
+                    chapterOneIsUnknownTyping
+                        ? "\(displayedContactName) is typing..."
+                        : (shouldShowFollowupEthicsChoices ? "Choose a reply from the options below..." : "Continue the chat below...")
+                )
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.gray)
                     .lineLimit(1)
@@ -4243,9 +4423,17 @@ struct PromptBuilderMiniGameCard: View {
 
                 Spacer(minLength: 0)
 
-                Text(followupStage == .completed ? "Ready" : "Step 2")
+                Text(
+                    chapterOneIsUnknownTyping
+                        ? "Waiting..."
+                        : (followupStage == .completed ? "Ready" : "Step 2")
+                )
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(followupStage == .completed ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    .foregroundColor(
+                        chapterOneIsUnknownTyping
+                            ? Color(hex: "2D8CFF")
+                            : (followupStage == .completed ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    )
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.white.opacity(0.85), in: Capsule())
@@ -4259,6 +4447,11 @@ struct PromptBuilderMiniGameCard: View {
                 }
             } else if shouldShowFollowupRenameInput {
                 Text("Type a name in the message bar below, or press Send to keep the default name \(minigame.followupDefaultAIName).")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.black.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if chapterOneIsUnknownTyping {
+                Text("Wait for the reply to finish typing...")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.black.opacity(0.66))
                     .fixedSize(horizontal: false, vertical: true)
@@ -4431,7 +4624,7 @@ struct PromptBuilderMiniGameCard: View {
 
     private func submitPrompt() {
         if usesChapterOneFollowupChat {
-            guard canSubmit, !isCompleted, isSpecialCraftPhaseActive else { return }
+            guard canSubmit, !isCompleted, isSpecialCraftPhaseActive, !chapterOneIsUnknownTyping else { return }
             let round = chapterOneCurrentCraftRound
             let sentPrompt = promptPreview
 
@@ -4468,6 +4661,13 @@ struct PromptBuilderMiniGameCard: View {
                 }
             default:
                 followupStage = .renameAI
+            }
+
+            if let script = chapterOneCraftScript(for: round) {
+                scheduleChapterOneUnknownReply(
+                    revealMessageID: chapterOneReplyMessageID(for: round),
+                    replyText: script.unknownReply
+                )
             }
             return
         }
@@ -6105,6 +6305,8 @@ struct DialogCutsceneBanner: View {
 struct DialogShowcaseCard: View {
     let showcase: DialogShowcaseMedia
     let layout: DialogAdaptiveLayout
+    @State private var showcaseShakeOffset: CGFloat = 0
+    @State private var showcaseShakeRotation: Double = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: layout.elementSpacing) {
@@ -6146,6 +6348,8 @@ struct DialogShowcaseCard: View {
                         .scaledToFill()
                 }
             }
+            .offset(x: showcase.animatesShake ? showcaseShakeOffset : 0)
+            .rotationEffect(.degrees(showcase.animatesShake ? showcaseShakeRotation : 0))
             .frame(height: layout.isCompact ? 140 : 180)
             .frame(maxWidth: .infinity)
             .clipped()
@@ -6172,6 +6376,15 @@ struct DialogShowcaseCard: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous))
+        .onAppear {
+            guard showcase.animatesShake else { return }
+            showcaseShakeOffset = 0
+            showcaseShakeRotation = 0
+            withAnimation(.easeInOut(duration: 0.085).repeatForever(autoreverses: true)) {
+                showcaseShakeOffset = 3.2
+                showcaseShakeRotation = 1.2
+            }
+        }
     }
 
     private func messagesShowcasePanel(_ thread: DialogShowcaseMessagesThread) -> some View {
