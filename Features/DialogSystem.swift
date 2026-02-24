@@ -3061,6 +3061,12 @@ struct ClassroomLectureQuizMiniGameStage: View {
     @State private var currentQuestionIndex = 0
     @State private var selectedChoiceIDByQuestionID: [String: String] = [:]
     @State private var completionSubmitted = false
+    @State private var professorTypingTask: Task<Void, Never>?
+    @State private var professorTypedText = ""
+    @State private var professorTypingQuestionID: String?
+    @State private var professorTypingCompletedQuestionIDs: Set<String> = []
+    @State private var pulsingChoiceID: String?
+    @State private var hiddenQuestionChoicePanelQuestionIDs: Set<String> = []
 
     private var questions: [LectureQuizQuestion] {
         quiz.questions.isEmpty
@@ -3114,12 +3120,25 @@ struct ClassroomLectureQuizMiniGameStage: View {
         clampedQuestionIndex >= (questions.count - 1)
     }
 
+    private var isProfessorTypingCurrentQuestion: Bool {
+        professorTypingQuestionID == currentQuestion.id && !professorTypingCompletedQuestionIDs.contains(currentQuestion.id)
+    }
+
+    private var hasProfessorFeedbackCompletedCurrentQuestion: Bool {
+        guard isCurrentQuestionAnswered else { return true }
+        return professorTypingCompletedQuestionIDs.contains(currentQuestion.id)
+    }
+
+    private var shouldHideQuestionChoices: Bool {
+        isCurrentQuestionAnswered && hiddenQuestionChoicePanelQuestionIDs.contains(currentQuestion.id)
+    }
+
     private var canGoNext: Bool {
-        isCurrentQuestionAnswered && !isCompleted && !isLastQuestion
+        isCurrentQuestionAnswered && hasProfessorFeedbackCompletedCurrentQuestion && !isCompleted && !isLastQuestion
     }
 
     private var canFinishQuiz: Bool {
-        isCurrentQuestionAnswered && !isCompleted && isLastQuestion
+        isCurrentQuestionAnswered && hasProfessorFeedbackCompletedCurrentQuestion && !isCompleted && isLastQuestion
     }
 
     private var teacherDisplayName: String {
@@ -3140,6 +3159,9 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private var teacherDialogText: String {
         if let selected = currentSelectedChoice {
+            if isProfessorTypingCurrentQuestion {
+                return professorTypedText.isEmpty ? "..." : professorTypedText
+            }
             return selected.feedback
         }
         if isTyping && !instructionText.isEmpty {
@@ -3205,6 +3227,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private var bottomDialogReserve: CGFloat {
         layout.width < 780 ? (layout.isCompact ? 264 : 286) : (layout.isCompact ? 220 : 256)
+    }
+
+    private var showsSkipTypingButton: Bool {
+        isTyping || isProfessorTypingCurrentQuestion
     }
 
     var body: some View {
@@ -3284,6 +3310,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
             .padding(.bottom, dialogVerticalLift)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onDisappear {
+            professorTypingTask?.cancel()
+            professorTypingTask = nil
+        }
     }
 
     private var characterLayer: some View {
@@ -3370,8 +3400,8 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
             Spacer(minLength: 8)
 
-            if isTyping {
-                Button(action: onSkipTyping) {
+            if showsSkipTypingButton {
+                Button(action: handleSkipTyping) {
                     Label("Skip Text", systemImage: "forward.fill")
                         .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
                         .foregroundColor(.white)
@@ -3386,12 +3416,35 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private var centerQuizPanel: some View {
         VStack(spacing: layout.isCompact ? 10 : 12) {
-            questionCard
-
-            VStack(spacing: 10) {
-                ForEach(currentQuestion.choices) { choice in
-                    optionButton(choice)
+            if shouldHideQuestionChoices {
+                VStack(spacing: layout.isCompact ? 8 : 10) {
+                    if isProfessorTypingCurrentQuestion {
+                        HStack(spacing: 8) {
+                            TypingIndicator(layout: layout)
+                            Text("\(teacherDisplayName) is replying...")
+                                .font(.system(size: layout.captionFontSize + 1, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    } else {
+                        Text("Professor feedback complete.")
+                            .font(.system(size: layout.captionFontSize + 1, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.86))
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: layout.isCompact ? 42 : 52)
+                .transition(.opacity)
+            } else {
+                questionCard
+
+                VStack(spacing: 10) {
+                    ForEach(currentQuestion.choices) { choice in
+                        optionButton(choice)
+                    }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
 
             if canGoNext || canFinishQuiz {
@@ -3435,10 +3488,17 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     .font(.system(size: layout.captionFontSize + 1, weight: .medium))
                     .foregroundColor(.white.opacity(0.76))
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else if shouldHideQuestionChoices {
+                Text(isProfessorTypingCurrentQuestion ? "Wait for Professor New's reply..." : "Choose Next when you are ready.")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.76))
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .frame(maxWidth: centerPanelMaxWidth)
         .padding(.top, 0)
+        .animation(.easeInOut(duration: 0.22), value: shouldHideQuestionChoices)
+        .animation(.easeInOut(duration: 0.18), value: isProfessorTypingCurrentQuestion)
     }
 
     private var questionCard: some View {
@@ -3474,32 +3534,85 @@ struct ClassroomLectureQuizMiniGameStage: View {
         let selectedID = selectedChoiceIDByQuestionID[currentQuestion.id]
         let isSelected = selectedID == choice.id
         let isDisabled = isTyping || isCompleted || selectedID != nil
+        let isResultReveal = selectedID != nil
+        let isCorrect = choice.isBestAnswer
+        let isWrong = !choice.isBestAnswer
+        let isPulsing = pulsingChoiceID == choice.id
+
+        let fillColor: Color = {
+            guard isResultReveal else {
+                return isSelected ? Color.cyan.opacity(0.30) : Color.white.opacity(0.88)
+            }
+            if isCorrect {
+                return isSelected ? Color.green.opacity(0.34) : Color.green.opacity(0.20)
+            }
+            if isWrong {
+                return isSelected ? Color.red.opacity(0.30) : Color.red.opacity(0.16)
+            }
+            return Color.white.opacity(0.88)
+        }()
+
+        let strokeColor: Color = {
+            guard isResultReveal else {
+                return isSelected ? Color.cyan.opacity(0.95) : Color.black.opacity(0.05)
+            }
+            return isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.86)
+        }()
+
+        let textColor: Color = isResultReveal
+            ? Color.black.opacity(isSelected ? 0.94 : 0.88)
+            : Color.black.opacity(0.86)
 
         return Button {
             select(choice)
         } label: {
-            Text(choice.text)
-                .font(.system(size: layout.isCompact ? 14 : 16, weight: .medium, design: .rounded))
-                .foregroundColor(Color.black.opacity(0.86))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 14)
-                .padding(.vertical, layout.isCompact ? 12 : 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(isSelected ? Color.cyan.opacity(0.30) : Color.white.opacity(0.88))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(
-                                    isSelected ? Color.cyan.opacity(0.95) : Color.black.opacity(0.05),
-                                    lineWidth: isSelected ? 2 : 1
-                                )
-                        )
-                )
+            HStack(spacing: 10) {
+                Text(choice.text)
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .medium, design: .rounded))
+                    .foregroundColor(textColor)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+
+                if isResultReveal {
+                    Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
+                        .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
+                        .transition(.scale.combined(with: .opacity))
+                } else if isSelected {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold))
+                        .foregroundColor(.cyan.opacity(0.9))
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, layout.isCompact ? 12 : 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(fillColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(
+                                strokeColor,
+                                lineWidth: isSelected || isResultReveal ? 2 : 1
+                            )
+                    )
+            )
+            .shadow(
+                color: isPulsing
+                    ? (isCorrect ? Color.green.opacity(0.30) : Color.red.opacity(0.28))
+                    : Color.black.opacity(0.06),
+                radius: isPulsing ? 12 : 4,
+                x: 0,
+                y: isPulsing ? 4 : 2
+            )
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .opacity(isDisabled && !isSelected ? 0.92 : 1)
+        .scaleEffect(isPulsing ? 1.035 : 1.0)
+        .animation(.spring(response: 0.24, dampingFraction: 0.68), value: pulsingChoiceID)
+        .animation(.easeInOut(duration: 0.2), value: selectedID)
     }
 
     private func bottomDialogPane(
@@ -3509,7 +3622,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
         accent: Color,
         alignTrailing: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: layout.isCompact ? 4 : 6) {
+        let edgeInset = layout.isCompact ? 0 : 2
+        let middleInset = layout.isCompact ? 14 : 26
+
+        return VStack(alignment: .leading, spacing: layout.isCompact ? 4 : 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if alignTrailing { Spacer(minLength: 0) }
 
@@ -3541,19 +3657,107 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 .minimumScaleFactor(0.85)
                 .shadow(color: Color.black.opacity(0.55), radius: 10, x: 0, y: 2)
         }
-        .padding(.horizontal, layout.isCompact ? 6 : 10)
+        .padding(.leading, CGFloat(alignTrailing ? middleInset : edgeInset))
+        .padding(.trailing, CGFloat(alignTrailing ? edgeInset : middleInset))
         .padding(.vertical, layout.isCompact ? 2 : 4)
     }
 
     private func select(_ choice: LectureQuizOption) {
         guard !isTyping, !isCompleted else { return }
         guard selectedChoiceIDByQuestionID[currentQuestion.id] == nil else { return }
-        selectedChoiceIDByQuestionID[currentQuestion.id] = choice.id
+
+        let questionID = currentQuestion.id
+
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.62)) {
+            selectedChoiceIDByQuestionID[questionID] = choice.id
+            pulsingChoiceID = choice.id
+        }
+
+        startProfessorTyping(feedback: choice.feedback, for: questionID)
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 420_000_000)
+            guard selectedChoiceIDByQuestionID[questionID] != nil else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                hiddenQuestionChoicePanelQuestionIDs.insert(questionID)
+            }
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            withAnimation(.easeOut(duration: 0.18)) {
+                if pulsingChoiceID == choice.id {
+                    pulsingChoiceID = nil
+                }
+            }
+        }
     }
 
     private func goToNextQuestion() {
         guard canGoNext else { return }
+        professorTypingTask?.cancel()
+        professorTypingTask = nil
+        professorTypedText = ""
+        professorTypingQuestionID = nil
         currentQuestionIndex = min(currentQuestionIndex + 1, max(questions.count - 1, 0))
+    }
+
+    private func handleSkipTyping() {
+        if isProfessorTypingCurrentQuestion {
+            skipProfessorTyping()
+        } else {
+            onSkipTyping()
+        }
+    }
+
+    private func startProfessorTyping(feedback: String, for questionID: String) {
+        professorTypingTask?.cancel()
+        professorTypingQuestionID = questionID
+        professorTypedText = ""
+        professorTypingCompletedQuestionIDs.remove(questionID)
+
+        professorTypingTask = Task { @MainActor in
+            let chars = Array(feedback)
+
+            for (index, char) in chars.enumerated() {
+                if Task.isCancelled { return }
+
+                professorTypedText.append(char)
+
+                if index >= chars.count - 1 { break }
+
+                var delayNanoseconds: UInt64 = 22_000_000
+                if [".", "!", "?"].contains(char) {
+                    delayNanoseconds = 110_000_000
+                } else if [",", ";", ":"].contains(char) {
+                    delayNanoseconds = 70_000_000
+                }
+
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+
+            guard !Task.isCancelled else { return }
+            professorTypedText = feedback
+            professorTypingCompletedQuestionIDs.insert(questionID)
+            if professorTypingQuestionID == questionID {
+                professorTypingQuestionID = nil
+            }
+            professorTypingTask = nil
+        }
+    }
+
+    private func skipProfessorTyping() {
+        guard let questionID = professorTypingQuestionID,
+              let selected = currentSelectedChoice,
+              questionID == currentQuestion.id else {
+            return
+        }
+
+        professorTypingTask?.cancel()
+        professorTypingTask = nil
+        professorTypedText = selected.feedback
+        professorTypingCompletedQuestionIDs.insert(questionID)
+        professorTypingQuestionID = nil
     }
 
     private func submitQuizIfNeeded() {

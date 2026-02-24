@@ -266,40 +266,41 @@ struct MenuCreditsPopupOverlay: View {
     }
 
     private var memoryCard: some View {
-        RoundedRectangle(cornerRadius: layout.scaled(10), style: .continuous)
+        let outerRadius = layout.scaled(10)
+        let innerRadius = layout.scaled(8)
+        let inset = layout.scaled(10)
+
+        return RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
             .fill(Color.white)
             .frame(height: layout.width < 700 || layout.isPortrait ? layout.scaled(180) : layout.scaled(220))
-            .overlay(
-                ZStack {
-                    RoundedRectangle(cornerRadius: layout.scaled(8), style: .continuous)
-                        .fill(Color(red: 0.93, green: 0.95, blue: 0.97))
-                        .padding(layout.scaled(10))
-
-                    Image(memoryImages[currentImageIndex])
-                        .resizable()
-                        .scaledToFill()
-                        .opacity(imageOpacity)
-                        .clipShape(RoundedRectangle(cornerRadius: layout.scaled(8), style: .continuous))
-                        .padding(layout.scaled(10))
-
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Text("\(currentImageIndex + 1)/\(memoryImages.count)")
-                                .font(.system(size: layout.captionFontSize, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.45))
-                                .clipShape(Capsule())
+            .overlay {
+                RoundedRectangle(cornerRadius: innerRadius, style: .continuous)
+                    .fill(Color(red: 0.93, green: 0.95, blue: 0.97))
+                    .overlay {
+                        GeometryReader { proxy in
+                            Image(memoryImages[currentImageIndex])
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .opacity(imageOpacity)
+                                .clipped()
                         }
-                        Spacer()
                     }
+                    .clipShape(RoundedRectangle(cornerRadius: innerRadius, style: .continuous))
+                    .padding(inset)
+            }
+            .overlay(alignment: .topTrailing) {
+                Text("\(currentImageIndex + 1)/\(memoryImages.count)")
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.black.opacity(0.45))
+                    .clipShape(Capsule())
                     .padding(layout.scaled(16))
-                }
-            )
+            }
             .overlay(
-                RoundedRectangle(cornerRadius: layout.scaled(10), style: .continuous)
+                RoundedRectangle(cornerRadius: outerRadius, style: .continuous)
                     .stroke(sectionBorder, lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
