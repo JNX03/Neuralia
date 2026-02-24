@@ -336,9 +336,9 @@ struct DialogAdaptiveLayout {
         case isRegular:
             return min(width - 28, 700)
         case isLarge:
-            return min(width - 56, 980)
+            return min(width - 56, 1320)
         case isExtraLarge:
-            return min(width - 80, 1180)
+            return min(width - 80, 1720)
         default:
             return width - 32
         }
@@ -607,6 +607,7 @@ struct ResponsiveDialogView: View {
     @State private var characterRotation: Double = 0
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
+    @State private var menuSoundLevel: Double = 0.9
     @State private var backgroundOpacity: Double = 1.0
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var sceneContentOpacity: Double = 1.0
@@ -649,6 +650,16 @@ struct ResponsiveDialogView: View {
             return nil
         }
         return (node, activity)
+    }
+
+    private var backgroundOverlayStrength: Double {
+        guard let activity = activeInlineActivityContext?.activity else { return 1.0 }
+        switch activity {
+        case .video:
+            return 1.0
+        case .lectureQuiz, .promptBuilder:
+            return 0.72
+        }
     }
 
 
@@ -700,7 +711,7 @@ struct ResponsiveDialogView: View {
 
         return ZStack {
             // Background
-            backgroundLayer(layout: layout)
+            backgroundLayer(layout: layout, overlayStrength: backgroundOverlayStrength)
 
             if let context = activeInlineActivityContext {
                 inlineActivityScene(
@@ -755,13 +766,40 @@ struct ResponsiveDialogView: View {
                 Spacer(minLength: 0)
             }
 
+            visualNovelBottomFade(layout: layout)
+                .allowsHitTesting(false)
+                .zIndex(5)
+
             VStack {
                 Spacer()
                 dialogSection(layout: layout, maxWidth: layout.visualNovelDialogMaxWidth)
                     .padding(.horizontal, layout.dialogPadding)
-                    .padding(.bottom, layout.safeAreaInsets.bottom + layout.dialogLiftFromBottom)
+                    .padding(.bottom, visualNovelDialogBottomPadding(for: layout))
             }
+            .zIndex(10)
         }
+    }
+
+    private func visualNovelBottomFade(layout: DialogAdaptiveLayout) -> some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .clear, location: 0.60),
+                .init(color: Color.black.opacity(0.18), location: 0.72),
+                .init(color: Color.black.opacity(0.56), location: 0.86),
+                .init(color: Color.black.opacity(0.86), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+
+    private func visualNovelDialogBottomPadding(for layout: DialogAdaptiveLayout) -> CGFloat {
+        let safeBottom = layout.safeAreaInsets.bottom > 0 ? layout.safeAreaInsets.bottom : (layout.isCompact ? 10 : 14)
+        let lift = max(18, layout.dialogLiftFromBottom * (layout.isCompact ? 0.38 : 0.32))
+        let shortScreenExtra = layout.height < 430 ? 10 : 0
+        return safeBottom + lift + CGFloat(shortScreenExtra)
     }
 
     @ViewBuilder
@@ -812,16 +850,10 @@ struct ResponsiveDialogView: View {
 
             VStack {
                 HStack {
-                    if showBackButton {
-                        backButton(layout: layout, forceIconOnly: true)
+                    if showSettings {
+                        chapterMenuButton(layout: layout)
                     }
                     Spacer()
-                    HStack(spacing: layout.elementSpacing) {
-                        historyButton(layout: layout)
-                        if showSettings {
-                            pauseButton(layout: layout, forceIconOnly: true)
-                        }
-                    }
                 }
                 .padding(.horizontal, layout.dialogPadding)
                 .padding(.top, layout.topBarSafePadding)
@@ -1105,7 +1137,7 @@ struct ResponsiveDialogView: View {
     }
 
     // MARK: - Background Layer
-    private func backgroundLayer(layout: DialogAdaptiveLayout) -> some View {
+    private func backgroundLayer(layout: DialogAdaptiveLayout, overlayStrength: Double = 1.0) -> some View {
         ZStack {
             // Base background image or color
             if let backgroundImage = viewModel.currentNode?.backgroundImage,
@@ -1129,10 +1161,10 @@ struct ResponsiveDialogView: View {
             
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.55),
-                    Color.black.opacity(0.15),
-                    Color.black.opacity(0.2),
-                    Color.black.opacity(0.8)
+                    Color.black.opacity(0.55 * overlayStrength),
+                    Color.black.opacity(0.15 * overlayStrength),
+                    Color.black.opacity(0.2 * overlayStrength),
+                    Color.black.opacity(0.8 * overlayStrength)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -1140,7 +1172,7 @@ struct ResponsiveDialogView: View {
             .ignoresSafeArea()
 
             RadialGradient(
-                colors: [Color.clear, Color.black.opacity(0.5)],
+                colors: [Color.clear, Color.black.opacity(0.5 * overlayStrength)],
                 center: .center,
                 startRadius: 80,
                 endRadius: max(layout.width, layout.height)
@@ -1180,18 +1212,12 @@ struct ResponsiveDialogView: View {
                 characterSection(layout: layout)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
-                // Back button overlay
-                if showBackButton {
+                // Menu overlay
+                if showSettings {
                     VStack {
                         HStack {
-                            backButton(layout: layout, forceIconOnly: true)
+                            chapterMenuButton(layout: layout)
                             Spacer()
-                            HStack(spacing: layout.elementSpacing) {
-                                historyButton(layout: layout)
-                                if showSettings {
-                                    pauseButton(layout: layout, forceIconOnly: true)
-                                }
-                            }
                         }
                         .padding(.horizontal, layout.dialogPadding)
                         .padding(.top, topBarTopPadding(for: layout))
@@ -1267,108 +1293,33 @@ struct ResponsiveDialogView: View {
     }
 
     // MARK: - Top Bar
-    private func chapterStatusBadge(layout: DialogAdaptiveLayout) -> some View {
-        VStack(spacing: 2) {
-            Text(viewModel.resolvedCutsceneTitle(for: viewModel.currentNode) ?? "Story")
-                .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text("Line \(min(viewModel.currentNodeIndex + 1, max(viewModel.nodes.count, 1))) / \(max(viewModel.nodes.count, 1))")
-                .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .medium))
-                .foregroundColor(.white.opacity(0.68))
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(hex: "242A33"), in: Capsule())
-        .overlay(
-            Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
-        )
-    }
-
     private func topBar(layout: DialogAdaptiveLayout) -> some View {
-        let forceIconOnlyControls = layout.shouldUseIconOnlyTopBarControls
-        let statusBadgeMaxWidth = min(
-            max(layout.width * (layout.shouldWrapTopBar ? 1.0 : (layout.isCompact ? 0.52 : 0.46)), 180),
-            layout.shouldWrapTopBar ? layout.width - (layout.dialogPadding * 2) : (layout.isCompact ? 260 : 380)
-        )
-
-        return Group {
-            if layout.shouldWrapTopBar {
-                VStack(spacing: max(8, layout.elementSpacing)) {
-                    HStack(spacing: layout.elementSpacing) {
-                        if showBackButton {
-                            backButton(layout: layout, forceIconOnly: forceIconOnlyControls)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        HStack(spacing: layout.elementSpacing) {
-                            historyButton(layout: layout)
-                            if showSettings {
-                                pauseButton(layout: layout, forceIconOnly: forceIconOnlyControls)
-                            }
-                        }
-                    }
-
-                    chapterStatusBadge(layout: layout)
-                        .frame(maxWidth: statusBadgeMaxWidth)
-                        .frame(maxWidth: .infinity)
-                }
-            } else {
-                HStack(spacing: layout.elementSpacing) {
-                    if showBackButton {
-                        backButton(layout: layout, forceIconOnly: forceIconOnlyControls)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    chapterStatusBadge(layout: layout)
-                        .frame(maxWidth: statusBadgeMaxWidth)
-                        .layoutPriority(1)
-
-                    Spacer(minLength: 0)
-
-                    HStack(spacing: layout.elementSpacing) {
-                        historyButton(layout: layout)
-                        if showSettings {
-                            pauseButton(layout: layout, forceIconOnly: forceIconOnlyControls)
-                        }
-                    }
-                }
+        HStack {
+            if showSettings {
+                chapterMenuButton(layout: layout)
             }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
     }
-    
-    private func backButton(layout: DialogAdaptiveLayout, forceIconOnly: Bool = false) -> some View {
-        DialogControlButton(
-            icon: "xmark",
-            title: (layout.isCompact || forceIconOnly) ? nil : "Exit",
-            action: { dismiss() },
-            layout: layout
-        )
-    }
-    
-    private func pauseButton(layout: DialogAdaptiveLayout, forceIconOnly: Bool = false) -> some View {
-        DialogControlButton(
-            icon: "pause.fill",
-            title: (layout.isCompact || forceIconOnly) ? nil : "Pause",
-            action: { withAnimation(.spring()) { showSettingsPanel.toggle() } },
-            layout: layout
-        )
-    }
-    
-    private func historyButton(layout: DialogAdaptiveLayout) -> some View {
-        DialogControlButton(
-            icon: "clock.arrow.circlepath",
-            title: nil as String?,
-            action: { /* Show history */ },
-            layout: layout
-        )
+
+    private func chapterMenuButton(layout: DialogAdaptiveLayout) -> some View {
+        let width: CGFloat = layout.isCompact ? 84 : (layout.isLarge ? 112 : 96)
+
+        return Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                showSettingsPanel.toggle()
+            }
+        } label: {
+            Image("Menu")
+                .resizable()
+                .scaledToFit()
+                .frame(width: width)
+                .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Menu")
     }
     
     // MARK: - Character Section
@@ -1419,11 +1370,6 @@ struct ResponsiveDialogView: View {
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
             
-            // Character info badge
-            characterInfoBadge(layout: layout, alignLeading: splitShowcase != nil)
-                .padding(.leading, splitShowcase != nil ? (layout.isCompact ? 12 : 20) : 0)
-                .padding(.trailing, splitShowcase == nil ? (layout.isCompact ? 16 : 24) : 0)
-                .padding(.bottom, layout.isCompact ? 20 : 30)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: placement)
@@ -1516,7 +1462,7 @@ struct ResponsiveDialogView: View {
         VStack(spacing: 0) {
             dialogBox(layout: layout)
         }
-        .frame(maxWidth: maxWidth ?? layout.dialogMaxWidth)
+        .frame(maxWidth: maxWidth ?? layout.dialogMaxWidth, alignment: .leading)
     }
     
     private func progressIndicator(layout: DialogAdaptiveLayout) -> some View {
@@ -1537,9 +1483,51 @@ struct ResponsiveDialogView: View {
             Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
     }
+
+    private func formattedEmotionLabel(_ emotion: Emotion) -> String {
+        emotion.rawValue
+            .split(separator: "_")
+            .map { $0.capitalized }
+            .joined(separator: " ")
+    }
+
+    private func dialogRoleLabel(for node: DialogNode?) -> String? {
+        guard let node else { return nil }
+        let subtitle = viewModel.resolvedCutsceneSubtitle(for: node)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let subtitle,
+           !subtitle.isEmpty,
+           subtitle.count <= 24,
+           !subtitle.contains("•"),
+           !subtitle.contains("/") {
+            return subtitle
+        }
+
+        return formattedEmotionLabel(node.emotion)
+    }
+
+    private func dialogSceneNote(for node: DialogNode?) -> String? {
+        guard let subtitle = viewModel.resolvedCutsceneSubtitle(for: node)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !subtitle.isEmpty else {
+            return nil
+        }
+
+        if subtitle == dialogRoleLabel(for: node) {
+            return nil
+        }
+
+        return subtitle
+    }
     
     private func dialogBox(layout: DialogAdaptiveLayout) -> some View {
         let currentNode = viewModel.currentNode
+        let speakerName = viewModel.resolvedSpeaker(for: currentNode)
+        let displaySpeakerName = speakerName.isEmpty ? "Narrator" : speakerName
+        let roleLabel = dialogRoleLabel(for: currentNode)
+        let sceneNote = dialogSceneNote(for: currentNode)
+        let accentColor = getEmotionColor(currentNode?.emotion ?? .neutral)
         let isInlineActivityPanelVisible =
             !viewModel.isTyping &&
             !viewModel.showChoices &&
@@ -1547,47 +1535,64 @@ struct ResponsiveDialogView: View {
             currentNode?.inlineActivity != nil
         let isShowingInteractivePanel = viewModel.showChoices || viewModel.showTextInput || isInlineActivityPanelVisible
 
-        return VStack(alignment: .leading, spacing: layout.elementSpacing) {
-            HStack(alignment: .center) {
-                Text(viewModel.resolvedSpeaker(for: currentNode))
-                    .font(.system(size: layout.speakerFontSize + 1, weight: .black, design: .rounded))
+        return VStack(alignment: .leading, spacing: layout.isCompact ? 10 : 12) {
+            HStack(alignment: .firstTextBaseline, spacing: layout.isCompact ? 8 : 12) {
+                Text(displaySpeakerName)
+                    .font(
+                        .system(
+                            size: layout.isCompact ? (layout.speakerFontSize + 9) : (layout.speakerFontSize + 16),
+                            weight: .heavy,
+                            design: .rounded
+                        )
+                    )
                     .foregroundColor(.white)
-                    .padding(.horizontal, layout.isCompact ? 12 : 14)
-                    .padding(.vertical, layout.isCompact ? 6 : 7)
-                    .background(Color.pink.opacity(0.95), in: Capsule())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1)
 
-                Spacer()
-
-                if viewModel.isTyping {
-                    TypingIndicator(layout: layout)
+                if let roleLabel, !roleLabel.isEmpty {
+                    Text(roleLabel)
+                        .font(.system(size: layout.isCompact ? (layout.speakerFontSize + 2) : (layout.speakerFontSize + 4), weight: .bold, design: .rounded))
+                        .foregroundColor(accentColor.opacity(0.95))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.top, layout.isCompact ? 1 : 2)
+                        .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
                 }
 
-                if viewModel.isTyping {
-                    Button(action: { viewModel.skipTyping() }) {
-                        Text("Skip")
-                            .font(.system(size: layout.captionFontSize, weight: .bold))
-                            .foregroundColor(.white.opacity(0.82))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.white.opacity(0.08), in: Capsule())
+                Spacer(minLength: 8)
+
+                HStack(spacing: 8) {
+                    if viewModel.isTyping {
+                        TypingIndicator(layout: layout)
                     }
-                    .buttonStyle(.plain)
+
+                    if viewModel.isTyping {
+                        Button(action: { viewModel.skipTyping() }) {
+                            Text("Skip")
+                                .font(.system(size: layout.captionFontSize, weight: .bold))
+                                .foregroundColor(.white.opacity(0.9))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.white.opacity(0.12), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 
+            Rectangle()
+                .fill(Color.white.opacity(0.78))
+                .frame(height: 1)
+
             if !isShowingInteractivePanel,
-               let sceneSubtitle = viewModel.resolvedCutsceneSubtitle(for: currentNode) {
-                HStack(spacing: 8) {
-                    Rectangle()
-                        .fill(Color.pink.opacity(0.7))
-                        .frame(width: 2, height: 12)
-                    Text(sceneSubtitle.uppercased())
-                        .font(.system(size: layout.captionFontSize, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.65))
-                        .tracking(1.0)
-                        .lineLimit(1)
-                    Spacer()
-                }
+               let sceneNote,
+               !sceneNote.isEmpty {
+                Text(sceneNote.uppercased())
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.62))
+                    .tracking(0.8)
+                    .lineLimit(1)
             }
             
             if viewModel.showChoices, let choices = viewModel.currentNode?.choices {
@@ -1653,9 +1658,9 @@ struct ResponsiveDialogView: View {
                 .padding(.top, 2)
             } else {
                 Text(viewModel.displayedText)
-                    .font(.system(size: layout.bodyFontSize, weight: .regular, design: .rounded))
+                    .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 2 : 4), weight: .regular, design: .rounded))
                     .foregroundColor(.white.opacity(0.98))
-                    .lineSpacing(layout.isCompact ? 5 : 7)
+                    .lineSpacing(layout.isCompact ? 4 : 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
                     .minimumScaleFactor(0.85)
@@ -1664,49 +1669,42 @@ struct ResponsiveDialogView: View {
                 HStack {
                     Text(canAdvanceFromDialogTap ? "Tap to continue" : "Complete this part first")
                         .font(.system(size: layout.captionFontSize, weight: .medium))
-                        .foregroundColor(.white.opacity(0.48))
+                        .foregroundColor(.white.opacity(0.52))
 
                     Spacer()
 
                     if canAdvanceFromDialogTap {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.right")
-                            Image(systemName: "chevron.right")
-                        }
-                        .font(.system(size: layout.captionFontSize))
-                        .foregroundColor(.white.opacity(0.45))
+                        Image(systemName: "triangle.fill")
+                            .font(.system(size: max(layout.captionFontSize + 4, 12)))
+                            .rotationEffect(.degrees(180))
+                            .foregroundColor(.cyan.opacity(0.95))
+                            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
                     }
                 }
             }
         }
-        .padding(layout.isCompact ? 14 : 18)
+        .padding(.horizontal, layout.isCompact ? 14 : 20)
+        .padding(.top, layout.isCompact ? 12 : 16)
+        .padding(.bottom, layout.isCompact ? 10 : 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(
             minHeight: isShowingInteractivePanel
-                ? (layout.isCompact ? 188 : 210)
-                : (layout.isCompact ? 160 : 180),
+                ? (layout.isCompact ? 188 : 214)
+                : (layout.isCompact ? 118 : 138),
             alignment: .topLeading
         )
-        .background(
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(0.82))
-                RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.06), Color.clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+        .background {
+            if isShowingInteractivePanel {
+                RoundedRectangle(cornerRadius: max(layout.dialogCornerRadius - 6, 14), style: .continuous)
+                    .fill(Color.black.opacity(0.26))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: max(layout.dialogCornerRadius - 6, 14), style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
-                RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                    .stroke(Color.pink.opacity(0.12), lineWidth: 2)
-                    .padding(1)
-                RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
             }
-        )
-        .shadow(color: Color.black.opacity(0.28), radius: 10, x: 0, y: 6)
+        }
+        .contentShape(Rectangle())
+        .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
         .onTapGesture {
             guard canAdvanceFromDialogTap else { return }
             viewModel.advance()
@@ -1842,99 +1840,143 @@ struct ResponsiveDialogView: View {
     }
 
     private func settingsPanelCard(layout: DialogAdaptiveLayout) -> some View {
-        ScrollView(showsIndicators: false) {
+        let cardWidth = min(layout.dialogMaxWidth, layout.isCompact ? 290 : 340)
+        let cornerRadius: CGFloat = 12
+
+        return ZStack(alignment: .topLeading) {
             settingsPanelContent(layout: layout)
-        }
-        .frame(maxWidth: min(layout.dialogMaxWidth, 400), maxHeight: layout.pausePanelMaxHeight)
-        .background(
-            RoundedRectangle(cornerRadius: layout.dialogCornerRadius)
-                .fill(Color.black.opacity(0.88))
-                .overlay(
-                    RoundedRectangle(cornerRadius: layout.dialogCornerRadius)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                .frame(width: cardWidth)
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(hex: "9ED4F4"))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                        )
                 )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .shadow(color: .black.opacity(0.14), radius: 10, x: 0, y: 6)
+
+            Image("Menu")
+                .resizable()
+                .scaledToFit()
+                .frame(width: min(cardWidth * 0.34, 118))
+                .offset(x: 10, y: -18)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                .allowsHitTesting(false)
+        }
+        .padding(.top, 16)
         .padding(.horizontal, layout.dialogPadding)
     }
 
     private func settingsPanelContent(layout: DialogAdaptiveLayout) -> some View {
-        VStack(spacing: layout.sectionSpacing) {
-            settingsPanelHeader(layout: layout)
+        VStack(alignment: .leading, spacing: 12) {
+            Color.clear
+                .frame(height: layout.isCompact ? 22 : 26)
 
-            Divider()
-                .background(Color.white.opacity(0.2))
+            menuVolumeSection(title: "SOUND", value: $menuSoundLevel, layout: layout)
 
-            pauseActionButtons(layout: layout)
-            characterPositionSection(layout: layout)
-            typingSpeedSection(layout: layout)
-            backgroundBrightnessSection(layout: layout)
-            closePauseMenuButton(layout: layout)
-        }
-        .padding(layout.dialogPadding)
-        .frame(maxWidth: .infinity)
-    }
-
-    private func settingsPanelHeader(layout: DialogAdaptiveLayout) -> some View {
-        VStack(spacing: 6) {
-            Text("Paused")
-                .font(.system(size: layout.bodyFontSize + 2, weight: .bold))
-                .foregroundColor(.white)
-
-            Text("Chapter is paused. Resume, adjust settings, or exit.")
-                .font(.system(size: layout.captionFontSize + 1))
-                .foregroundColor(.white.opacity(0.72))
-                .multilineTextAlignment(.center)
-        }
-    }
-
-    @ViewBuilder
-    private func pauseActionButtons(layout: DialogAdaptiveLayout) -> some View {
-        if layout.usesVerticalPauseActions {
-            VStack(spacing: 10) {
-                resumeButton(layout: layout)
-                exitChapterButton(layout: layout)
-            }
-        } else {
             HStack(spacing: 10) {
                 resumeButton(layout: layout)
                 exitChapterButton(layout: layout)
             }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func menuVolumeSection(
+        title: String,
+        value: Binding<Double>,
+        layout: DialogAdaptiveLayout
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                .foregroundColor(.black.opacity(0.95))
+                .tracking(0.3)
+
+            menuSlider(value: value)
         }
     }
 
     private func resumeButton(layout: DialogAdaptiveLayout) -> some View {
         Button(action: { showSettingsPanel = false }) {
             Text("Resume")
-                .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                .foregroundColor(.white)
+                .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                .foregroundColor(.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.pink)
-                .cornerRadius(12)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.95), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.7), lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }
 
     private func exitChapterButton(layout: DialogAdaptiveLayout) -> some View {
         Button(action: { dismiss() }) {
-            Text("Exit Chapter")
-                .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                .foregroundColor(.white)
+            Text("Exit")
+                .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                .foregroundColor(.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.white.opacity(0.14))
-                .cornerRadius(12)
+                .padding(.vertical, 10)
+                .background(Color(hex: "FB7A86"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private func menuSlider(value: Binding<Double>) -> some View {
+        GeometryReader { proxy in
+            let trackHeight: CGFloat = 10
+            let knobSize: CGFloat = 20
+            let clampedValue = min(max(value.wrappedValue, 0), 1)
+            let usableWidth = max(proxy.size.width - knobSize, 1)
+            let knobCenterX = (usableWidth * clampedValue) + (knobSize / 2)
+            let filledWidth = max(knobCenterX, trackHeight)
+
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.45))
+                    .frame(height: trackHeight)
+
+                Capsule(style: .continuous)
+                    .fill(Color(hex: "089BF7"))
+                    .frame(width: filledWidth, height: trackHeight)
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: knobSize, height: knobSize)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 2, x: 0, y: 1)
+                    .offset(x: knobCenterX - (knobSize / 2))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        let x = min(max(gesture.location.x - (knobSize / 2), 0), usableWidth)
+                        value.wrappedValue = x / usableWidth
+                    }
+            )
+        }
+        .frame(height: 22)
     }
 
     private func characterPositionSection(layout: DialogAdaptiveLayout) -> some View {
@@ -2125,151 +2167,183 @@ struct DialogFullscreenVideoCutsceneStage: View {
     @State private var failedToLoad = false
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        GeometryReader { proxy in
+            let size = proxy.size
+            let safeInsets = proxy.safeAreaInsets
+            let isCompactCutscene = size.width < 700 || size.height < 540
+            let bottomLift = max(20, min(size.height * 0.14, isCompactCutscene ? 72 : 98))
+            let overlayBottomPadding = (safeInsets.bottom > 0 ? safeInsets.bottom : (isCompactCutscene ? 10 : 14)) + bottomLift
+            let horizontalPadding = max(16, min(size.width * 0.04, 42))
+            let useVerticalButtons = size.width < 620 || size.height < 430
 
-            Group {
-                if failedToLoad {
-                    ZStack {
-                        LinearGradient(
-                            colors: [Color.black, Color.gray.opacity(0.35)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        VStack(spacing: 10) {
-                            Image(systemName: "video.slash.fill")
-                                .font(.system(size: 34))
-                                .foregroundColor(.white.opacity(0.8))
-                            Text("Could not load placeholder cutscene")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            Text("\(clip.resourceName).\(clip.fileExtension)")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.7))
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                Group {
+                    if failedToLoad {
+                        ZStack {
+                            LinearGradient(
+                                colors: [Color.black, Color.gray.opacity(0.35)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            VStack(spacing: 10) {
+                                Image(systemName: "video.slash.fill")
+                                    .font(.system(size: 34))
+                                    .foregroundColor(.white.opacity(0.8))
+                                Text("Could not load placeholder cutscene")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("\(clip.resourceName).\(clip.fileExtension)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
                         }
+                    } else {
+                        VideoPlayer(player: player)
                     }
-                } else {
-                    VideoPlayer(player: player)
                 }
-            }
-            .ignoresSafeArea()
+                .ignoresSafeArea()
 
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.5),
-                    Color.clear,
-                    Color.clear,
-                    Color.black.opacity(0.72)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+                LinearGradient(
+                    stops: [
+                        .init(color: Color.black.opacity(0.45), location: 0.0),
+                        .init(color: .clear, location: 0.28),
+                        .init(color: .clear, location: 0.58),
+                        .init(color: Color.black.opacity(0.20), location: 0.70),
+                        .init(color: Color.black.opacity(0.60), location: 0.86),
+                        .init(color: Color.black.opacity(0.86), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
-            VStack {
-                Spacer()
+                VStack {
+                    Spacer()
 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .center) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(title.uppercased())
-                                .font(.system(size: 15, weight: .heavy))
+                    VStack(alignment: .leading, spacing: isCompactCutscene ? 10 : 12) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(title)
+                                .font(.system(size: isCompactCutscene ? 23 : 30, weight: .heavy, design: .rounded))
                                 .foregroundColor(.white)
-                                .tracking(1.0)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
 
                             if let subtitle, !subtitle.isEmpty {
                                 Text(subtitle)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.78))
+                                    .font(.system(size: isCompactCutscene ? 13 : 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.cyan.opacity(0.95))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            if isTyping {
+                                Button(action: onSkipTyping) {
+                                    Label("Skip Text", systemImage: "forward.fill")
+                                        .font(.system(size: isCompactCutscene ? 12 : 13, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.white.opacity(0.12), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 
-                        Spacer()
+                        Rectangle()
+                            .fill(Color.white.opacity(0.75))
+                            .frame(height: 1)
 
-                        if isTyping {
-                            Button(action: onSkipTyping) {
-                                Label("Skip Text", systemImage: "forward.fill")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 7)
-                                    .background(Color.white.opacity(0.12), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
+                        if !instructionText.isEmpty {
+                            Text(instructionText)
+                                .font(.system(size: isCompactCutscene ? 15 : 18, weight: .regular, design: .rounded))
+                                .foregroundColor(.white.opacity(0.97))
+                                .lineSpacing(isCompactCutscene ? 4 : 6)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                    }
 
-                    if !instructionText.isEmpty {
-                        Text(instructionText)
-                            .font(.system(size: 15, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.96))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                            )
-                    }
+                        if useVerticalButtons {
+                            VStack(spacing: 10) {
+                                cutsceneReplayButton(isCompactCutscene: isCompactCutscene)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 10) {
-                        Button {
-                            player?.seek(to: .zero)
-                            player?.play()
-                        } label: {
-                            Label("Replay", systemImage: "gobackward")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.10), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(failedToLoad)
-
-                        Spacer()
-
-                        if !isCompleted {
-                            Button {
-                                onMarkComplete()
-                            } label: {
-                                Label("Finish Cutscene", systemImage: "checkmark.circle.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 9)
-                                    .background(Color.pink.opacity(0.92), in: Capsule())
+                                cutscenePrimaryActionButton(isCompactCutscene: isCompactCutscene)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(isTyping)
                         } else {
-                            Button {
-                                onContinue()
-                            } label: {
-                                Label("Continue Story", systemImage: "arrow.right.circle.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 9)
-                                    .background(Color.green.opacity(0.9), in: Capsule())
+                            HStack(spacing: 10) {
+                                cutsceneReplayButton(isCompactCutscene: isCompactCutscene)
+
+                                Spacer()
+
+                                cutscenePrimaryActionButton(isCompactCutscene: isCompactCutscene)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, isCompactCutscene ? 14 : 18)
+                    .padding(.top, isCompactCutscene ? 12 : 16)
+                    .padding(.bottom, isCompactCutscene ? 10 : 14)
+                    .frame(maxWidth: min(size.width - (horizontalPadding * 2), 1500), alignment: .leading)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.bottom, overlayBottomPadding)
                 }
-                .padding(16)
-                .background(Color.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                )
-                .padding(.horizontal, 18)
-                .padding(.bottom, 18)
             }
         }
         .onAppear { setupPlayerIfNeeded() }
         .onDisappear { player?.pause() }
+    }
+
+    @ViewBuilder
+    private func cutsceneReplayButton(isCompactCutscene: Bool) -> some View {
+        Button {
+            player?.seek(to: .zero)
+            player?.play()
+        } label: {
+            Label("Replay", systemImage: "gobackward")
+                .font(.system(size: isCompactCutscene ? 13 : 14, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.10), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(failedToLoad)
+        .opacity(failedToLoad ? 0.5 : 1)
+    }
+
+    @ViewBuilder
+    private func cutscenePrimaryActionButton(isCompactCutscene: Bool) -> some View {
+        if !isCompleted {
+            Button {
+                onMarkComplete()
+            } label: {
+                Label("Finish Cutscene", systemImage: "checkmark.circle.fill")
+                    .font(.system(size: isCompactCutscene ? 13 : 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Color.pink.opacity(0.92), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isTyping)
+            .opacity(isTyping ? 0.55 : 1)
+        } else {
+            Button {
+                onContinue()
+            } label: {
+                Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                    .font(.system(size: isCompactCutscene ? 13 : 14, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Color.green.opacity(0.9), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func setupPlayerIfNeeded() {
@@ -2363,10 +2437,58 @@ struct MiniGameStageCharacterPanel: View {
             .background(Color.black.opacity(0.35), in: Capsule())
         }
         .padding(12)
-        .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(hex: "1C222B"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.14), lineWidth: 1)
+        )
+    }
+}
+
+struct MiniGameBottomBar: View {
+    let instructionText: String
+    let continueTitle: String
+    let isContinueEnabled: Bool
+    let layout: DialogAdaptiveLayout
+    let onContinue: () -> Void
+
+    var body: some View {
+        HStack(spacing: layout.elementSpacing) {
+            Text(instructionText)
+                .font(.system(size: layout.captionFontSize + 1, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(2)
+
+            Spacer(minLength: 0)
+
+            Button(action: onContinue) {
+                HStack(spacing: 8) {
+                    Text(continueTitle)
+                        .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    isContinueEnabled ? Color(hex: "3A475A") : Color(hex: "262C36"),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(isContinueEnabled ? 0.18 : 0.10), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(!isContinueEnabled)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color(hex: "1C222B"), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
     }
 }
@@ -2524,30 +2646,33 @@ struct PromptBuilderMiniGameCard: View {
                     .background(Color.white.opacity(0.08), in: Capsule())
             }
 
-            VStack(spacing: 0) {
-                messagesTopChrome
+            HStack {
+                Spacer(minLength: 0)
+                VStack(spacing: 0) {
+                    messagesTopChrome
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        messageThreadSection
-                        promptBuilderSection
-                        composerSection
-                        if submitted || isCompleted {
-                            sentReceiptSection
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            messageThreadSection
+                            promptBuilderSection
+                            composerSection
+                            if submitted || isCompleted {
+                                sentReceiptSection
+                            }
                         }
+                        .padding(12)
                     }
-                    .padding(12)
+                    .background(Color(red: 0.95, green: 0.96, blue: 0.98))
                 }
-                .background(Color(red: 0.95, green: 0.96, blue: 0.98))
+                .frame(maxWidth: 980)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: 980)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 8)
 
             if let tip = minigame.tip, !tip.isEmpty {
                 Text(tip)
@@ -2958,21 +3083,22 @@ struct LectureQuizMiniGameCard: View {
 
     private func choiceButton(for choice: LectureQuizOption) -> some View {
         let isSelected = selectedChoiceID == choice.id
+        let index = quiz.choices.firstIndex(where: { $0.id == choice.id }) ?? 0
+        let letter = String(UnicodeScalar(65 + min(max(index, 0), 25))!)
+        let baseFill = isSelected ? Color(hex: "2F6FED") : Color(hex: "242C38")
 
         return Button {
             select(choice)
         } label: {
-            HStack(spacing: 8) {
-                if let icon = choice.icon {
-                    Image(systemName: icon)
-                        .font(.system(size: layout.captionFontSize + 1))
-                        .foregroundColor(isSelected ? .black : .white.opacity(0.85))
-                        .frame(width: 20)
-                }
+            HStack(spacing: 12) {
+                Text("\(letter))")
+                    .font(.system(size: layout.bodyFontSize, weight: .black, design: .rounded))
+                    .foregroundColor(.white.opacity(0.92))
+                    .frame(width: 34, alignment: .leading)
 
                 Text(choice.text)
-                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                    .foregroundColor(isSelected ? .black : .white.opacity(0.95))
+                    .font(.system(size: layout.bodyFontSize, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.95))
                     .multilineTextAlignment(.leading)
 
                 Spacer()
@@ -2980,22 +3106,22 @@ struct LectureQuizMiniGameCard: View {
                 if choice.isBestAnswer && (selectedChoiceID != nil || isCompleted) {
                     Text("Best")
                         .font(.system(size: layout.captionFontSize - 1, weight: .bold))
-                        .foregroundColor(isSelected ? .black.opacity(0.7) : .mint.opacity(0.9))
+                        .foregroundColor(.white.opacity(isSelected ? 0.92 : 0.85))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
                         .background(
-                            Capsule().fill(isSelected ? Color.white.opacity(0.55) : Color.mint.opacity(0.12))
+                            Capsule().fill(isSelected ? Color.white.opacity(0.18) : Color.white.opacity(0.10))
                         )
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, layout.isCompact ? 12 : 14)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.mint.opacity(0.9) : Color(hex: "232A34"))
+                    .fill(baseFill)
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(isSelected ? Color.mint.opacity(0.22) : Color.white.opacity(0.10), lineWidth: 1)
+                            .stroke(Color.white.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
                     )
             )
         }
