@@ -591,6 +591,7 @@ enum VNCharacterPlacement: String, CaseIterable, Identifiable {
 // MARK: - Responsive Dialog View
 struct ResponsiveDialogView: View {
     @StateObject private var viewModel = DialogViewModel()
+    @StateObject private var speechManager = SpeechManager()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var globalSettings: GlobalSettingsStore
@@ -608,8 +609,6 @@ struct ResponsiveDialogView: View {
     @State private var characterRotation: Double = 0
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
-    @State private var menuMusicLevel: Double = 0.9
-    @State private var menuSpeechLevel: Double = 0.9
     @State private var backgroundOpacity: Double = 1.0
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var sceneContentOpacity: Double = 1.0
@@ -664,6 +663,34 @@ struct ResponsiveDialogView: View {
         }
     }
 
+    private var chapterMusicVolumeBinding: Binding<Double> {
+        Binding(
+            get: { globalSettings.masterVolume },
+            set: { newValue in
+                globalSettings.masterVolume = min(max(newValue, 0), 1)
+            }
+        )
+    }
+
+    private var chapterSpeechVolumeBinding: Binding<Double> {
+        Binding(
+            get: { globalSettings.speechEnabled ? globalSettings.masterVolume : 0 },
+            set: { newValue in
+                let clamped = min(max(newValue, 0), 1)
+                if clamped <= 0.001 {
+                    globalSettings.speechEnabled = false
+                    return
+                }
+                globalSettings.speechEnabled = true
+                globalSettings.masterVolume = clamped
+            }
+        )
+    }
+
+    private func volumePercentText(_ value: Double) -> String {
+        "\(Int((min(max(value, 0), 1) * 100).rounded()))%"
+    }
+
 
     private var sceneVisualKey: String {
         viewModel.currentNode?.backgroundImage ?? "none"
@@ -677,6 +704,121 @@ struct ResponsiveDialogView: View {
     private func topBarTopPadding(for layout: DialogAdaptiveLayout) -> CGFloat {
         layout.topBarSafePadding + chapterTopBarExtraDrop(for: layout)
     }
+
+    private func normalizedVoiceMatchText(_ raw: String) -> String {
+        let lowered = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !lowered.isEmpty else { return "" }
+
+        // Normalize punctuation/spacing so labels like "Player(You)" or "Professor-New" match.
+        let separators = CharacterSet.alphanumerics.inverted
+        let parts = lowered
+            .components(separatedBy: separators)
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: " ")
+    }
+
+    private func isProfessorSpeaker(_ normalized: String) -> Bool {
+        if normalized.isEmpty { return false }
+        return normalized.contains("professor new")
+            || normalized.contains("professr new")
+            || normalized.contains("profesor new")
+            || normalized.hasPrefix("professor")
+            || normalized.hasPrefix("professr")
+            || normalized.contains("teacher")
+    }
+
+    private func isPlayerSpeaker(_ normalized: String) -> Bool {
+        if normalized.isEmpty { return false }
+        return normalized == "you"
+            || normalized == "player"
+            || normalized == "player you"
+            || normalized.contains(" player ")
+            || normalized.hasPrefix("player ")
+            || normalized.hasPrefix("you ")
+            || normalized.contains(" you ")
+            || normalized.hasSuffix(" you")
+            || normalized.contains("student")
+    }
+
+    private func voiceProfile(for speaker: String) -> SpeechVoiceProfile {
+        let normalized = normalizedVoiceMatchText(speaker)
+        if isProfessorSpeaker(normalized) {
+            return .professorMale
+        }
+        if isPlayerSpeaker(normalized) {
+            return .playerFemale
+        }
+        return .default
+    }
+
+    private func inferredVoiceProfile(forSpokenText text: String, fallbackSpeaker: String) -> SpeechVoiceProfile {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedText = normalizedVoiceMatchText(trimmed)
+
+        let startsWithProfessorCue =
+            normalizedText == "professor new"
+            || normalizedText.hasPrefix("professor new ")
+            || normalizedText == "professr new"
+            || normalizedText.hasPrefix("professr new ")
+            || normalizedText == "profesor new"
+            || normalizedText.hasPrefix("profesor new ")
+
+        if startsWithProfessorCue {
+            return .professorMale
+        }
+
+        let startsWithPlayerCue =
+            normalizedText == "you"
+            || normalizedText.hasPrefix("you ")
+            || normalizedText == "player"
+            || normalizedText.hasPrefix("player ")
+            || normalizedText == "player you"
+            || normalizedText.hasPrefix("player you ")
+
+        if startsWithPlayerCue {
+            return .playerFemale
+        }
+
+        return voiceProfile(for: fallbackSpeaker)
+    }
+
+    private func speakCurrentNodeText() {
+        guard let node = viewModel.currentNode else { return }
+        let text = viewModel.resolvedText(for: node).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let speaker = viewModel.resolvedSpeaker(for: node)
+        speechManager.speak(text, emotion: node.emotion, voiceProfile: voiceProfile(for: speaker))
+    }
+
+    private func handleSkipTypingAction() {
+        speechManager.stop()
+        viewModel.skipTyping()
+    }
+
+    private func handleAdvanceAction() {
+        speechManager.stop()
+        viewModel.advance()
+    }
+
+    private func handleSelectChoiceAction(_ choice: DialogChoice) {
+        speechManager.stop()
+        let responseText = viewModel.renderTemplate(choice.response).trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentSpeaker = viewModel.resolvedSpeaker(for: viewModel.currentNode)
+        viewModel.selectChoice(choice)
+
+        if !responseText.isEmpty {
+            speechManager.speak(
+                responseText,
+                emotion: choice.emotion,
+                voiceProfile: inferredVoiceProfile(forSpokenText: responseText, fallbackSpeaker: currentSpeaker)
+            )
+        }
+    }
+
+    private func handleSubmitInputAction() {
+        speechManager.stop()
+        viewModel.submitInput()
+    }
     
     var body: some View {
         GeometryReader { geometry in
@@ -684,16 +826,18 @@ struct ResponsiveDialogView: View {
         }
         .onAppear {
             viewModel.loadNodes(nodes)
+            speakCurrentNodeText()
             lastSceneVisualKey = sceneVisualKey
-            menuMusicLevel = globalSettings.masterVolume
-            menuSpeechLevel = globalSettings.speechEnabled ? globalSettings.masterVolume : 0
         }
         .onChange(of: viewModel.isCompleted) { _, completed in
             if completed {
+                speechManager.stop()
                 onComplete?()
             }
         }
         .onChange(of: viewModel.currentNodeIndex) {
+            speechManager.stop()
+            speakCurrentNodeText()
             let newSceneKey = sceneVisualKey
             defer { lastSceneVisualKey = newSceneKey }
             guard newSceneKey != lastSceneVisualKey else { return }
@@ -702,20 +846,14 @@ struct ResponsiveDialogView: View {
                 sceneContentOpacity = 1.0
             }
         }
-        .onChange(of: globalSettings.masterVolume) { _, volume in
-            menuMusicLevel = volume
-            if globalSettings.speechEnabled {
-                menuSpeechLevel = volume
-            }
-        }
-        .onChange(of: globalSettings.speechEnabled) { _, enabled in
-            menuSpeechLevel = enabled ? globalSettings.masterVolume : 0
-        }
         .transaction { transaction in
             if globalSettings.reduceMotion {
                 transaction.disablesAnimations = true
                 transaction.animation = nil
             }
+        }
+        .onDisappear {
+            speechManager.stop()
         }
         .dialogMacOSMinWindowFrame()
         .toolbar(.hidden, for: .navigationBar)
@@ -852,7 +990,7 @@ struct ResponsiveDialogView: View {
                 instructionText: viewModel.displayedText,
                 isTyping: viewModel.isTyping,
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
-                onSkipTyping: { viewModel.skipTyping() },
+                onSkipTyping: { handleSkipTypingAction() },
                 onMarkComplete: {
                     let filename = "\(clip.resourceName).\(clip.fileExtension)"
                     viewModel.completeInlineActivity(
@@ -862,7 +1000,7 @@ struct ResponsiveDialogView: View {
                 },
                 onContinue: {
                     guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
-                    viewModel.advance()
+                    handleAdvanceAction()
                 }
             )
             .ignoresSafeArea()
@@ -929,7 +1067,7 @@ struct ResponsiveDialogView: View {
                             isTyping: viewModel.isTyping,
                             layout: layout,
                             accentColor: getEmotionColor(node.emotion),
-                            onSkipTyping: { viewModel.skipTyping() }
+                            onSkipTyping: { handleSkipTypingAction() }
                         )
                         .frame(height: min(max(220, geometry.size.height * 0.34), 360))
                     }
@@ -948,7 +1086,7 @@ struct ResponsiveDialogView: View {
                         isTyping: viewModel.isTyping,
                         layout: layout,
                         accentColor: getEmotionColor(node.emotion),
-                        onSkipTyping: { viewModel.skipTyping() }
+                        onSkipTyping: { handleSkipTypingAction() }
                     )
                     .frame(width: leftWidth)
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -982,7 +1120,7 @@ struct ResponsiveDialogView: View {
                 continueTitle: "Continue Story",
                 isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
                 layout: layout,
-                onContinue: { viewModel.advance() }
+                onContinue: { handleAdvanceAction() }
             )
             .padding(.horizontal, horizontalPadding)
             .padding(.bottom, bottomSafePadding)
@@ -1016,13 +1154,13 @@ struct ResponsiveDialogView: View {
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                 isTyping: viewModel.isTyping,
                 instructionText: viewModel.displayedText,
-                onSkipTyping: { viewModel.skipTyping() },
+                onSkipTyping: { handleSkipTypingAction() },
                 onComplete: { result in
                     viewModel.completeInlineActivity(for: node.id, result: result)
                 },
                 onContinue: {
                     guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
-                    viewModel.advance()
+                    handleAdvanceAction()
                 }
             )
             .padding(.horizontal, horizontalPadding)
@@ -1039,94 +1177,63 @@ struct ResponsiveDialogView: View {
         minigame: PromptBuilderMiniGame
     ) -> some View {
         let horizontalPadding = layout.dialogPadding
-        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
-        let leftWidth = max(min(geometry.size.width * 0.24, 340), 210)
-        let useVerticalLayout = geometry.size.width < 1040 || geometry.size.height < 720
+        let useScrollStage = geometry.size.width < 1120 || geometry.size.height < 760
+        let stageSpeaker = viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node)
+        let stageRoleLabel = dialogRoleLabel(for: node)
+        let stageCharacterImage = node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion)
 
         return VStack(spacing: 0) {
             topBar(layout: layout)
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, topBarTopPadding(for: layout))
 
-            if useVerticalLayout {
+            if useScrollStage {
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        PromptBuilderMiniGameCard(
-                            minigame: minigame,
-                            layout: layout,
-                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                        ) { result in
-                            viewModel.completeInlineActivity(for: node.id, result: result)
-                        }
-                        .allowsHitTesting(!viewModel.isTyping)
-                        .opacity(viewModel.isTyping ? 0.85 : 1.0)
-
-                        MiniGameStageCharacterPanel(
-                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node),
-                            subtitle: "Your reply matters. Build a clear prompt.",
-                            emotion: node.emotion,
-                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
-                            instructionText: viewModel.displayedText,
-                            isTyping: viewModel.isTyping,
-                            layout: layout,
-                            accentColor: .blue,
-                            onSkipTyping: { viewModel.skipTyping() }
-                        )
-                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
-                    }
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
-                }
-            } else {
-                HStack(alignment: .top, spacing: layout.sectionSpacing) {
-                    MiniGameStageCharacterPanel(
-                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node),
-                        subtitle: "Your reply matters. Build a clear prompt.",
+                    PromptBuilderMessagesMiniGameStage(
+                        minigame: minigame,
+                        layout: layout,
+                        availableWidth: geometry.size.width - (horizontalPadding * 2),
+                        availableHeight: max(geometry.size.height * 0.78, 520),
+                        speaker: stageSpeaker,
+                        roleLabel: stageRoleLabel,
                         emotion: node.emotion,
-                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        characterImageName: stageCharacterImage,
                         instructionText: viewModel.displayedText,
                         isTyping: viewModel.isTyping,
-                        layout: layout,
-                        accentColor: .blue,
-                        onSkipTyping: { viewModel.skipTyping() }
-                    )
-                    .frame(width: leftWidth)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 12) {
-                            PromptBuilderMiniGameCard(
-                                minigame: minigame,
-                                layout: layout,
-                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                            ) { result in
-                                viewModel.completeInlineActivity(for: node.id, result: result)
-                            }
-                            .allowsHitTesting(!viewModel.isTyping)
-                            .opacity(viewModel.isTyping ? 0.85 : 1.0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                        onSkipTyping: { handleSkipTypingAction() },
+                        onContinue: { handleAdvanceAction() }
+                    ) { result in
+                        viewModel.completeInlineActivity(for: node.id, result: result)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minHeight: max(geometry.size.height * 0.74, 520))
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, max(layout.safeAreaInsets.bottom, 12))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                PromptBuilderMessagesMiniGameStage(
+                    minigame: minigame,
+                    layout: layout,
+                    availableWidth: geometry.size.width - (horizontalPadding * 2),
+                    availableHeight: geometry.size.height,
+                    speaker: stageSpeaker,
+                    roleLabel: stageRoleLabel,
+                    emotion: node.emotion,
+                    characterImageName: stageCharacterImage,
+                    instructionText: viewModel.displayedText,
+                    isTyping: viewModel.isTyping,
+                    isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                    onSkipTyping: { handleSkipTypingAction() },
+                    onContinue: { handleAdvanceAction() }
+                ) { result in
+                    viewModel.completeInlineActivity(for: node.id, result: result)
+                }
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, 12)
-                .padding(.bottom, 12)
+                .padding(.bottom, max(layout.safeAreaInsets.bottom, 12))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-
-            MiniGameBottomBar(
-                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
-                    ? "Prompt sent. Continue when you are ready."
-                    : "Build the prompt and tap Send to continue.",
-                continueTitle: "Continue Story",
-                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
-                layout: layout,
-                onContinue: { viewModel.advance() }
-            )
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, bottomSafePadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -1164,7 +1271,7 @@ struct ResponsiveDialogView: View {
             if layout.width < 700 {
                 Button {
                     guard viewModel.isInlineActivityCompleted(for: nodeID) else { return }
-                    viewModel.advance()
+                    handleAdvanceAction()
                 } label: {
                     Label(completedButtonTitle, systemImage: "arrow.right.circle.fill")
                         .font(.system(size: layout.captionFontSize + 2, weight: .bold))
@@ -1185,7 +1292,7 @@ struct ResponsiveDialogView: View {
                     Spacer()
                     Button {
                         guard viewModel.isInlineActivityCompleted(for: nodeID) else { return }
-                        viewModel.advance()
+                        handleAdvanceAction()
                     } label: {
                         Label(completedButtonTitle, systemImage: "arrow.right.circle.fill")
                             .font(.system(size: layout.captionFontSize + 2, weight: .bold))
@@ -1375,7 +1482,7 @@ struct ResponsiveDialogView: View {
     }
 
     private func chapterMenuButton(layout: DialogAdaptiveLayout) -> some View {
-        let width: CGFloat = layout.isCompact ? 84 : (layout.isLarge ? 112 : 96)
+        let width: CGFloat = layout.isCompact ? 140 : (layout.isLarge ? 190 : 165)
 
         return Button {
             withAnimation(globalSettings.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9)) {
@@ -1386,6 +1493,7 @@ struct ResponsiveDialogView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: width)
+                .padding(6)
                 .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
         }
         .buttonStyle(.plain)
@@ -1638,7 +1746,7 @@ struct ResponsiveDialogView: View {
                     }
 
                     if viewModel.isTyping {
-                        Button(action: { viewModel.skipTyping() }) {
+                        Button(action: { handleSkipTypingAction() }) {
                             Text("Skip")
                                 .font(.system(size: layout.captionFontSize, weight: .bold))
                                 .foregroundColor(.white.opacity(0.9))
@@ -1676,7 +1784,7 @@ struct ResponsiveDialogView: View {
                             ChoiceButton(
                                 choice: choice,
                                 layout: layout,
-                                action: { viewModel.selectChoice(choice) }
+                                action: { handleSelectChoiceAction(choice) }
                             )
                         }
                     }
@@ -1777,7 +1885,7 @@ struct ResponsiveDialogView: View {
         .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
         .onTapGesture {
             guard canAdvanceFromDialogTap else { return }
-            viewModel.advance()
+            handleAdvanceAction()
         }
         .dialogHoverIfAvailable(perform: handleDialogBoxHover)
     }
@@ -1800,7 +1908,7 @@ struct ResponsiveDialogView: View {
                 ChoiceButton(
                     choice: choice,
                     layout: layout,
-                    action: { viewModel.selectChoice(choice) }
+                    action: { handleSelectChoiceAction(choice) }
                 )
             }
         }
@@ -1827,9 +1935,9 @@ struct ResponsiveDialogView: View {
             .foregroundColor(.white)
             .accentColor(.pink)
             .submitLabel(.send)
-            .onSubmit { viewModel.submitInput() }
+            .onSubmit { handleSubmitInputAction() }
             
-            Button(action: { viewModel.submitInput() }) {
+            Button(action: { handleSubmitInputAction() }) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: layout.isCompact ? 36 : 44))
                     .foregroundColor(!viewModel.userInput.isEmpty ? .pink : .gray)
@@ -1954,8 +2062,8 @@ struct ResponsiveDialogView: View {
             Color.clear
                 .frame(height: layout.isCompact ? 22 : 26)
 
-            menuVolumeSection(title: "MUSIC", value: $menuMusicLevel, layout: layout)
-            menuVolumeSection(title: "SPEECH", value: $menuSpeechLevel, layout: layout)
+            menuVolumeSection(title: "MUSIC", value: chapterMusicVolumeBinding, layout: layout)
+            menuVolumeSection(title: "SPEECH", value: chapterSpeechVolumeBinding, layout: layout)
 
             HStack(spacing: 10) {
                 resumeButton(layout: layout)
@@ -1974,10 +2082,25 @@ struct ResponsiveDialogView: View {
         layout: DialogAdaptiveLayout
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
-                .foregroundColor(.black.opacity(0.95))
-                .tracking(0.3)
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.95))
+                    .tracking(0.3)
+
+                Spacer(minLength: 0)
+
+                Text(volumePercentText(value.wrappedValue))
+                    .font(.system(size: layout.captionFontSize + 2, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: "0A6FEA"))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.92), in: Capsule())
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                    )
+            }
 
             menuSlider(value: value)
         }
@@ -2708,8 +2831,14 @@ struct DialogVideoCutsceneCard: View {
 }
 
 struct PromptBuilderMiniGameCard: View {
+    enum Presentation {
+        case card
+        case showcasePhone
+    }
+
     let minigame: PromptBuilderMiniGame
     let layout: DialogAdaptiveLayout
+    let presentation: Presentation
     let isCompleted: Bool
     let onComplete: (String) -> Void
 
@@ -2717,7 +2846,31 @@ struct PromptBuilderMiniGameCard: View {
     @State private var submitted = false
     @State private var submissionReviewText = ""
 
+    init(
+        minigame: PromptBuilderMiniGame,
+        layout: DialogAdaptiveLayout,
+        presentation: Presentation = .card,
+        isCompleted: Bool,
+        onComplete: @escaping (String) -> Void
+    ) {
+        self.minigame = minigame
+        self.layout = layout
+        self.presentation = presentation
+        self.isCompleted = isCompleted
+        self.onComplete = onComplete
+    }
+
+    @ViewBuilder
     var body: some View {
+        switch presentation {
+        case .card:
+            standardCardBody
+        case .showcasePhone:
+            showcasePhoneBody
+        }
+    }
+
+    private var standardCardBody: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -2780,6 +2933,25 @@ struct PromptBuilderMiniGameCard: View {
         )
     }
 
+    private var showcasePhoneBody: some View {
+        VStack(spacing: 0) {
+            showcaseMessagesTopChrome
+
+            showcaseThreadArea
+
+            showcaseComposerSection
+
+            showcasePromptPaletteSection
+        }
+        .background(Color(red: 0.93, green: 0.94, blue: 0.97))
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(Color.black.opacity(0.96), lineWidth: 2.8)
+        )
+        .shadow(color: Color.black.opacity(0.26), radius: 18, x: 0, y: 10)
+    }
+
     private var messagesTopChrome: some View {
         VStack(spacing: 0) {
             HStack {
@@ -2830,6 +3002,270 @@ struct PromptBuilderMiniGameCard: View {
             }
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
+            .background(Color.white)
+        }
+    }
+
+    private var showcaseMessagesTopChrome: some View {
+        VStack(spacing: 0) {
+            HStack {
+                HStack(spacing: 6) {
+                    Text("12:58 PM")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.70))
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.black.opacity(0.35))
+                }
+                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "wifi")
+                    Image(systemName: "battery.100")
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.black.opacity(0.65))
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .background(Color.white)
+
+            Divider()
+                .overlay(Color.black.opacity(0.06))
+        }
+    }
+
+    private var showcaseThreadArea: some View {
+        Group {
+            if layout.width < 980 {
+                VStack(spacing: 0) {
+                    showcaseThreadListPane
+                        .frame(height: 128)
+
+                    Divider()
+                        .overlay(Color.black.opacity(0.08))
+
+                    showcaseChatPane
+                        .frame(height: layout.height < 760 ? 190 : 230)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    showcaseThreadListPane
+                        .frame(width: 290)
+
+                    Divider()
+                        .overlay(Color.black.opacity(0.08))
+
+                    showcaseChatPane
+                }
+                .frame(height: layout.height < 760 ? 230 : 280)
+            }
+        }
+        .background(Color.white)
+    }
+
+    private var showcaseThreadListPane: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Edit")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.blue)
+
+                Spacer()
+
+                Text("Messages")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.82))
+
+                Spacer()
+
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(red: 0.97, green: 0.97, blue: 0.98))
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ForEach(Array(showcaseListRows.enumerated()), id: \.offset) { index, row in
+                        showcaseThreadListRow(row: row, index: index)
+                    }
+                }
+            }
+        }
+        .background(Color(red: 0.96, green: 0.96, blue: 0.98))
+    }
+
+    private struct ShowcaseThreadRow {
+        let name: String
+        let preview: String
+        let timestamp: String
+        let isSelected: Bool
+        let accent: Color
+    }
+
+    private var showcaseListRows: [ShowcaseThreadRow] {
+        [
+            ShowcaseThreadRow(
+                name: minigame.contactName,
+                preview: "Thanks!!",
+                timestamp: "12:58 PM",
+                isSelected: true,
+                accent: Color(hex: "B6BCC6")
+            ),
+            ShowcaseThreadRow(
+                name: "Laura Staley",
+                preview: "I'm 2 episodes in and I like it...",
+                timestamp: "12:57 PM",
+                isSelected: false,
+                accent: Color(hex: "D28A82")
+            ),
+            ShowcaseThreadRow(
+                name: "Mary Elliott",
+                preview: "Got it - thanks for letting me know!",
+                timestamp: "Yesterday",
+                isSelected: false,
+                accent: Color(hex: "8FAF7A")
+            ),
+            ShowcaseThreadRow(
+                name: "Kate Spalla",
+                preview: "Ah, I'm trying to plan something else...",
+                timestamp: "Yesterday",
+                isSelected: false,
+                accent: Color(hex: "B779B7")
+            )
+        ]
+    }
+
+    private func showcaseThreadListRow(row: ShowcaseThreadRow, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(row.accent.opacity(0.95))
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Group {
+                        if row.isSelected {
+                            Image(systemName: "questionmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Text(String(row.name.prefix(1)))
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                )
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(row.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.85))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(row.timestamp)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                }
+
+                Text(row.preview)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.gray)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            row.isSelected
+                ? Color.black.opacity(0.05)
+                : (index.isMultiple(of: 2) ? Color.white.opacity(0.01) : Color.clear)
+        )
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.05))
+                .frame(height: 0.5),
+            alignment: .bottom
+        )
+    }
+
+    private var showcaseChatPane: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer(minLength: 0)
+                Text(minigame.contactName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.84))
+                Spacer(minLength: 0)
+                Text("Details")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.blue)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(red: 0.98, green: 0.98, blue: 0.99))
+
+            Divider()
+                .overlay(Color.black.opacity(0.06))
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Text Message")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.gray)
+                        Text("Today 12:58 PM")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.gray.opacity(0.92))
+                    }
+                    .padding(.top, 4)
+
+                    HStack {
+                        Text("Hey")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.black.opacity(0.85))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color(hex: "E9E9EE"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        Spacer()
+                    }
+
+                    HStack {
+                        Text(minigame.introMessage)
+                            .font(.system(size: 13))
+                            .foregroundColor(.black.opacity(0.80))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color(hex: "E9E9EE"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        Spacer(minLength: 46)
+                    }
+
+                    HStack {
+                        Spacer(minLength: 46)
+                        Text(canSubmit ? promptPreview : "Tap the colored blocks below to build your reply...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(canSubmit ? .white : Color.black.opacity(0.66))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(
+                                canSubmit ? Color(hex: "2AD160") : Color(hex: "DCE0E7"),
+                                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                            )
+                    }
+
+                    if submitted || isCompleted {
+                        showcaseSentReceiptSection
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
             .background(Color.white)
         }
     }
@@ -2895,6 +3331,130 @@ struct PromptBuilderMiniGameCard: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.black.opacity(0.05), lineWidth: 1)
         )
+    }
+
+    private var showcasePromptPaletteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Build the Reply")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black.opacity(0.80))
+                    Text("Goal + Context + Action + Format")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.55))
+                }
+
+                Spacer(minLength: 0)
+
+                Text(canSubmit ? "Ready to Send" : "Pick 4 Blocks")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(canSubmit ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.85), in: Capsule())
+            }
+
+            ScrollView(showsIndicators: false) {
+                LazyVGrid(columns: showcasePaletteColumns, spacing: 12) {
+                    ForEach(Array(minigame.slots.enumerated()), id: \.element.id) { index, slot in
+                        showcasePromptSlotCard(slot, index: index)
+                    }
+                }
+
+                if let tip = minigame.tip, !tip.isEmpty {
+                    Text(tip)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.black.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Color.clear
+                    .frame(height: 2)
+            }
+            .frame(maxHeight: layout.height < 760 ? 210 : 260)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .background(Color(hex: "C9CBD2"))
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(height: 0.8),
+            alignment: .top
+        )
+    }
+
+    private var showcasePaletteColumns: [GridItem] {
+        let columnCount = layout.width > 1320 ? 4 : (layout.width > 980 ? 2 : 1)
+        return Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .top), count: columnCount)
+    }
+
+    private func showcasePromptSlotCard(_ slot: PromptBuilderSlot, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(slot.label)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.black.opacity(0.80))
+
+                Spacer(minLength: 4)
+
+                if let selected = selectedOption(for: slot) {
+                    Text(selected.chipText)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.black.opacity(0.75))
+                        .lineLimit(1)
+                }
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 6)], spacing: 6) {
+                ForEach(slot.options) { option in
+                    let isSelected = selectedOptionBySlotID[slot.id] == option.id
+
+                    Button {
+                        guard !isCompleted else { return }
+                        selectedOptionBySlotID[slot.id] = option.id
+                    } label: {
+                        Text(option.chipText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(isSelected ? .white : .black.opacity(0.78))
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                    .fill(isSelected ? Color.black.opacity(0.68) : Color.white.opacity(0.84))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .stroke(Color.white.opacity(isSelected ? 0.18 : 0.42), lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCompleted)
+                }
+            }
+        }
+        .padding(12)
+        .background(showcaseSlotFillColor(for: index), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+        )
+    }
+
+    private func showcaseSlotFillColor(for index: Int) -> Color {
+        let palette: [Color] = [
+            Color(hex: "8ED0F7"),
+            Color(hex: "91F0C3"),
+            Color(hex: "F5E08F"),
+            Color(hex: "BE93F5")
+        ]
+        return palette[index % palette.count]
     }
 
     private func promptSlotSection(_ slot: PromptBuilderSlot) -> some View {
@@ -2980,6 +3540,53 @@ struct PromptBuilderMiniGameCard: View {
         }
     }
 
+    private var showcaseComposerSection: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.gray.opacity(0.85))
+                .frame(width: 26, height: 26)
+
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.65))
+
+                Text(canSubmit ? promptPreview : "Text Message")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(canSubmit ? .black.opacity(0.82) : .gray)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+
+            Button {
+                submitPrompt()
+            } label: {
+                Text("Send")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor((canSubmit && !isCompleted) ? .blue : .gray)
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSubmit || isCompleted)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.95, green: 0.95, blue: 0.97))
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.07))
+                .frame(height: 0.8),
+            alignment: .top
+        )
+    }
+
     @ViewBuilder
     private var sentReceiptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -3007,6 +3614,30 @@ struct PromptBuilderMiniGameCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var showcaseSentReceiptSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(Color(hex: "25B44B"))
+                Text("Message Sent")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.black.opacity(0.82))
+            }
+
+            Text(submissionReviewText.isEmpty ? "You can continue the story now." : submissionReviewText)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.black.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .background(Color(hex: "EEF8EF"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(hex: "CDEDD4"), lineWidth: 1)
         )
     }
 
@@ -3048,6 +3679,428 @@ struct PromptBuilderMiniGameCard: View {
     }
 }
 
+struct PromptBuilderMessagesMiniGameStage: View {
+    let minigame: PromptBuilderMiniGame
+    let layout: DialogAdaptiveLayout
+    let availableWidth: CGFloat
+    let availableHeight: CGFloat
+    let speaker: String
+    let roleLabel: String?
+    let emotion: Emotion
+    let characterImageName: String
+    let instructionText: String
+    let isTyping: Bool
+    let isCompleted: Bool
+    let onSkipTyping: () -> Void
+    let onContinue: () -> Void
+    let onComplete: (String) -> Void
+
+    private var usesStackedLayout: Bool {
+        availableWidth < 1120 || availableHeight < 760
+    }
+
+    private var heroPanelWidth: CGFloat {
+        max(min(availableWidth * 0.32, 410), 250)
+    }
+
+    private var phonePanelWidth: CGFloat {
+        min(max(availableWidth * 0.64, 520), 980)
+    }
+
+    private var phoneWideUpOffset: CGFloat {
+        min(max(availableHeight * 0.12, 64), 150)
+    }
+
+    private var heroMinHeight: CGFloat {
+        min(max(availableHeight * 0.48, 250), 430)
+    }
+
+    private var heroImageHeight: CGFloat {
+        min(max(availableHeight * (usesStackedLayout ? 0.30 : 0.56), 200), usesStackedLayout ? 300 : 520)
+    }
+
+    private var wideStageMaxWidth: CGFloat {
+        min(availableWidth, layout.isCompact ? 900 : 1480)
+    }
+
+    private var wideCenterPhoneWidth: CGFloat {
+        min(phonePanelWidth, layout.width < 1280 ? 840 : 940)
+    }
+
+    private var wideCharacterSpriteHeight: CGFloat {
+        min(max(availableHeight * 0.46, 280), 520)
+    }
+
+    private var wideCharacterHorizontalPush: CGFloat {
+        if availableWidth < 1200 { return 12 }
+        if availableWidth < 1450 { return 24 }
+        return 38
+    }
+
+    private var wideBottomDialogReserve: CGFloat {
+        layout.isCompact ? 178 : 210
+    }
+
+    private var wideDialogVerticalLift: CGFloat {
+        layout.isCompact ? 26 : 34
+    }
+
+    private var instructionTextColor: Color {
+        .white.opacity(isTyping ? 0.92 : 0.86)
+    }
+
+    private var emotionAccent: Color {
+        switch emotion {
+        case .happy, .excited:
+            return Color(hex: "5CE38C")
+        case .sad, .concerned:
+            return Color(hex: "8ED0F7")
+        case .angry:
+            return Color(hex: "FF7D7D")
+        case .mysterious:
+            return Color(hex: "BE93F5")
+        case .surprised:
+            return Color(hex: "FFD77A")
+        case .gentle:
+            return Color(hex: "91F0C3")
+        case .curious:
+            return Color(hex: "4AB0FF")
+        case .neutral:
+            return Color.white.opacity(0.85)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            if usesStackedLayout {
+                bottomSceneFade
+            }
+
+            if usesStackedLayout {
+                VStack(spacing: 12) {
+                    phonePanel
+                        .frame(maxWidth: min(availableWidth, 920))
+
+                    heroPanel
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: heroMinHeight)
+                }
+            } else {
+                professorStylePromptStage
+            }
+
+            if isCompleted {
+                VStack {
+                    Spacer(minLength: 0)
+                    if usesStackedLayout {
+                        Button(action: onContinue) {
+                            Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                                .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.green.opacity(0.92), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 6)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+    }
+
+    private var phonePanel: some View {
+        PromptBuilderMiniGameCard(
+            minigame: minigame,
+            layout: layout,
+            presentation: .showcasePhone,
+            isCompleted: isCompleted,
+            onComplete: onComplete
+        )
+        .allowsHitTesting(!isTyping)
+        .opacity(isTyping ? 0.88 : 1.0)
+    }
+
+    private var professorStylePromptStage: some View {
+        ZStack {
+            wideCharacterLayer
+
+            VStack(spacing: layout.isCompact ? 6 : 8) {
+                wideTopUtilityRow
+
+                VStack(spacing: 0) {
+                    Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                    phonePanel
+                        .frame(width: wideCenterPhoneWidth)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .offset(y: -phoneWideUpOffset)
+
+                    Spacer(minLength: wideBottomDialogReserve)
+                }
+            }
+            .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity, alignment: .top)
+
+            wideBottomGradientOverlay
+
+            VStack(spacing: layout.isCompact ? 8 : 10) {
+                Spacer()
+
+                promptBottomDialogPane(
+                    name: speaker.isEmpty ? "You" : speaker,
+                    role: roleLabel ?? emotion.rawValue.capitalized,
+                    text: instructionText.isEmpty ? "Build a clear reply before sending it in the chat." : instructionText,
+                    accent: emotionAccent
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isCompleted {
+                    Button(action: onContinue) {
+                        Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.92), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity)
+            .padding(.horizontal, 4)
+            .padding(.bottom, wideDialogVerticalLift)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var wideCharacterLayer: some View {
+        HStack {
+            Image(characterImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: min(wideStageMaxWidth * 0.26, 360), maxHeight: wideCharacterSpriteHeight, alignment: .bottom)
+                .offset(x: -wideCharacterHorizontalPush, y: -12)
+                .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
+                .allowsHitTesting(false)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, layout.isCompact ? 6 : 10)
+        .padding(.bottom, max(0, wideBottomDialogReserve - 22))
+    }
+
+    private var wideTopUtilityRow: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(emotionAccent)
+                    .frame(width: 8, height: 8)
+                Text(roleLabel ?? emotion.rawValue.capitalized)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color.black.opacity(0.34), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+
+            Text("iPhone Messages Mini-game")
+                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                .foregroundColor(.white.opacity(0.86))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.24), in: Capsule())
+
+            Spacer(minLength: 8)
+
+            if isTyping {
+                Button(action: onSkipTyping) {
+                    Label("Skip Text", systemImage: "forward.fill")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var wideBottomGradientOverlay: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: .clear, location: 0.58),
+                .init(color: Color.black.opacity(0.12), location: 0.66),
+                .init(color: Color.black.opacity(0.34), location: 0.78),
+                .init(color: Color.black.opacity(0.62), location: 0.90),
+                .init(color: Color.black.opacity(0.82), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+    }
+
+    private func promptBottomDialogPane(
+        name: String,
+        role: String,
+        text: String,
+        accent: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: layout.isCompact ? 4 : 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(name)
+                    .font(.system(size: layout.isCompact ? 20 : 28, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .shadow(color: Color.black.opacity(0.45), radius: 6, x: 0, y: 2)
+
+                Text(role)
+                    .font(.system(size: layout.isCompact ? 12 : 15, weight: .bold, design: .rounded))
+                    .foregroundColor(accent)
+                    .lineLimit(1)
+                    .shadow(color: Color.black.opacity(0.35), radius: 4, x: 0, y: 1)
+
+                Spacer(minLength: 0)
+            }
+
+            Text(text)
+                .font(.system(size: layout.isCompact ? 13 : 17, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.97))
+                .lineSpacing(layout.isCompact ? 3 : 5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(5)
+                .minimumScaleFactor(0.85)
+                .shadow(color: Color.black.opacity(0.55), radius: 10, x: 0, y: 2)
+        }
+        .padding(.leading, layout.isCompact ? 0 : 2)
+        .padding(.trailing, layout.isCompact ? 12 : 26)
+        .padding(.vertical, layout.isCompact ? 2 : 4)
+    }
+
+    private var heroPanel: some View {
+        ZStack(alignment: .bottomLeading) {
+            if isTyping {
+                VStack {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button(action: onSkipTyping) {
+                            Label("Skip Text", systemImage: "forward.fill")
+                                .font(.system(size: layout.captionFontSize, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.white.opacity(0.12), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+                .zIndex(4)
+            }
+
+            Image(characterImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: heroImageHeight, alignment: .bottomLeading)
+                .shadow(color: Color.black.opacity(0.32), radius: 18, x: 0, y: 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .allowsHitTesting(false)
+                .zIndex(1)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: Color.black.opacity(0.14), location: 0.42),
+                        .init(color: Color.black.opacity(0.46), location: 0.72),
+                        .init(color: Color.black.opacity(0.82), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: usesStackedLayout ? 160 : 210)
+            }
+            .allowsHitTesting(false)
+            .zIndex(2)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(speaker.isEmpty ? "You" : speaker)
+                        .font(.system(size: layout.isCompact ? 23 : 30, weight: .heavy))
+                        .foregroundColor(.white)
+
+                    if let roleLabel, !roleLabel.isEmpty {
+                        Text(" [\(roleLabel)]")
+                            .font(.system(size: layout.isCompact ? 18 : 22, weight: .bold))
+                            .foregroundColor(Color(hex: "2DA6FF"))
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.92))
+                    .frame(width: min(220, max(120, heroPanelWidth * 0.66)), height: 2)
+                    .overlay(
+                        Rectangle()
+                            .fill(emotionAccent)
+                            .frame(width: min(62, max(28, heroPanelWidth * 0.18)), height: 2),
+                        alignment: .trailing
+                    )
+
+                Text(instructionText.isEmpty ? "Build a clear reply before sending." : instructionText)
+                    .font(.system(size: layout.isCompact ? 16 : 20, weight: .bold))
+                    .foregroundColor(instructionTextColor)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, 12)
+            .zIndex(3)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .clipped()
+    }
+
+    private var bottomSceneFade: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: Color.black.opacity(0.08), location: 0.36),
+                    .init(color: Color.black.opacity(0.24), location: 0.7),
+                    .init(color: Color.black.opacity(0.42), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: usesStackedLayout ? 110 : 150)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 struct ClassroomLectureQuizMiniGameStage: View {
     let quiz: LectureQuizMiniGame
     let layout: DialogAdaptiveLayout
@@ -3058,15 +4111,19 @@ struct ClassroomLectureQuizMiniGameStage: View {
     let onComplete: (String) -> Void
     let onContinue: () -> Void
 
+    @StateObject private var speechManager = SpeechManager()
+    @StateObject private var playerSpeechManager = SpeechManager()
     @State private var currentQuestionIndex = 0
     @State private var selectedChoiceIDByQuestionID: [String: String] = [:]
     @State private var completionSubmitted = false
     @State private var professorTypingTask: Task<Void, Never>?
+    @State private var professorSpeechTask: Task<Void, Never>?
     @State private var professorTypedText = ""
     @State private var professorTypingQuestionID: String?
     @State private var professorTypingCompletedQuestionIDs: Set<String> = []
     @State private var pulsingChoiceID: String?
     @State private var hiddenQuestionChoicePanelQuestionIDs: Set<String> = []
+    @State private var shuffledChoicesByQuestionID: [String: [LectureQuizOption]] = [:]
 
     private var questions: [LectureQuizQuestion] {
         quiz.questions.isEmpty
@@ -3086,6 +4143,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private var currentQuestion: LectureQuizQuestion {
         questions[clampedQuestionIndex]
+    }
+
+    private func displayChoices(for question: LectureQuizQuestion) -> [LectureQuizOption] {
+        shuffledChoicesByQuestionID[question.id] ?? question.choices
     }
 
     private var totalQuestions: Int {
@@ -3255,10 +4316,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 stops: [
                     .init(color: .clear, location: 0.0),
                     .init(color: .clear, location: 0.58),
-                    .init(color: Color.black.opacity(0.12), location: 0.66),
-                    .init(color: Color.black.opacity(0.34), location: 0.78),
-                    .init(color: Color.black.opacity(0.62), location: 0.90),
-                    .init(color: Color.black.opacity(0.82), location: 1.0)
+                    .init(color: Color.black.opacity(0.22), location: 0.66),
+                    .init(color: Color.black.opacity(0.48), location: 0.78),
+                    .init(color: Color.black.opacity(0.78), location: 0.90),
+                    .init(color: Color.black.opacity(0.94), location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -3310,9 +4371,16 @@ struct ClassroomLectureQuizMiniGameStage: View {
             .padding(.bottom, dialogVerticalLift)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            prepareShuffledChoicesIfNeeded()
+        }
         .onDisappear {
             professorTypingTask?.cancel()
             professorTypingTask = nil
+            professorSpeechTask?.cancel()
+            professorSpeechTask = nil
+            speechManager.stop()
+            playerSpeechManager.stop()
         }
     }
 
@@ -3440,7 +4508,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 questionCard
 
                 VStack(spacing: 10) {
-                    ForEach(currentQuestion.choices) { choice in
+                    ForEach(displayChoices(for: currentQuestion)) { choice in
                         optionButton(choice)
                     }
                 }
@@ -3673,12 +4741,15 @@ struct ClassroomLectureQuizMiniGameStage: View {
             pulsingChoiceID = choice.id
         }
 
+        let playerReply = "My answer: \(choice.text)"
+        playerSpeechManager.speak(playerReply, emotion: .neutral, voiceProfile: .playerFemale)
+
         startProfessorTyping(feedback: choice.feedback, for: questionID)
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 420_000_000)
             guard selectedChoiceIDByQuestionID[questionID] != nil else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            _ = withAnimation(.easeInOut(duration: 0.2)) {
                 hiddenQuestionChoicePanelQuestionIDs.insert(questionID)
             }
         }
@@ -3697,8 +4768,12 @@ struct ClassroomLectureQuizMiniGameStage: View {
         guard canGoNext else { return }
         professorTypingTask?.cancel()
         professorTypingTask = nil
+        professorSpeechTask?.cancel()
+        professorSpeechTask = nil
         professorTypedText = ""
         professorTypingQuestionID = nil
+        speechManager.stop()
+        playerSpeechManager.stop()
         currentQuestionIndex = min(currentQuestionIndex + 1, max(questions.count - 1, 0))
     }
 
@@ -3712,9 +4787,15 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private func startProfessorTyping(feedback: String, for questionID: String) {
         professorTypingTask?.cancel()
+        professorSpeechTask?.cancel()
         professorTypingQuestionID = questionID
         professorTypedText = ""
         professorTypingCompletedQuestionIDs.remove(questionID)
+        professorSpeechTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 280_000_000)
+            guard !Task.isCancelled, professorTypingQuestionID == questionID else { return }
+            speechManager.speak(feedback, emotion: .neutral, voiceProfile: .professorMale)
+        }
 
         professorTypingTask = Task { @MainActor in
             let chars = Array(feedback)
@@ -3743,6 +4824,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 professorTypingQuestionID = nil
             }
             professorTypingTask = nil
+            professorSpeechTask = nil
         }
     }
 
@@ -3755,9 +4837,23 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
         professorTypingTask?.cancel()
         professorTypingTask = nil
+        professorSpeechTask?.cancel()
+        professorSpeechTask = nil
+        speechManager.stop()
+        playerSpeechManager.stop()
         professorTypedText = selected.feedback
         professorTypingCompletedQuestionIDs.insert(questionID)
         professorTypingQuestionID = nil
+    }
+
+    private func prepareShuffledChoicesIfNeeded() {
+        guard shuffledChoicesByQuestionID.isEmpty else { return }
+
+        var next: [String: [LectureQuizOption]] = [:]
+        for question in questions {
+            next[question.id] = question.choices.shuffled()
+        }
+        shuffledChoicesByQuestionID = next
     }
 
     private func submitQuizIfNeeded() {

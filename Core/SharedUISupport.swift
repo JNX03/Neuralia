@@ -3,6 +3,12 @@ import AVFoundation
 import Combine
 
 // Shared UI and interaction primitives used across multiple screens.
+enum SpeechVoiceProfile {
+    case `default`
+    case playerFemale
+    case professorMale
+}
+
 @MainActor
 final class SpeechManager: ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()
@@ -11,6 +17,8 @@ final class SpeechManager: ObservableObject {
     @Published var isSpeaking = false
     @Published var speechEnabled = true
     private var voice: AVSpeechSynthesisVoice?
+    private var playerFemaleVoice: AVSpeechSynthesisVoice?
+    private var professorMaleVoice: AVSpeechSynthesisVoice?
     
     init(globalSettings: GlobalSettingsStore? = nil) {
         self.globalSettings = globalSettings ?? GlobalSettingsStore.shared
@@ -33,6 +41,9 @@ final class SpeechManager: ObservableObject {
     
     private func setupVoice() {
         let voices = AVSpeechSynthesisVoice.speechVoices()
+        setupPlayerFemaleVoice(from: voices)
+        setupProfessorMaleVoice(from: voices)
+
         let preferredVoices = [
             "com.apple.voice.enhanced.en-US.Samantha",
             "com.apple.voice.supercompact.en-US.Samantha",
@@ -41,15 +52,259 @@ final class SpeechManager: ObservableObject {
             "com.apple.voice.compact.en-GB.Kate",
             "com.apple.voice.enhanced.en-US.Noelle",
         ]
-        
-        for voiceId in preferredVoices {
-            if let v = voices.first(where: { $0.identifier == voiceId }) {
-                voice = v
+
+        voice = playerFemaleVoice
+            ?? preferredVoices
+            .compactMap { voiceID in voices.first(where: { $0.identifier == voiceID }) }
+            .first
+            ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func englishVoiceCandidate(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        voice.language.hasPrefix("en-US")
+            || voice.language.hasPrefix("en-GB")
+            || voice.language.hasPrefix("en-AU")
+            || voice.language.hasPrefix("en-IE")
+            || voice.language.hasPrefix("en-IN")
+            || voice.language.hasPrefix("en")
+    }
+
+    private func isUsableSpeechVoice(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        if voice.voiceTraits.contains(.isNoveltyVoice) || voice.voiceTraits.contains(.isPersonalVoice) {
+            return false
+        }
+        return true
+    }
+
+    private func voiceNameTokens(_ text: String) -> Set<String> {
+        let tokens = text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        return Set(tokens)
+    }
+
+    private func looksLikeFemaleVoice(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        if voice.gender == .female {
+            return true
+        }
+        let identifier = voice.identifier.lowercased()
+        let tokens = voiceNameTokens(voice.name)
+        let femaleHints = ["samantha", "noelle", "karen", "kate", "ava", "victoria", "serena", "moira", "nicky", "female"]
+
+        if femaleHints.contains(where: { identifier.contains($0) }) {
+            return true
+        }
+
+        return femaleHints.contains(where: { tokens.contains($0) })
+    }
+
+    private func looksLikeMaleVoice(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        if voice.gender == .male {
+            return true
+        }
+        let identifier = voice.identifier.lowercased()
+        let tokens = voiceNameTokens(voice.name)
+        let maleHints = ["alex", "daniel", "aaron", "nathan", "tom", "oliver", "fred", "eddy", "male"]
+
+        if identifier.contains("siri_male") {
+            return true
+        }
+        if maleHints.contains(where: { identifier.contains($0) }) {
+            return true
+        }
+
+        return maleHints.contains(where: { tokens.contains($0) })
+    }
+
+    private func setupPlayerFemaleVoice(from voices: [AVSpeechSynthesisVoice]) {
+        let preferredFemaleVoiceIDs = [
+            "com.apple.voice.enhanced.en-US.Samantha",
+            "com.apple.voice.compact.en-US.Samantha",
+            "com.apple.voice.super-compact.en-US.Samantha",
+            "com.apple.voice.supercompact.en-US.Samantha",
+            "com.apple.voice.enhanced.en-US.Noelle",
+            "com.apple.voice.compact.en-US.Noelle",
+            "com.apple.voice.super-compact.en-US.Noelle",
+            "com.apple.voice.enhanced.en-GB.Kate",
+            "com.apple.voice.compact.en-GB.Kate",
+            "com.apple.voice.super-compact.en-GB.Kate",
+            "com.apple.ttsbundle.Samantha-compact",
+            "com.apple.ttsbundle.Karen-compact",
+            "com.apple.voice.enhanced.en-AU.Karen",
+            "com.apple.voice.super-compact.en-AU.Karen",
+            "com.apple.voice.compact.en-AU.Karen"
+        ]
+
+        for voiceID in preferredFemaleVoiceIDs {
+            if let candidate = voices.first(where: { $0.identifier == voiceID }) {
+                playerFemaleVoice = candidate
                 return
             }
         }
-        
-        voice = AVSpeechSynthesisVoice(language: "en-US")
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            voice.gender == .female
+        }) {
+            playerFemaleVoice = candidate
+            return
+        }
+
+        let femaleIdentifierHints = ["samantha", "noelle", "karen", "kate", "ava", "victoria", "serena", "siri_female"]
+        if let candidate = voices.first(where: { voice in
+            let identifier = voice.identifier.lowercased()
+            return englishVoiceCandidate(voice) &&
+                isUsableSpeechVoice(voice) &&
+                femaleIdentifierHints.contains(where: { identifier.contains($0) })
+        }) {
+            playerFemaleVoice = candidate
+            return
+        }
+
+        let preferredFemaleNames = ["Samantha", "Noelle", "Karen", "Kate", "Ava", "Nicky", "Moira", "Siri"]
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            preferredFemaleNames.contains(where: { voice.name.localizedCaseInsensitiveContains($0) })
+        }) {
+            playerFemaleVoice = candidate
+            return
+        }
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            looksLikeFemaleVoice(voice)
+        }) {
+            playerFemaleVoice = candidate
+            return
+        }
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            !looksLikeMaleVoice(voice)
+        }) {
+            playerFemaleVoice = candidate
+            return
+        }
+
+        if let englishFallback = voices.first(where: { $0.language.hasPrefix("en") }) {
+            playerFemaleVoice = englishFallback
+            return
+        }
+
+        playerFemaleVoice = AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func setupProfessorMaleVoice(from voices: [AVSpeechSynthesisVoice]) {
+        let preferredMaleVoiceIDs = [
+            "com.apple.voice.enhanced.en-US.Daniel",
+            "com.apple.voice.compact.en-US.Daniel",
+            "com.apple.voice.super-compact.en-US.Daniel",
+            "com.apple.voice.enhanced.en-GB.Daniel",
+            "com.apple.voice.compact.en-GB.Daniel",
+            "com.apple.voice.super-compact.en-GB.Daniel",
+            "com.apple.voice.enhanced.en-US.Alex",
+            "com.apple.voice.compact.en-US.Alex",
+            "com.apple.voice.super-compact.en-US.Alex",
+            "com.apple.ttsbundle.Daniel-compact",
+            "com.apple.ttsbundle.Alex-compact",
+            "com.apple.voice.enhanced.en-US.Aaron",
+            "com.apple.voice.compact.en-US.Aaron",
+            "com.apple.voice.super-compact.en-US.Aaron",
+            "com.apple.voice.super-compact.en-IN.Rishi"
+        ]
+
+        for voiceID in preferredMaleVoiceIDs {
+            if let candidate = voices.first(where: { $0.identifier == voiceID }) {
+                professorMaleVoice = candidate
+                return
+            }
+        }
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            voice.gender == .male &&
+            voice.identifier != playerFemaleVoice?.identifier
+        }) {
+            professorMaleVoice = candidate
+            return
+        }
+
+        let maleIdentifierHints = ["alex", "daniel", "aaron", "nathan", "tom", "oliver", "fred", "eddy", "siri_male"]
+        if let candidate = voices.first(where: { voice in
+            let identifier = voice.identifier.lowercased()
+            return englishVoiceCandidate(voice) &&
+                isUsableSpeechVoice(voice) &&
+                maleIdentifierHints.contains(where: { identifier.contains($0) }) &&
+                voice.identifier != playerFemaleVoice?.identifier
+        }) {
+            professorMaleVoice = candidate
+            return
+        }
+
+        let preferredMaleNames = ["Daniel", "Alex", "Aaron", "Nathan", "Tom", "Oliver", "Fred", "Eddy"]
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            preferredMaleNames.contains(where: { voice.name.localizedCaseInsensitiveContains($0) })
+        }) {
+            professorMaleVoice = candidate
+            return
+        }
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            looksLikeMaleVoice(voice) &&
+            voice.identifier != playerFemaleVoice?.identifier
+        }) {
+            professorMaleVoice = candidate
+            return
+        }
+
+        if let candidate = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            !looksLikeFemaleVoice(voice) &&
+            voice.identifier != playerFemaleVoice?.identifier
+        }) {
+            professorMaleVoice = candidate
+            return
+        }
+
+        if let englishFallback = voices.first(where: { englishVoiceCandidate($0) && isUsableSpeechVoice($0) }) {
+            if englishFallback.identifier != playerFemaleVoice?.identifier {
+                professorMaleVoice = englishFallback
+                return
+            }
+        }
+
+        if let distinctEnglish = voices.first(where: { voice in
+            englishVoiceCandidate(voice) &&
+            isUsableSpeechVoice(voice) &&
+            voice.identifier != playerFemaleVoice?.identifier
+        }) {
+            professorMaleVoice = distinctEnglish
+            return
+        }
+
+        professorMaleVoice = AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func selectedVoice(for profile: SpeechVoiceProfile) -> AVSpeechSynthesisVoice? {
+        switch profile {
+        case .default:
+            return voice
+        case .playerFemale:
+            return playerFemaleVoice ?? voice
+        case .professorMale:
+            return professorMaleVoice ?? voice
+        }
     }
 
     private func bindGlobalSettings() {
@@ -68,12 +323,17 @@ final class SpeechManager: ObservableObject {
             .store(in: &cancellables)
     }
     
-    func speak(_ text: String, emotion: Emotion = .neutral) {
+    func speak(
+        _ text: String,
+        emotion: Emotion = .neutral,
+        voiceProfile: SpeechVoiceProfile = .default
+    ) {
         guard globalSettings.speechEnabled && !text.isEmpty else { return }
         stop()
         
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = voice
+        let selectedSpeechVoice = selectedVoice(for: voiceProfile)
+        utterance.voice = selectedSpeechVoice
         
         switch emotion {
         case .happy, .excited:
@@ -97,6 +357,19 @@ final class SpeechManager: ObservableObject {
         case .neutral:
             utterance.pitchMultiplier = 1.1
             utterance.rate = 0.5
+        }
+
+        switch voiceProfile {
+        case .playerFemale:
+            let needsExtraLift = selectedSpeechVoice.map(looksLikeMaleVoice) ?? false
+            utterance.pitchMultiplier = max(utterance.pitchMultiplier, needsExtraLift ? 1.36 : 1.26)
+            utterance.rate = max(utterance.rate, 0.54)
+        case .professorMale:
+            let needsExtraDrop = selectedSpeechVoice.map(looksLikeFemaleVoice) ?? false
+            utterance.pitchMultiplier = min(utterance.pitchMultiplier, needsExtraDrop ? 0.58 : 0.72)
+            utterance.rate = max(utterance.rate, needsExtraDrop ? 0.62 : 0.60)
+        case .default:
+            break
         }
         
         utterance.volume = globalSettings.effectiveSpeechVolume
