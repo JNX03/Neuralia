@@ -76,7 +76,6 @@ class MainMenuViewModel: ObservableObject {
 enum MenuDestination: Hashable {
     case featureTesting
     case gallery
-    case settings
     case about
     case chapterSelect
     case playChapterOne
@@ -87,7 +86,6 @@ extension MenuDestination: Identifiable {
         switch self {
         case .featureTesting: return "featureTesting"
         case .gallery: return "gallery"
-        case .settings: return "settings"
         case .about: return "about"
         case .chapterSelect: return "chapterSelect"
         case .playChapterOne: return "playChapterOne"
@@ -99,6 +97,7 @@ struct MainMenuView: View {
     @EnvironmentObject private var settings: GlobalSettingsStore
     @StateObject private var viewModel = MainMenuViewModel()
     @State private var destination: MenuDestination? = nil
+    @State private var showSettingsPopup = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -124,7 +123,31 @@ struct MainMenuView: View {
                 
                 // Version info - always at bottom
                 versionLabel(layout: layout)
+
+                if showSettingsPopup {
+                    MenuSettingsPopupOverlay(
+                        settings: settings,
+                        layout: layout,
+                        onClose: {
+                            withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                showSettingsPopup = false
+                            }
+                        }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .zIndex(10)
+                }
             }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        guard !showSettingsPopup else { return }
+                        viewModel.handleTouch(translation: gesture.translation)
+                    }
+                    .onEnded { _ in
+                        viewModel.touchEnded()
+                    }
+            )
             .onAppear {
                 configureMotionTimer()
             }
@@ -138,16 +161,18 @@ struct MainMenuView: View {
                 switch destination {
                 case .featureTesting:
                     FeatureTestingView()
+                        .neuraPointerFX()
                 case .gallery:
                     GalleryView()
-                case .settings:
-                    SettingsView(settings: settings)
+                        .neuraPointerFX()
                 case .about:
                     AboutView()
+                        .neuraPointerFX()
                 case .chapterSelect:
                     NavigationStack {
                         StoryChapterHubView()
                     }
+                    .neuraPointerFX()
                 case .playChapterOne:
                     NavigationStack {
                         if let firstChapter = StoryChapterRepository.all.first {
@@ -156,6 +181,7 @@ struct MainMenuView: View {
                             StoryChapterHubView()
                         }
                     }
+                    .neuraPointerFX()
                 }
             }
         }
@@ -163,7 +189,33 @@ struct MainMenuView: View {
     
     // MARK: - Background
     private func backgroundLayer(layout: ResponsiveLayout) -> some View {
-        Color.black.ignoresSafeArea()
+        ZStack {
+            Image("lantassc")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(1.08)
+                .offset(
+                    x: -viewModel.offsetX * settings.effectiveParallaxStrength * 0.25,
+                    y: -viewModel.offsetY * settings.effectiveParallaxStrength * 0.25
+                )
+
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.25),
+                    Color.black.opacity(0.4),
+                    Color.black.opacity(0.7)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            Color.black
+                .opacity(0.1 + (settings.menuOverlayOpacity * 0.35))
+                .ignoresSafeArea()
+        }
+        .ignoresSafeArea()
     }
     
     // MARK: - Compact Layout (iPhone Portrait/Small)
@@ -192,6 +244,11 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
+            .background(menuPanelBackground(layout: layout))
+            .offset(
+                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
+                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
+            )
             .padding(layout.padding)
             
             Spacer()
@@ -222,6 +279,11 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
+            .background(menuPanelBackground(layout: layout))
+            .offset(
+                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
+                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
+            )
             .padding(layout.padding)
             
             Spacer()
@@ -252,6 +314,11 @@ struct MainMenuView: View {
             }
             .padding(layout.padding)
             .frame(width: layout.menuWidth)
+            .background(menuPanelBackground(layout: layout))
+            .offset(
+                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
+                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
+            )
             .padding(layout.padding * 1.5)
             
             Spacer()
@@ -315,7 +382,9 @@ struct MainMenuView: View {
                     icon: "gearshape.fill",
                     layout: layout,
                     action: {
-                        destination = .settings
+                        withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                            showSettingsPopup = true
+                        }
                     }
                 )
                 .frame(maxWidth: .infinity)
@@ -375,6 +444,15 @@ struct MainMenuView: View {
         } else {
             viewModel.start()
         }
+    }
+
+    private func menuPanelBackground(layout: ResponsiveLayout) -> some View {
+        RoundedRectangle(cornerRadius: layout.cornerRadius + 4, style: .continuous)
+            .fill(Color.black.opacity(settings.menuOverlayOpacity))
+            .overlay(
+                RoundedRectangle(cornerRadius: layout.cornerRadius + 4, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
     }
 }
 

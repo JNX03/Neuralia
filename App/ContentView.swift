@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var settings: GlobalSettingsStore
     // Temporary toggle: keep startup screens in code, but bypass them at launch.
     private let skipStartupScreens = true
     @State private var showMainMenu = true
@@ -25,9 +26,16 @@ struct ContentView: View {
                 contentLayer(layout: layout)
             }
             .opacity(contentOpacity)
-            .animation(.easeInOut(duration: 0.5), value: showMainMenu)
+            .animation(settings.reduceMotion ? nil : .easeInOut(duration: 0.5), value: showMainMenu)
         }
         .ignoresSafeArea()
+        .neuraPointerFX()
+        .transaction { transaction in
+            if settings.reduceMotion {
+                transaction.disablesAnimations = true
+                transaction.animation = nil
+            }
+        }
         .onAppear {
             // Ensure the initial state follows the temporary bypass toggle.
             if showMainMenu != skipStartupScreens {
@@ -93,7 +101,7 @@ struct ContentView: View {
                     ))
             } else {
                 LoadingView(onStart: {
-                    withAnimation(.easeInOut(duration: 0.5)) {
+                    withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.5)) {
                         showMainMenu = true
                     }
                 })

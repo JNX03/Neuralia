@@ -366,170 +366,77 @@ struct LoadingView: View {
     
     var onStart: () -> Void = {}
     private let versionString = "Ver: 1.19.182"
-    
-    // Pointer / touch FX
-    @State private var pointerLocation: CGPoint = .zero
-    @State private var pointerIsVisible: Bool = false
-    @State private var pointerIsDown: Bool = false
-    
-    @State private var ripples: [PointerRipple] = []
-    @State private var trailPoints: [CGPoint] = []
-    
-    @State private var pointerHideTask: Task<Void, Never>?
-    @State private var trailClearTask: Task<Void, Never>?
     @State private var hasStarted = false
 
     var body: some View {
-        ZStack {
-            Stage16x9 { stage, layout in
-                // Responsive positioning based on stage size
-                let topHUDDown = max(layout.scaled(30), stage.height * 0.08)
-                let loadingBarBase = max(layout.scaled(56), stage.height * 0.14)
-                let loadingBarUp = max(loadingBarBase, layout.safeAreaInsets.bottom + layout.scaled(24))
-                let loadingBarMaxWidth = layout.isCompact
-                    ? max(0, stage.width - (layout.padding * 2))
-                    : min(max(layout.scaled(420), stage.width * 0.48), stage.width - (layout.padding * 2))
-                let mainRaise = max(layout.scaled(80), stage.height * 0.22)
-                
-                // Responsive HUD sizing
-                let hudIconSize = layout.hudIconSize
-                let hudSide = layout.scaled(14)
-                
-                ZStack {
-                    Color.black
-                    
-                    if vm.phase == .intro {
-                        ProBootBackground()
-                        Color.black.opacity(0.40)
-                    }
-                    
-                    if vm.phase != .intro {
-                        slideshowBackground
-                    }
-                    
-                    switch vm.phase {
-                    case .intro:
-                        introContent(layout: layout)
-                    case .loading:
-                        Color.clear
-                    case .main:
-                        mainContent(mainRaise: mainRaise, layout: layout)
-                    }
-                    
-                    // HUD for loading + main
-                    if vm.phase != .intro {
-                        hudLayer(
-                            topPadding: topHUDDown,
-                            hudIconSize: hudIconSize,
-                            hudSide: hudSide,
-                            layout: layout
-                        )
-                    }
-                    
-                    // Loading bar
-                    if vm.phase == .loading {
-                        VStack {
-                            Spacer()
-                            loadingBar(layout: layout)
-                                .frame(maxWidth: loadingBarMaxWidth)
-                                .padding(.horizontal, layout.padding)
-                                .padding(.bottom, loadingBarUp)
-                                .offset(y: vm.loadingBarOffset)
-                                .opacity(vm.loadingBarOpacity)
-                        }
-                    }
-                }
-                .onAppear { vm.start() }
-                .onDisappear { vm.cleanup() }
-            }
+        Stage16x9 { stage, layout in
+            // Responsive positioning based on stage size
+            let topHUDDown = max(layout.scaled(30), stage.height * 0.08)
+            let loadingBarBase = max(layout.scaled(56), stage.height * 0.14)
+            let loadingBarUp = max(loadingBarBase, layout.safeAreaInsets.bottom + layout.scaled(24))
+            let loadingBarMaxWidth = layout.isCompact
+                ? max(0, stage.width - (layout.padding * 2))
+                : min(max(layout.scaled(420), stage.width * 0.48), stage.width - (layout.padding * 2))
+            let mainRaise = max(layout.scaled(80), stage.height * 0.22)
             
-            // FX overlay (full-screen)
-            PointerFXOverlay(
-                location: pointerLocation,
-                isDown: pointerIsDown,
-                isVisible: pointerIsVisible,
-                ripples: ripples,
-                trailPoints: trailPoints
-            )
+            // Responsive HUD sizing
+            let hudIconSize = layout.hudIconSize
+            let hudSide = layout.scaled(14)
+            
+            ZStack {
+                Color.black
+                
+                if vm.phase == .intro {
+                    ProBootBackground()
+                    Color.black.opacity(0.40)
+                }
+                
+                if vm.phase != .intro {
+                    slideshowBackground
+                }
+                
+                switch vm.phase {
+                case .intro:
+                    introContent(layout: layout)
+                case .loading:
+                    Color.clear
+                case .main:
+                    mainContent(mainRaise: mainRaise, layout: layout)
+                }
+                
+                // HUD for loading + main
+                if vm.phase != .intro {
+                    hudLayer(
+                        topPadding: topHUDDown,
+                        hudIconSize: hudIconSize,
+                        hudSide: hudSide,
+                        layout: layout
+                    )
+                }
+                
+                // Loading bar
+                if vm.phase == .loading {
+                    VStack {
+                        Spacer()
+                        loadingBar(layout: layout)
+                            .frame(maxWidth: loadingBarMaxWidth)
+                            .padding(.horizontal, layout.padding)
+                            .padding(.bottom, loadingBarUp)
+                            .offset(y: vm.loadingBarOffset)
+                            .opacity(vm.loadingBarOpacity)
+                    }
+                }
+            }
+            .onAppear { vm.start() }
+            .onDisappear { vm.cleanup() }
         }
-        .coordinateSpace(name: "screen")
-        .simultaneousGesture(pointerGesture)
+        .onTapGesture {
+            guard vm.phase == .main, !hasStarted else { return }
+            hasStarted = true
+            onStart()
+        }
         .onDisappear {
-            pointerHideTask?.cancel()
-            trailClearTask?.cancel()
-            pointerHideTask = nil
-            trailClearTask = nil
             hasStarted = false
-        }
-    }
-    
-    private var pointerGesture: some Gesture {
-        DragGesture(minimumDistance: 0, coordinateSpace: .named("screen"))
-            .onChanged { value in
-                guard !hasStarted else { return }
-                
-                pointerHideTask?.cancel()
-                trailClearTask?.cancel()
-                
-                pointerIsVisible = true
-                pointerIsDown = true
-                pointerLocation = value.location
-                
-                let p = value.location
-                if let last = trailPoints.last {
-                    let d = hypot(p.x - last.x, p.y - last.y)
-                    if d > 3.0 {
-                        trailPoints.append(p)
-                    }
-                } else {
-                    trailPoints = [p]
-                }
-                
-                if trailPoints.count > 18 {
-                    trailPoints.removeFirst(trailPoints.count - 18)
-                }
-            }
-            .onEnded { value in
-                pointerLocation = value.location
-                pointerIsDown = false
-                
-                let dist = hypot(value.translation.width, value.translation.height)
-                let isTap = dist < 16
-                
-                if isTap { spawnRipple(at: value.location) }
-                
-                if vm.phase == .main, isTap, !hasStarted {
-                    hasStarted = true
-                    onStart()
-                }
-                
-                trailClearTask?.cancel()
-                trailClearTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 80_000_000)
-                    withAnimation(.easeOut(duration: 0.35)) {
-                        trailPoints.removeAll()
-                    }
-                }
-                
-                pointerHideTask?.cancel()
-                pointerHideTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 140_000_000)
-                    withAnimation(.easeOut(duration: 0.35)) {
-                        pointerIsVisible = false
-                    }
-                }
-            }
-    }
-
-    private func spawnRipple(at point: CGPoint) {
-        if ripples.count > 18 { ripples.removeFirst(ripples.count - 18) }
-        
-        let id = UUID()
-        ripples.append(PointerRipple(id: id, location: point))
-        
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 950_000_000)
-            ripples.removeAll { $0.id == id }
         }
     }
 

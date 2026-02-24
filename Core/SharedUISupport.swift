@@ -1,20 +1,26 @@
 import SwiftUI
 import AVFoundation
+import Combine
 
 // Shared UI and interaction primitives used across multiple screens.
 @MainActor
 final class SpeechManager: ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()
+    private let globalSettings: GlobalSettingsStore
+    private var cancellables = Set<AnyCancellable>()
     @Published var isSpeaking = false
     @Published var speechEnabled = true
     private var voice: AVSpeechSynthesisVoice?
     
-    init() {
+    init(globalSettings: GlobalSettingsStore? = nil) {
+        self.globalSettings = globalSettings ?? GlobalSettingsStore.shared
         setupVoice()
         configureAudioSession()
+        bindGlobalSettings()
     }
     
     private func configureAudioSession() {
+        #if canImport(UIKit)
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
@@ -22,6 +28,7 @@ final class SpeechManager: ObservableObject {
         } catch {
             print("Audio session error: \(error)")
         }
+        #endif
     }
     
     private func setupVoice() {
@@ -44,9 +51,25 @@ final class SpeechManager: ObservableObject {
         
         voice = AVSpeechSynthesisVoice(language: "en-US")
     }
+
+    private func bindGlobalSettings() {
+        speechEnabled = globalSettings.speechEnabled
+
+        globalSettings.$speechEnabled
+            .sink { [weak self] enabled in
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.speechEnabled = enabled
+                    if !enabled {
+                        self.stop()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+    }
     
     func speak(_ text: String, emotion: Emotion = .neutral) {
-        guard speechEnabled && !text.isEmpty else { return }
+        guard globalSettings.speechEnabled && !text.isEmpty else { return }
         stop()
         
         let utterance = AVSpeechUtterance(string: text)
@@ -76,7 +99,7 @@ final class SpeechManager: ObservableObject {
             utterance.rate = 0.5
         }
         
-        utterance.volume = 0.95
+        utterance.volume = globalSettings.effectiveSpeechVolume
         
         isSpeaking = true
         synthesizer.speak(utterance)
@@ -95,8 +118,7 @@ final class SpeechManager: ObservableObject {
     }
     
     func toggle() {
-        speechEnabled.toggle()
-        if !speechEnabled { stop() }
+        globalSettings.speechEnabled.toggle()
     }
 }
 

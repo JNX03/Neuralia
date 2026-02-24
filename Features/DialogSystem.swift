@@ -593,6 +593,7 @@ struct ResponsiveDialogView: View {
     @StateObject private var viewModel = DialogViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var globalSettings: GlobalSettingsStore
     
     // Configuration
     let nodes: [DialogNode]
@@ -607,7 +608,8 @@ struct ResponsiveDialogView: View {
     @State private var characterRotation: Double = 0
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
-    @State private var menuSoundLevel: Double = 0.9
+    @State private var menuMusicLevel: Double = 0.9
+    @State private var menuSpeechLevel: Double = 0.9
     @State private var backgroundOpacity: Double = 1.0
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var sceneContentOpacity: Double = 1.0
@@ -683,6 +685,8 @@ struct ResponsiveDialogView: View {
         .onAppear {
             viewModel.loadNodes(nodes)
             lastSceneVisualKey = sceneVisualKey
+            menuMusicLevel = globalSettings.masterVolume
+            menuSpeechLevel = globalSettings.speechEnabled ? globalSettings.masterVolume : 0
         }
         .onChange(of: viewModel.isCompleted) { _, completed in
             if completed {
@@ -694,8 +698,23 @@ struct ResponsiveDialogView: View {
             defer { lastSceneVisualKey = newSceneKey }
             guard newSceneKey != lastSceneVisualKey else { return }
             sceneContentOpacity = 0.18
-            withAnimation(.easeOut(duration: 0.28)) {
+            withAnimation(globalSettings.reduceMotion ? nil : .easeOut(duration: 0.28)) {
                 sceneContentOpacity = 1.0
+            }
+        }
+        .onChange(of: globalSettings.masterVolume) { _, volume in
+            menuMusicLevel = volume
+            if globalSettings.speechEnabled {
+                menuSpeechLevel = volume
+            }
+        }
+        .onChange(of: globalSettings.speechEnabled) { _, enabled in
+            menuSpeechLevel = enabled ? globalSettings.masterVolume : 0
+        }
+        .transaction { transaction in
+            if globalSettings.reduceMotion {
+                transaction.disablesAnimations = true
+                transaction.animation = nil
             }
         }
         .dialogMacOSMinWindowFrame()
@@ -863,18 +882,27 @@ struct ResponsiveDialogView: View {
         }
     }
 
+    @ViewBuilder
     private func lectureQuizActivityScene(
         layout: DialogAdaptiveLayout,
         geometry: GeometryProxy,
         node: DialogNode,
         quiz: LectureQuizMiniGame
     ) -> some View {
+        if quiz.usesClassroomStageLayout {
+            classroomLectureQuizActivityScene(
+                layout: layout,
+                geometry: geometry,
+                node: node,
+                quiz: quiz
+            )
+        } else {
         let horizontalPadding = layout.dialogPadding
         let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
         let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
         let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
 
-        return VStack(spacing: 0) {
+        VStack(spacing: 0) {
             topBar(layout: layout)
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, topBarTopPadding(for: layout))
@@ -958,6 +986,48 @@ struct ResponsiveDialogView: View {
             )
             .padding(.horizontal, horizontalPadding)
             .padding(.bottom, bottomSafePadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private func classroomLectureQuizActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        quiz: LectureQuizMiniGame
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
+        let bottomInset = max(layout.safeAreaInsets.bottom, 10)
+
+        return ZStack {
+            VStack {
+                topBar(layout: layout)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, topBarTopPadding(for: layout))
+                Spacer()
+            }
+            .zIndex(20)
+
+            ClassroomLectureQuizMiniGameStage(
+                quiz: quiz,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                isTyping: viewModel.isTyping,
+                instructionText: viewModel.displayedText,
+                onSkipTyping: { viewModel.skipTyping() },
+                onComplete: { result in
+                    viewModel.completeInlineActivity(for: node.id, result: result)
+                },
+                onContinue: {
+                    guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
+                    viewModel.advance()
+                }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -1308,7 +1378,7 @@ struct ResponsiveDialogView: View {
         let width: CGFloat = layout.isCompact ? 84 : (layout.isLarge ? 112 : 96)
 
         return Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+            withAnimation(globalSettings.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9)) {
                 showSettingsPanel.toggle()
             }
         } label: {
@@ -1835,7 +1905,7 @@ struct ResponsiveDialogView: View {
         Color.black.opacity(0.5)
             .ignoresSafeArea()
             .onTapGesture {
-                withAnimation(.spring()) { showSettingsPanel = false }
+                withAnimation(globalSettings.reduceMotion ? nil : .spring()) { showSettingsPanel = false }
             }
     }
 
@@ -1848,10 +1918,20 @@ struct ResponsiveDialogView: View {
                 .frame(width: cardWidth)
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color(hex: "9ED4F4"))
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "D9F1FF"),
+                                    Color(hex: "A9DBFF"),
+                                    Color(hex: "7FC3F3")
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .overlay(
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                .stroke(Color.white.opacity(0.52), lineWidth: 1)
                         )
                 )
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -1874,7 +1954,8 @@ struct ResponsiveDialogView: View {
             Color.clear
                 .frame(height: layout.isCompact ? 22 : 26)
 
-            menuVolumeSection(title: "SOUND", value: $menuSoundLevel, layout: layout)
+            menuVolumeSection(title: "MUSIC", value: $menuMusicLevel, layout: layout)
+            menuVolumeSection(title: "SPEECH", value: $menuSpeechLevel, layout: layout)
 
             HStack(spacing: 10) {
                 resumeButton(layout: layout)
@@ -1949,11 +2030,21 @@ struct ResponsiveDialogView: View {
 
             ZStack(alignment: .leading) {
                 Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.45))
+                    .fill(Color(hex: "D7EBF8").opacity(0.95))
                     .frame(height: trackHeight)
 
                 Capsule(style: .continuous)
-                    .fill(Color(hex: "089BF7"))
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: "2EC5FF"),
+                                Color(hex: "1397F6"),
+                                Color(hex: "0A6FEA")
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .frame(width: filledWidth, height: trackHeight)
 
                 Circle()
@@ -2953,6 +3044,526 @@ struct PromptBuilderMiniGameCard: View {
         }.count
         let summary = "Message sent to \(minigame.contactName). All answers can work, but the strongest prompt here is: \"\(recommendedPrompt())\". Your version matched \(recommendedMatches)/\(minigame.slots.count) best-practice parts. \(selectedNotes) The sender still appears as \"\(minigame.contactName)\" for now; you can rename them later (default: Ploy)."
         submissionReviewText = summary
+        onComplete(summary)
+    }
+}
+
+struct ClassroomLectureQuizMiniGameStage: View {
+    let quiz: LectureQuizMiniGame
+    let layout: DialogAdaptiveLayout
+    let isCompleted: Bool
+    let isTyping: Bool
+    let instructionText: String
+    let onSkipTyping: () -> Void
+    let onComplete: (String) -> Void
+    let onContinue: () -> Void
+
+    @State private var currentQuestionIndex = 0
+    @State private var selectedChoiceIDByQuestionID: [String: String] = [:]
+    @State private var completionSubmitted = false
+
+    private var questions: [LectureQuizQuestion] {
+        quiz.questions.isEmpty
+            ? [
+                LectureQuizQuestion(
+                    id: "fallback",
+                    question: "No question available",
+                    choices: []
+                )
+            ]
+            : quiz.questions
+    }
+
+    private var clampedQuestionIndex: Int {
+        min(max(currentQuestionIndex, 0), max(questions.count - 1, 0))
+    }
+
+    private var currentQuestion: LectureQuizQuestion {
+        questions[clampedQuestionIndex]
+    }
+
+    private var totalQuestions: Int {
+        max(questions.count, 1)
+    }
+
+    private var answeredCount: Int {
+        questions.filter { selectedChoiceIDByQuestionID[$0.id] != nil }.count
+    }
+
+    private var bestAnswerCount: Int {
+        questions.reduce(into: 0) { count, question in
+            guard let selectedID = selectedChoiceIDByQuestionID[question.id],
+                  let selected = question.choices.first(where: { $0.id == selectedID }),
+                  selected.isBestAnswer else {
+                return
+            }
+            count += 1
+        }
+    }
+
+    private var currentSelectedChoice: LectureQuizOption? {
+        guard let selectedID = selectedChoiceIDByQuestionID[currentQuestion.id] else { return nil }
+        return currentQuestion.choices.first(where: { $0.id == selectedID })
+    }
+
+    private var isCurrentQuestionAnswered: Bool {
+        currentSelectedChoice != nil
+    }
+
+    private var isLastQuestion: Bool {
+        clampedQuestionIndex >= (questions.count - 1)
+    }
+
+    private var canGoNext: Bool {
+        isCurrentQuestionAnswered && !isCompleted && !isLastQuestion
+    }
+
+    private var canFinishQuiz: Bool {
+        isCurrentQuestionAnswered && !isCompleted && isLastQuestion
+    }
+
+    private var teacherDisplayName: String {
+        quiz.teacherName.isEmpty ? "Professor New" : quiz.teacherName
+    }
+
+    private var teacherRole: String {
+        (quiz.teacherRole?.isEmpty == false ? quiz.teacherRole! : "Teacher")
+    }
+
+    private var studentDisplayName: String {
+        quiz.studentName.isEmpty ? "You" : quiz.studentName
+    }
+
+    private var studentRole: String {
+        (quiz.studentRole?.isEmpty == false ? quiz.studentRole! : "Student")
+    }
+
+    private var teacherDialogText: String {
+        if let selected = currentSelectedChoice {
+            return selected.feedback
+        }
+        if isTyping && !instructionText.isEmpty {
+            return instructionText
+        }
+        if clampedQuestionIndex == 0, answeredCount == 0, !instructionText.isEmpty {
+            return instructionText
+        }
+        return "Question \(clampedQuestionIndex + 1): \(currentQuestion.question)"
+    }
+
+    private var studentDialogText: String {
+        if let selected = currentSelectedChoice {
+            return "My answer: \(selected.text)"
+        }
+        if isTyping {
+            return "..."
+        }
+        return "I should choose the safest and most responsible answer."
+    }
+
+    private var stageMaxWidth: CGFloat {
+        min(layout.width - (layout.isCompact ? 12 : 24), layout.isCompact ? 760 : 1500)
+    }
+
+    private var centerPanelMaxWidth: CGFloat {
+        switch true {
+        case layout.width < 700:
+            return min(layout.width - 24, 700)
+        case layout.width < 1100:
+            return min(layout.width * 0.72, 820)
+        default:
+            return min(layout.width * 0.52, 860)
+        }
+    }
+
+    private var spriteHeight: CGFloat {
+        let lowerBound: CGFloat = layout.isCompact ? 180 : 230
+        let upperBound: CGFloat = layout.isCompact ? 300 : 520
+        return min(max(layout.height * (layout.isCompact ? 0.28 : 0.40), lowerBound), upperBound)
+    }
+
+    private var bottomDialogReserve: CGFloat {
+        layout.width < 780 ? (layout.isCompact ? 236 : 252) : (layout.isCompact ? 184 : 212)
+    }
+
+    var body: some View {
+        let useStackedBottomDialogs = layout.width < 780 || (layout.isLandscape && layout.height < 520)
+
+        ZStack {
+            characterLayer
+
+            VStack(spacing: layout.isCompact ? 6 : 8) {
+                topUtilityRow
+                centerQuizPanel
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Spacer(minLength: bottomDialogReserve)
+            }
+            .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .top)
+
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .clear, location: 0.60),
+                    .init(color: Color.black.opacity(0.18), location: 0.72),
+                    .init(color: Color.black.opacity(0.55), location: 0.86),
+                    .init(color: Color.black.opacity(0.82), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+
+            VStack(spacing: layout.isCompact ? 8 : 10) {
+                Spacer()
+
+                if useStackedBottomDialogs {
+                    VStack(spacing: 10) {
+                        bottomDialogPane(
+                            name: studentDisplayName,
+                            role: studentRole,
+                            text: studentDialogText,
+                            accent: .cyan,
+                            alignTrailing: false
+                        )
+                        bottomDialogPane(
+                            name: teacherDisplayName,
+                            role: teacherRole,
+                            text: teacherDialogText,
+                            accent: .mint,
+                            alignTrailing: true
+                        )
+                    }
+                } else {
+                    HStack(alignment: .bottom, spacing: 14) {
+                        bottomDialogPane(
+                            name: studentDisplayName,
+                            role: studentRole,
+                            text: studentDialogText,
+                            accent: .cyan,
+                            alignTrailing: false
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        bottomDialogPane(
+                            name: teacherDisplayName,
+                            role: teacherRole,
+                            text: teacherDialogText,
+                            accent: .mint,
+                            alignTrailing: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+
+                if isCompleted {
+                    Button {
+                        onContinue()
+                    } label: {
+                        Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.92), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .frame(maxWidth: stageMaxWidth, maxHeight: .infinity)
+            .padding(.horizontal, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var characterLayer: some View {
+        ZStack(alignment: .bottom) {
+            if let studentImageName = quiz.studentImageName, !studentImageName.isEmpty {
+                HStack {
+                    classroomCharacterImage(
+                        named: studentImageName,
+                        align: .leading
+                    )
+                    Spacer(minLength: 0)
+                }
+            }
+
+            if let teacherImageName = quiz.teacherImageName, !teacherImageName.isEmpty {
+                HStack {
+                    Spacer(minLength: 0)
+                    classroomCharacterImage(
+                        named: teacherImageName,
+                        align: .trailing
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, layout.isCompact ? 6 : 10)
+        .padding(.bottom, bottomDialogReserve - (layout.isCompact ? 28 : 18))
+    }
+
+    private enum ClassroomCharacterAlign {
+        case leading
+        case trailing
+    }
+
+    private func classroomCharacterImage(named imageName: String, align: ClassroomCharacterAlign) -> some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(
+                maxWidth: min(layout.width * (layout.width < 900 ? 0.36 : 0.28), layout.width < 900 ? 220 : 340),
+                maxHeight: spriteHeight,
+                alignment: .bottom
+            )
+            .offset(x: align == .leading ? -4 : 4)
+            .shadow(color: Color.black.opacity(0.28), radius: 14, x: 0, y: 8)
+            .allowsHitTesting(false)
+    }
+
+    private var topUtilityRow: some View {
+        HStack(spacing: 10) {
+            Text("Question \(clampedQuestionIndex + 1) / \(totalQuestions)")
+                .font(.system(size: layout.captionFontSize + 2, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.34), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+
+            Text("Professor New Class Quiz")
+                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                .foregroundColor(.white.opacity(0.86))
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.24), in: Capsule())
+
+            Spacer(minLength: 8)
+
+            if isTyping {
+                Button(action: onSkipTyping) {
+                    Label("Skip Text", systemImage: "forward.fill")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.white.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var centerQuizPanel: some View {
+        VStack(spacing: layout.isCompact ? 10 : 12) {
+            questionCard
+
+            VStack(spacing: 10) {
+                ForEach(currentQuestion.choices) { choice in
+                    optionButton(choice)
+                }
+            }
+
+            if canGoNext || canFinishQuiz {
+                Button {
+                    if canGoNext {
+                        goToNextQuestion()
+                    } else if canFinishQuiz {
+                        submitQuizIfNeeded()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(canFinishQuiz ? "Finish Quiz" : "Next Question")
+                        Image(systemName: canFinishQuiz ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                    }
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, layout.isCompact ? 11 : 13)
+                    .background(
+                        LinearGradient(
+                            colors: canFinishQuiz
+                                ? [Color.green.opacity(0.95), Color.mint.opacity(0.9)]
+                                : [Color.blue.opacity(0.95), Color.cyan.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(completionSubmitted)
+                .opacity(completionSubmitted ? 0.65 : 1)
+                .padding(.top, 2)
+            } else if isCompleted {
+                Text("Quiz complete. Read Professor New's feedback below, then continue.")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.76))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if completionSubmitted {
+                Text("Recording your quiz result...")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.76))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(maxWidth: centerPanelMaxWidth)
+        .padding(.top, 0)
+    }
+
+    private var questionCard: some View {
+        VStack(spacing: 8) {
+            Text("QUESTION")
+                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.75))
+                .tracking(0.8)
+
+            Text(currentQuestion.question)
+                .font(.system(size: layout.isCompact ? 15 : 18, weight: .medium, design: .rounded))
+                .foregroundColor(Color.black.opacity(0.88))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(4)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, layout.isCompact ? 14 : 18)
+        .padding(.vertical, layout.isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 3)
+    }
+
+    private func optionButton(_ choice: LectureQuizOption) -> some View {
+        let selectedID = selectedChoiceIDByQuestionID[currentQuestion.id]
+        let isSelected = selectedID == choice.id
+        let isDisabled = isTyping || isCompleted || selectedID != nil
+
+        return Button {
+            select(choice)
+        } label: {
+            Text(choice.text)
+                .font(.system(size: layout.isCompact ? 14 : 16, weight: .medium, design: .rounded))
+                .foregroundColor(Color.black.opacity(0.86))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 14)
+                .padding(.vertical, layout.isCompact ? 12 : 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isSelected ? Color.cyan.opacity(0.30) : Color.white.opacity(0.88))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(
+                                    isSelected ? Color.cyan.opacity(0.95) : Color.black.opacity(0.05),
+                                    lineWidth: isSelected ? 2 : 1
+                                )
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled && !isSelected ? 0.92 : 1)
+    }
+
+    private func bottomDialogPane(
+        name: String,
+        role: String,
+        text: String,
+        accent: Color,
+        alignTrailing: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if alignTrailing { Spacer(minLength: 0) }
+
+                Text(name)
+                    .font(.system(size: layout.isCompact ? 20 : 28, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text(role)
+                    .font(.system(size: layout.isCompact ? 12 : 15, weight: .bold, design: .rounded))
+                    .foregroundColor(accent)
+                    .lineLimit(1)
+
+                if !alignTrailing { Spacer(minLength: 0) }
+            }
+
+            Rectangle()
+                .fill(Color.white.opacity(0.74))
+                .frame(height: 1)
+
+            Text(text)
+                .font(.system(size: layout.isCompact ? 13 : 17, weight: .regular, design: .rounded))
+                .foregroundColor(.white.opacity(0.97))
+                .lineSpacing(layout.isCompact ? 3 : 5)
+                .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
+                .multilineTextAlignment(alignTrailing ? .trailing : .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(4)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.horizontal, layout.isCompact ? 12 : 16)
+        .padding(.top, layout.isCompact ? 10 : 12)
+        .padding(.bottom, layout.isCompact ? 8 : 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.black.opacity(0.18))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func select(_ choice: LectureQuizOption) {
+        guard !isTyping, !isCompleted else { return }
+        guard selectedChoiceIDByQuestionID[currentQuestion.id] == nil else { return }
+        selectedChoiceIDByQuestionID[currentQuestion.id] = choice.id
+    }
+
+    private func goToNextQuestion() {
+        guard canGoNext else { return }
+        currentQuestionIndex = min(currentQuestionIndex + 1, max(questions.count - 1, 0))
+    }
+
+    private func submitQuizIfNeeded() {
+        guard canFinishQuiz, !completionSubmitted else { return }
+        completionSubmitted = true
+
+        let questionSummaries: [String] = questions.enumerated().compactMap { (index, question) -> String? in
+            guard let selectedID = selectedChoiceIDByQuestionID[question.id],
+                  let selected = question.choices.first(where: { $0.id == selectedID }) else {
+                return nil
+            }
+
+            let bestChoice = question.choices.first(where: \.isBestAnswer)
+            let bestCallout = selected.isBestAnswer
+                ? "Best answer."
+                : "Best answer: \(bestChoice?.text ?? "Review the explanation")."
+
+            return "Q\(index + 1): \(selected.feedback) \(bestCallout)"
+        }
+
+        let summary =
+            "Professor New reviewed \(answeredCount)/\(totalQuestions) questions. " +
+            "Best answers: \(bestAnswerCount)/\(totalQuestions). " +
+            questionSummaries.joined(separator: " ") +
+            " \(quiz.summaryNote)"
+
         onComplete(summary)
     }
 }

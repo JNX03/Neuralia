@@ -180,3 +180,109 @@ private struct NeonRippleFX: View {
         }
     }
 }
+
+// MARK: - Shared Gesture + Overlay Host
+private struct PointerFXModifier: ViewModifier {
+    @State private var pointerLocation: CGPoint = .zero
+    @State private var pointerIsVisible: Bool = false
+    @State private var pointerIsDown: Bool = false
+    @State private var ripples: [PointerRipple] = []
+    @State private var trailPoints: [CGPoint] = []
+    @State private var pointerHideTask: Task<Void, Never>?
+    @State private var trailClearTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .overlay {
+                PointerFXOverlay(
+                    location: pointerLocation,
+                    isDown: pointerIsDown,
+                    isVisible: pointerIsVisible,
+                    ripples: ripples,
+                    trailPoints: trailPoints
+                )
+            }
+            .simultaneousGesture(pointerGesture)
+            .onDisappear {
+                pointerHideTask?.cancel()
+                trailClearTask?.cancel()
+                pointerHideTask = nil
+                trailClearTask = nil
+                pointerIsVisible = false
+                pointerIsDown = false
+                trailPoints.removeAll()
+            }
+    }
+
+    private var pointerGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { value in
+                pointerHideTask?.cancel()
+                trailClearTask?.cancel()
+
+                pointerIsVisible = true
+                pointerIsDown = true
+                pointerLocation = value.location
+
+                let p = value.location
+                if let last = trailPoints.last {
+                    let d = hypot(p.x - last.x, p.y - last.y)
+                    if d > 3.0 {
+                        trailPoints.append(p)
+                    }
+                } else {
+                    trailPoints = [p]
+                }
+
+                if trailPoints.count > 18 {
+                    trailPoints.removeFirst(trailPoints.count - 18)
+                }
+            }
+            .onEnded { value in
+                pointerLocation = value.location
+                pointerIsDown = false
+
+                let dist = hypot(value.translation.width, value.translation.height)
+                if dist < 16 {
+                    spawnRipple(at: value.location)
+                }
+
+                trailClearTask?.cancel()
+                trailClearTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 80_000_000)
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        trailPoints.removeAll()
+                    }
+                }
+
+                pointerHideTask?.cancel()
+                pointerHideTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 140_000_000)
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        pointerIsVisible = false
+                    }
+                }
+            }
+    }
+
+    private func spawnRipple(at point: CGPoint) {
+        if ripples.count > 18 {
+            ripples.removeFirst(ripples.count - 18)
+        }
+
+        let id = UUID()
+        ripples.append(PointerRipple(id: id, location: point))
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 950_000_000)
+            ripples.removeAll { $0.id == id }
+        }
+    }
+}
+
+extension View {
+    func neuraPointerFX() -> some View {
+        modifier(PointerFXModifier())
+    }
+}

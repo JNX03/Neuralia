@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct NeuraApp: App {
-    @StateObject private var globalSettings = GlobalSettingsStore()
+    @StateObject private var globalSettings = GlobalSettingsStore.shared
     
     var body: some Scene {
         WindowGroup {

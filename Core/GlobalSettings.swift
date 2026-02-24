@@ -2,12 +2,16 @@ import SwiftUI
 
 @MainActor
 final class GlobalSettingsStore: ObservableObject {
+    static let shared = GlobalSettingsStore()
+
     private enum Keys {
         static let reduceMotion = "globalSettings.reduceMotion"
         static let parallaxStrength = "globalSettings.parallaxStrength"
         static let menuOverlayOpacity = "globalSettings.menuOverlayOpacity"
         static let showStatusIndicator = "globalSettings.showStatusIndicator"
         static let showVersionLabel = "globalSettings.showVersionLabel"
+        static let masterVolume = "globalSettings.masterVolume"
+        static let speechEnabled = "globalSettings.speechEnabled"
     }
     
     private enum Defaults {
@@ -16,6 +20,8 @@ final class GlobalSettingsStore: ObservableObject {
         static let menuOverlayOpacity = 0.55
         static let showStatusIndicator = true
         static let showVersionLabel = true
+        static let masterVolume = 0.85
+        static let speechEnabled = true
     }
     
     private let userDefaults: UserDefaults
@@ -40,9 +46,23 @@ final class GlobalSettingsStore: ObservableObject {
     @Published var showVersionLabel: Bool = Defaults.showVersionLabel {
         didSet { persist(showVersionLabel, forKey: Keys.showVersionLabel) }
     }
+
+    @Published var masterVolume: Double = Defaults.masterVolume {
+        didSet { persist(masterVolume, forKey: Keys.masterVolume) }
+    }
+
+    @Published var speechEnabled: Bool = Defaults.speechEnabled {
+        didSet { persist(speechEnabled, forKey: Keys.speechEnabled) }
+    }
     
     var effectiveParallaxStrength: CGFloat {
         reduceMotion ? 0 : CGFloat(parallaxStrength)
+    }
+
+    var effectiveSpeechVolume: Float {
+        guard speechEnabled else { return 0 }
+        let clamped = min(max(masterVolume, 0), 1)
+        return Float(clamped)
     }
     
     init(userDefaults: UserDefaults = .standard) {
@@ -56,6 +76,8 @@ final class GlobalSettingsStore: ObservableObject {
         menuOverlayOpacity = Defaults.menuOverlayOpacity
         showStatusIndicator = Defaults.showStatusIndicator
         showVersionLabel = Defaults.showVersionLabel
+        masterVolume = Defaults.masterVolume
+        speechEnabled = Defaults.speechEnabled
     }
     
     private func load() {
@@ -76,6 +98,12 @@ final class GlobalSettingsStore: ObservableObject {
         if userDefaults.object(forKey: Keys.showVersionLabel) != nil {
             showVersionLabel = userDefaults.bool(forKey: Keys.showVersionLabel)
         }
+        if userDefaults.object(forKey: Keys.masterVolume) != nil {
+            masterVolume = userDefaults.double(forKey: Keys.masterVolume)
+        }
+        if userDefaults.object(forKey: Keys.speechEnabled) != nil {
+            speechEnabled = userDefaults.bool(forKey: Keys.speechEnabled)
+        }
         
         if !parallaxStrength.isFinite {
             parallaxStrength = Defaults.parallaxStrength
@@ -83,9 +111,13 @@ final class GlobalSettingsStore: ObservableObject {
         if !menuOverlayOpacity.isFinite {
             menuOverlayOpacity = Defaults.menuOverlayOpacity
         }
-        
+        if !masterVolume.isFinite {
+            masterVolume = Defaults.masterVolume
+        }
+
         parallaxStrength = min(max(parallaxStrength, 0), 1)
         menuOverlayOpacity = min(max(menuOverlayOpacity, 0.35), 0.8)
+        masterVolume = min(max(masterVolume, 0), 1)
         
         isLoading = false
     }

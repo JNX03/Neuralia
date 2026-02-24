@@ -71,38 +71,172 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Multiple choice / ethics check",
             inlineActivity: .lectureQuiz(
                 LectureQuizMiniGame(
-                    title: "Professor New's Lecture Question",
-                    question: "A classmate uses AI to answer a health question, then wants to post the result in the class group. What should they do first?",
-                    exampleImageName: "placeholder",
-                    exampleCaption: "Placeholder lecture slide image (replace with your real classroom example image later).",
-                    choices: [
-                        LectureQuizOption(
-                            id: "verify",
-                            text: "Check trustworthy sources (or a teacher/doctor) before sharing",
-                            feedback: "Strong choice. High-stakes topics need verification before sharing because AI can sound certain and still be wrong.",
-                            isBestAnswer: true,
-                            icon: "checkmark.shield.fill"
+                    title: "Professor New's Ethics Challenge",
+                    questions: [
+                        LectureQuizQuestion(
+                            id: "health_share",
+                            question: "A classmate uses AI to answer a health question and wants to share it in the class group. What should happen first?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "health_verify",
+                                    text: "Check trusted sources or ask a teacher/doctor before sharing",
+                                    feedback: "Professor New: Correct. Health information can cause harm if it is wrong, so verification must come before sharing.",
+                                    isBestAnswer: true,
+                                    icon: "checkmark.shield.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "health_share_now",
+                                    text: "Post it first, then correct it later if needed",
+                                    feedback: "Professor New: Risky choice. Wrong health advice can spread faster than the correction.",
+                                    icon: "arrowshape.turn.up.right.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "health_confident",
+                                    text: "Trust it because the answer sounds confident and professional",
+                                    feedback: "Professor New: Confidence is not proof. AI writing style can sound expert even when facts are wrong.",
+                                    icon: "exclamationmark.triangle.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "health_more_confident",
+                                    text: "Ask AI to sound more confident so people believe it",
+                                    feedback: "Professor New: That changes tone, not truth. Reliability comes from evidence, not stronger wording.",
+                                    icon: "sparkles"
+                                )
+                            ]
                         ),
-                        LectureQuizOption(
-                            id: "share_first",
-                            text: "Share it first, then fix it later if someone complains",
-                            feedback: "This is risky because wrong information can spread quickly before corrections reach everyone.",
-                            icon: "arrowshape.turn.up.right.fill"
+                        LectureQuizQuestion(
+                            id: "prompt_clarity",
+                            question: "You ask AI for homework help and get a confusing answer. What is the best next step?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "prompt_clearer",
+                                    text: "Rewrite your prompt with a clear goal, context, and format",
+                                    feedback: "Professor New: Excellent. Better prompts make answers easier to evaluate and improve.",
+                                    isBestAnswer: true,
+                                    icon: "text.alignleft"
+                                ),
+                                LectureQuizOption(
+                                    id: "prompt_copy",
+                                    text: "Copy the answer anyway because it is faster",
+                                    feedback: "Professor New: Not a good habit. You may submit errors and skip the learning process.",
+                                    icon: "doc.on.doc.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "prompt_random",
+                                    text: "Ask the same question many times and choose any answer you like",
+                                    feedback: "Professor New: Repeating without checking can create false confidence. You still need to evaluate the result.",
+                                    icon: "shuffle"
+                                ),
+                                LectureQuizOption(
+                                    id: "prompt_blame_ai",
+                                    text: "Assume AI is bad and stop checking your own prompt",
+                                    feedback: "Professor New: AI can fail, but user input matters too. Improve the prompt, then verify the answer.",
+                                    icon: "xmark.circle.fill"
+                                )
+                            ]
                         ),
-                        LectureQuizOption(
-                            id: "trust_confident",
-                            text: "Trust it if the answer sounds professional and confident",
-                            feedback: "Confidence is style, not evidence. AI can produce polished answers that still contain mistakes.",
-                            icon: "exclamationmark.triangle.fill"
+                        LectureQuizQuestion(
+                            id: "privacy_photo",
+                            question: "A student wants AI to summarize a photo of a score sheet that shows classmates' names. What should they do?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "privacy_hide",
+                                    text: "Hide or remove personal data before using the image",
+                                    feedback: "Professor New: Correct. Protect privacy first, especially names, scores, and identifying details.",
+                                    isBestAnswer: true,
+                                    icon: "eye.slash.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "privacy_upload_all",
+                                    text: "Upload the full image because the AI probably will not care",
+                                    feedback: "Professor New: Privacy is still your responsibility. 'Probably' is not a safe policy.",
+                                    icon: "icloud.and.arrow.up.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "privacy_crop_later",
+                                    text: "Upload now, crop later only if someone complains",
+                                    feedback: "Professor New: Too late. Once shared, private data may already be exposed.",
+                                    icon: "scissors"
+                                ),
+                                LectureQuizOption(
+                                    id: "privacy_blur_small",
+                                    text: "Blur only one name and leave the rest visible",
+                                    feedback: "Professor New: Partial protection is not enough if other classmates can still be identified.",
+                                    icon: "person.crop.square"
+                                )
+                            ]
                         ),
-                        LectureQuizOption(
-                            id: "ask_more_confident",
-                            text: "Ask AI to sound more confident so the answer seems reliable",
-                            feedback: "This improves tone, not truth. Reliability comes from checking sources and context, not stronger wording.",
-                            icon: "sparkles"
+                        LectureQuizQuestion(
+                            id: "bias_stereotype",
+                            question: "AI generates an example that stereotypes a group of people. What is the best response?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "bias_revise",
+                                    text: "Stop and revise the prompt/output to remove bias and add fairness",
+                                    feedback: "Professor New: Best response. Notice the bias, correct it, and choose a fairer example.",
+                                    isBestAnswer: true,
+                                    icon: "person.2.crop.square.stack.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "bias_joke",
+                                    text: "Keep it because it is just a joke example",
+                                    feedback: "Professor New: Harm can still happen through 'jokes.' Classroom examples shape attitudes.",
+                                    icon: "face.smiling"
+                                ),
+                                LectureQuizOption(
+                                    id: "bias_ignore",
+                                    text: "Ignore the bias because AI made it, not you",
+                                    feedback: "Professor New: If you use the output, you share responsibility for what it communicates.",
+                                    icon: "hand.raised.slash.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "bias_hide_source",
+                                    text: "Use it but avoid saying AI created it",
+                                    feedback: "Professor New: Hiding the source does not fix the bias. The content still harms understanding.",
+                                    icon: "eye.trianglebadge.exclamationmark"
+                                )
+                            ]
+                        ),
+                        LectureQuizQuestion(
+                            id: "uncertainty_verify",
+                            question: "AI gives a citation that looks real, but you cannot find it. What should you do?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "cite_verify",
+                                    text: "Check the citation and ask for a corrected source or use a verified source yourself",
+                                    feedback: "Professor New: Correct. Verify citations directly. AI can invent references that look believable.",
+                                    isBestAnswer: true,
+                                    icon: "magnifyingglass.circle.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "cite_keep",
+                                    text: "Keep it because the formatting looks academic",
+                                    feedback: "Professor New: Formatting can be fake. A polished citation is still untrustworthy if you cannot confirm it.",
+                                    icon: "doc.text.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "cite_remove",
+                                    text: "Delete the citation and keep the claim anyway",
+                                    feedback: "Professor New: Removing the citation does not solve the evidence problem. The claim still needs support.",
+                                    icon: "trash.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "cite_more",
+                                    text: "Ask AI for three more citations and trust whichever sounds best",
+                                    feedback: "Professor New: More guesses are not verification. You need sources you can actually confirm.",
+                                    icon: "list.bullet.rectangle.portrait"
+                                )
+                            ]
                         )
                     ],
-                    summaryNote: "Professor New's point: verify important information, especially health, safety, money, and legal topics."
+                    summaryNote: "Professor New's point: use clear prompts, protect privacy, watch for bias, and verify important claims before using or sharing AI output.",
+                    teacherName: "Professor New",
+                    teacherRole: "Teacher",
+                    teacherImageName: "teachernew",
+                    studentName: "You",
+                    studentRole: "Student",
+                    studentImageName: "char",
+                    usesClassroomStageLayout: true
                 )
             )
         ),

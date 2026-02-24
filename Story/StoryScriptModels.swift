@@ -127,14 +127,44 @@ struct LectureQuizOption: Identifiable, Sendable {
     }
 }
 
+struct LectureQuizQuestion: Identifiable, Sendable {
+    let id: String
+    let question: String
+    let choices: [LectureQuizOption]
+
+    init(
+        id: String,
+        question: String,
+        choices: [LectureQuizOption]
+    ) {
+        self.id = id
+        self.question = question
+        self.choices = choices
+    }
+}
+
 struct LectureQuizMiniGame: Sendable {
     let title: String
-    let question: String
     let promptLabel: String
     let exampleImageName: String?
     let exampleCaption: String?
-    let choices: [LectureQuizOption]
+    let questions: [LectureQuizQuestion]
     let summaryNote: String
+    let teacherName: String
+    let teacherRole: String?
+    let teacherImageName: String?
+    let studentName: String
+    let studentRole: String?
+    let studentImageName: String?
+    let usesClassroomStageLayout: Bool
+
+    var question: String {
+        questions.first?.question ?? ""
+    }
+
+    var choices: [LectureQuizOption] {
+        questions.first?.choices ?? []
+    }
 
     init(
         title: String,
@@ -143,15 +173,64 @@ struct LectureQuizMiniGame: Sendable {
         exampleImageName: String? = nil,
         exampleCaption: String? = nil,
         choices: [LectureQuizOption],
-        summaryNote: String
+        summaryNote: String,
+        teacherName: String = "Professor New",
+        teacherRole: String? = "Teacher",
+        teacherImageName: String? = nil,
+        studentName: String = "You",
+        studentRole: String? = "Student",
+        studentImageName: String? = nil,
+        usesClassroomStageLayout: Bool = false
     ) {
         self.title = title
-        self.question = question
         self.promptLabel = promptLabel
         self.exampleImageName = exampleImageName
         self.exampleCaption = exampleCaption
-        self.choices = choices
+        self.questions = [
+            LectureQuizQuestion(
+                id: "q1",
+                question: question,
+                choices: choices
+            )
+        ]
         self.summaryNote = summaryNote
+        self.teacherName = teacherName
+        self.teacherRole = teacherRole
+        self.teacherImageName = teacherImageName
+        self.studentName = studentName
+        self.studentRole = studentRole
+        self.studentImageName = studentImageName
+        self.usesClassroomStageLayout = usesClassroomStageLayout
+    }
+
+    init(
+        title: String,
+        questions: [LectureQuizQuestion],
+        promptLabel: String = "Professor New asks:",
+        exampleImageName: String? = nil,
+        exampleCaption: String? = nil,
+        summaryNote: String,
+        teacherName: String = "Professor New",
+        teacherRole: String? = "Teacher",
+        teacherImageName: String? = nil,
+        studentName: String = "You",
+        studentRole: String? = "Student",
+        studentImageName: String? = nil,
+        usesClassroomStageLayout: Bool = false
+    ) {
+        self.title = title
+        self.promptLabel = promptLabel
+        self.exampleImageName = exampleImageName
+        self.exampleCaption = exampleCaption
+        self.questions = questions
+        self.summaryNote = summaryNote
+        self.teacherName = teacherName
+        self.teacherRole = teacherRole
+        self.teacherImageName = teacherImageName
+        self.studentName = studentName
+        self.studentRole = studentRole
+        self.studentImageName = studentImageName
+        self.usesClassroomStageLayout = usesClassroomStageLayout
     }
 }
 
