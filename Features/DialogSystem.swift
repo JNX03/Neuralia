@@ -1568,12 +1568,13 @@ struct ResponsiveDialogView: View {
 
             if let splitShowcase {
                 HStack(alignment: .center, spacing: layout.elementSpacing) {
-                    Spacer(minLength: layout.isCompact ? 0 : max(8, layout.elementSpacing))
+                    Spacer(minLength: splitShowcase.animatesShake ? 0 : (layout.isCompact ? 0 : max(8, layout.elementSpacing)))
 
                     DialogShowcaseCard(showcase: splitShowcase, layout: layout)
-                        .frame(width: clockSplitShowcaseWidth(for: layout))
+                        .frame(width: splitShowcaseWidth(for: splitShowcase, layout: layout))
                         .padding(.trailing, layout.isCompact ? 4 : 10)
                         .padding(.bottom, layout.isCompact ? 8 : 18)
+                        .offset(x: splitShowcaseHorizontalOffset(for: splitShowcase, layout: layout))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -1595,6 +1596,36 @@ struct ResponsiveDialogView: View {
             return min(layout.width * 0.28, 300)
         default:
             return min(layout.width * 0.24, 340)
+        }
+    }
+
+    private func splitShowcaseWidth(for showcase: DialogShowcaseMedia, layout: DialogAdaptiveLayout) -> CGFloat {
+        if showcase.animatesShake {
+            switch true {
+            case layout.isCompact:
+                return min(layout.width * 0.70, 300)
+            case layout.isRegular:
+                return min(layout.width * 0.54, 390)
+            case layout.isLarge:
+                return min(layout.width * 0.46, 500)
+            default:
+                return min(layout.width * 0.42, 620)
+            }
+        }
+        return clockSplitShowcaseWidth(for: layout)
+    }
+
+    private func splitShowcaseHorizontalOffset(for showcase: DialogShowcaseMedia, layout: DialogAdaptiveLayout) -> CGFloat {
+        guard showcase.animatesShake else { return 0 }
+        switch true {
+        case layout.isCompact:
+            return -24
+        case layout.isRegular:
+            return -48
+        case layout.isLarge:
+            return -86
+        default:
+            return -120
         }
     }
     
@@ -6338,6 +6369,10 @@ struct DialogShowcaseCard: View {
     }
 
     private var imageShowcasePanel: some View {
+        let panelHeight = showcase.animatesShake
+            ? (layout.isCompact ? 190.0 : 255.0)
+            : (layout.isCompact ? 140.0 : 180.0)
+
         ZStack(alignment: .topLeading) {
             Group {
                 if showcase.imageName == "__clock_placeholder__" {
@@ -6350,7 +6385,7 @@ struct DialogShowcaseCard: View {
             }
             .offset(x: showcase.animatesShake ? showcaseShakeOffset : 0)
             .rotationEffect(.degrees(showcase.animatesShake ? showcaseShakeRotation : 0))
-            .frame(height: layout.isCompact ? 140 : 180)
+            .frame(height: panelHeight)
             .frame(maxWidth: .infinity)
             .clipped()
             .overlay(

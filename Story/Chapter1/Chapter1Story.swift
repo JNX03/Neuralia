@@ -412,7 +412,7 @@ let chapterOneStory = StoryChapter(
             text: "Hi!?!",
             emotion: .excited,
             backgroundImage: "aicomeroom",
-            characterImage: "char_excited",
+            characterImage: "__none__",
             cutsceneTitle: "AI In The Room",
             cutsceneSubtitle: "A voice appears outside the phone"
         ),
@@ -421,7 +421,7 @@ let chapterOneStory = StoryChapter(
             text: "Whattttt just happened?!",
             emotion: .surprised,
             backgroundImage: "aicomeroom",
-            characterImage: "char_surprised",
+            characterImage: "unknow",
             cutsceneTitle: "Chapter 1 Cliffhanger",
             cutsceneSubtitle: "Something impossible just happened"
         )
