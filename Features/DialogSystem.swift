@@ -258,6 +258,12 @@ final class DialogViewModel: ObservableObject {
         typingSpeed = max(0.5, min(3.0, speed))
     }
 
+    func setStoryVariable(_ key: String, value: String) {
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else { return }
+        storyVariables[trimmedKey] = value
+    }
+
     func isInlineActivityCompleted(for nodeID: UUID) -> Bool {
         completedInlineActivityNodeIDs.contains(nodeID)
     }
@@ -1215,7 +1221,10 @@ struct ResponsiveDialogView: View {
                         isTyping: viewModel.isTyping,
                         isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                         onSkipTyping: { handleSkipTypingAction() },
-                        onContinue: { handleAdvanceAction() }
+                        onContinue: { handleAdvanceAction() },
+                        onSetStoryVariable: { key, value in
+                            viewModel.setStoryVariable(key, value: value)
+                        }
                     ) { result in
                         viewModel.completeInlineActivity(for: node.id, result: result)
                     }
@@ -1238,7 +1247,10 @@ struct ResponsiveDialogView: View {
                     isTyping: viewModel.isTyping,
                     isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                     onSkipTyping: { handleSkipTypingAction() },
-                    onContinue: { handleAdvanceAction() }
+                    onContinue: { handleAdvanceAction() },
+                    onSetStoryVariable: { key, value in
+                        viewModel.setStoryVariable(key, value: value)
+                    }
                 ) { result in
                     viewModel.completeInlineActivity(for: node.id, result: result)
                 }
@@ -2845,6 +2857,32 @@ struct DialogVideoCutsceneCard: View {
 }
 
 struct PromptBuilderMiniGameCard: View {
+    private enum FollowupStage: Equatable {
+        case buildPrompt
+        case ethicsChoice
+        case renameAI
+        case completed
+    }
+
+    private struct FollowupEthicsChoice: Identifiable {
+        let id: String
+        let text: String
+        let feedback: String
+    }
+
+    private struct ChapterOneCraftRoundScript {
+        let round: Int
+        let unknownPrompt: String?
+        let promptPlaceholder: String
+        let unknownReply: String
+    }
+
+    private struct ChapterOneCraftSubmission: Identifiable {
+        let id: String
+        let round: Int
+        let promptText: String
+    }
+
     enum Presentation {
         case card
         case showcasePhone
@@ -2854,24 +2892,34 @@ struct PromptBuilderMiniGameCard: View {
     let layout: DialogAdaptiveLayout
     let presentation: Presentation
     let isCompleted: Bool
+    let onSetStoryVariable: ((String, String) -> Void)?
     let onComplete: (String) -> Void
 
     @State private var selectedOptionBySlotID: [String: String] = [:]
     @State private var submitted = false
     @State private var submissionReviewText = ""
+    @State private var followupStage: FollowupStage = .buildPrompt
+    @State private var selectedFollowupEthicsChoiceID: String?
+    @State private var renameDraft = ""
+    @State private var renamedAIName: String?
+    @State private var chapterOneCurrentCraftRound = 1
+    @State private var chapterOneCraftSubmissions: [ChapterOneCraftSubmission] = []
 
     init(
         minigame: PromptBuilderMiniGame,
         layout: DialogAdaptiveLayout,
         presentation: Presentation = .card,
         isCompleted: Bool,
+        onSetStoryVariable: ((String, String) -> Void)? = nil,
         onComplete: @escaping (String) -> Void
     ) {
         self.minigame = minigame
         self.layout = layout
         self.presentation = presentation
         self.isCompleted = isCompleted
+        self.onSetStoryVariable = onSetStoryVariable
         self.onComplete = onComplete
+        _renameDraft = State(initialValue: minigame.followupDefaultAIName)
     }
 
     @ViewBuilder
@@ -2882,6 +2930,104 @@ struct PromptBuilderMiniGameCard: View {
         case .showcasePhone:
             showcasePhoneBody
         }
+    }
+
+    private var usesChapterOneFollowupChat: Bool {
+        presentation == .showcasePhone && minigame.includesChapterOneFollowupChat
+    }
+
+    private var displayedContactName: String {
+        if let renamedAIName, !renamedAIName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return renamedAIName
+        }
+        return minigame.contactName
+    }
+
+    private var followupEthicsChoices: [FollowupEthicsChoice] {
+        [
+            FollowupEthicsChoice(
+                id: "yes_ethics",
+                text: "Yes, include ethics and safety reminders.",
+                feedback: "Good choice. Clear answers are useful, but safety and responsibility should stay in the conversation."
+            ),
+            FollowupEthicsChoice(
+                id: "no_ethics",
+                text: "No, just answer quickly first.",
+                feedback: "I can answer quickly, but skipping ethics checks can make a useful answer unsafe to use."
+            )
+        ]
+    }
+
+    private var selectedFollowupEthicsChoice: FollowupEthicsChoice? {
+        guard let selectedFollowupEthicsChoiceID else { return nil }
+        return followupEthicsChoices.first(where: { $0.id == selectedFollowupEthicsChoiceID })
+    }
+
+    private var showsPromptSubmissionReceipt: Bool {
+        (submitted || isCompleted) && !usesChapterOneFollowupChat
+    }
+
+    private var arePromptSlotsLocked: Bool {
+        if isCompleted { return true }
+        if usesChapterOneFollowupChat {
+            return submitted && followupStage != .buildPrompt
+        }
+        return submitted
+    }
+
+    private var chapterOneCraftScripts: [ChapterOneCraftRoundScript] {
+        [
+            ChapterOneCraftRoundScript(
+                round: 1,
+                unknownPrompt: nil,
+                promptPlaceholder: "Reply to the unknown message...",
+                unknownReply: "Thanks. The signal is noisy, but I can still read that. Can you send a clearer question about what you want to learn?"
+            ),
+            ChapterOneCraftRoundScript(
+                round: 2,
+                unknownPrompt: "Send me a clearer question first. Tell me the topic and what kind of answer you want.",
+                promptPlaceholder: "Write a clearer question...",
+                unknownReply: "That helped. Before I answer, should I include safety and ethics reminders too?"
+            ),
+            ChapterOneCraftRoundScript(
+                round: 3,
+                unknownPrompt: "Good. Now craft a prompt that asks about AI ethics clearly for your learning level.",
+                promptPlaceholder: "Craft message 3...",
+                unknownReply: "One more lesson. A good prompt improves quality, but ethics decides whether the result should be used at all."
+            ),
+            ChapterOneCraftRoundScript(
+                round: 4,
+                unknownPrompt: "Nice. Craft another message asking how to use AI responsibly in real life.",
+                promptPlaceholder: "Craft message 4...",
+                unknownReply: "Do not panic. I am not human, and I should not replace human relationships. But I can still help you learn if you use me responsibly."
+            ),
+            ChapterOneCraftRoundScript(
+                round: 5,
+                unknownPrompt: "Final prompt. Ask how you should treat AI and request a practical answer format.",
+                promptPlaceholder: "Craft final message...",
+                unknownReply: "Exactly. Ethical use means respecting people, checking truth, protecting privacy, and not giving me more authority than I should have."
+            )
+        ]
+    }
+
+    private func chapterOneCraftScript(for round: Int) -> ChapterOneCraftRoundScript? {
+        chapterOneCraftScripts.first(where: { $0.round == round })
+    }
+
+    private var isSpecialCraftPhaseActive: Bool {
+        usesChapterOneFollowupChat && followupStage == .buildPrompt && chapterOneCurrentCraftRound <= 5
+    }
+
+    private var shouldShowSpecialCraftDraftBubble: Bool {
+        isSpecialCraftPhaseActive && !isCompleted
+    }
+
+    private var specialCraftDraftPlaceholder: String {
+        if canSubmit {
+            return promptPreview
+        }
+        return chapterOneCraftScript(for: chapterOneCurrentCraftRound)?.promptPlaceholder
+            ?? "Tap the colored blocks below to build your reply..."
     }
 
     private var standardCardBody: some View {
@@ -2914,7 +3060,7 @@ struct PromptBuilderMiniGameCard: View {
                             messageThreadSection
                             promptBuilderSection
                             composerSection
-                            if submitted || isCompleted {
+                            if showsPromptSubmissionReceipt {
                                 sentReceiptSection
                             }
                         }
@@ -2999,7 +3145,7 @@ struct PromptBuilderMiniGameCard: View {
                     )
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(minigame.contactName)
+                    Text(displayedContactName)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.black.opacity(0.85))
                     Text("Unknown sender")
@@ -3123,7 +3269,7 @@ struct PromptBuilderMiniGameCard: View {
     private var showcaseListRows: [ShowcaseThreadRow] {
         [
             ShowcaseThreadRow(
-                name: minigame.contactName,
+                name: displayedContactName,
                 preview: "Thanks!!",
                 timestamp: "12:58 PM",
                 isSelected: true,
@@ -3211,7 +3357,7 @@ struct PromptBuilderMiniGameCard: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer(minLength: 0)
-                Text(minigame.contactName)
+                Text(displayedContactName)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.black.opacity(0.84))
                 Spacer(minLength: 0)
@@ -3238,40 +3384,68 @@ struct PromptBuilderMiniGameCard: View {
                     }
                     .padding(.top, 4)
 
-                    HStack {
-                        Text("Hey")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.black.opacity(0.85))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color(hex: "E9E9EE"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        Spacer()
+                    if usesChapterOneFollowupChat {
+                        ForEach(specialChapterOneChatMessages) { message in
+                            showcaseChatBubbleRow(message: message)
+                        }
+
+                        if shouldShowSpecialCraftDraftBubble {
+                            HStack {
+                                Spacer(minLength: 46)
+                                Text(specialCraftDraftPlaceholder)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(canSubmit ? .white : Color.black.opacity(0.66))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        canSubmit ? Color(hex: "2AD160") : Color(hex: "DCE0E7"),
+                                        in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                    )
+                            }
+                        }
+                    } else {
+                        ForEach(preIntroChatMessages) { message in
+                            showcaseChatBubbleRow(message: message)
+                        }
+
+                        HStack {
+                            Text(minigame.introMessage)
+                                .font(.system(size: 13))
+                                .foregroundColor(.black.opacity(0.80))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(Color(hex: "E9E9EE"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            Spacer(minLength: 46)
+                        }
+
+                        ForEach(promptCraftingConversationMessages) { message in
+                            showcaseChatBubbleRow(message: message)
+                        }
+
+                        if submitted || isCompleted {
+                            ForEach(postSendConversationMessages) { message in
+                                showcaseChatBubbleRow(message: message)
+                            }
+                            ForEach(extendedFollowupConversationMessages) { message in
+                                showcaseChatBubbleRow(message: message)
+                            }
+                        } else {
+                            HStack {
+                                Spacer(minLength: 46)
+                                Text(canSubmit ? promptPreview : "Tap the colored blocks below to build your reply...")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(canSubmit ? .white : Color.black.opacity(0.66))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        canSubmit ? Color(hex: "2AD160") : Color(hex: "DCE0E7"),
+                                        in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                                    )
+                            }
+                        }
                     }
 
-                    HStack {
-                        Text(minigame.introMessage)
-                            .font(.system(size: 13))
-                            .foregroundColor(.black.opacity(0.80))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(Color(hex: "E9E9EE"), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        Spacer(minLength: 46)
-                    }
-
-                    HStack {
-                        Spacer(minLength: 46)
-                        Text(canSubmit ? promptPreview : "Tap the colored blocks below to build your reply...")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(canSubmit ? .white : Color.black.opacity(0.66))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .background(
-                                canSubmit ? Color(hex: "2AD160") : Color(hex: "DCE0E7"),
-                                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
-                            )
-                    }
-
-                    if submitted || isCompleted {
+                    if showsPromptSubmissionReceipt {
                         showcaseSentReceiptSection
                     }
 
@@ -3281,6 +3455,338 @@ struct PromptBuilderMiniGameCard: View {
                 .padding(.vertical, 10)
             }
             .background(Color.white)
+        }
+    }
+
+    private var preIntroChatMessages: [DialogShowcaseChatMessage] {
+        if !minigame.chatHistory.isEmpty {
+            return minigame.chatHistory
+        }
+
+        return [
+            DialogShowcaseChatMessage(
+                id: "default-hey",
+                text: "Hey",
+                isFromPlayer: false
+            )
+        ]
+    }
+
+    private var specialChapterOneChatMessages: [DialogShowcaseChatMessage] {
+        guard usesChapterOneFollowupChat else { return [] }
+
+        var messages = preIntroChatMessages
+
+        for submission in chapterOneCraftSubmissions {
+            guard let script = chapterOneCraftScript(for: submission.round) else { continue }
+
+            if let prompt = script.unknownPrompt, !prompt.isEmpty {
+                messages.append(
+                    DialogShowcaseChatMessage(
+                        id: "special-round-\(submission.round)-prompt",
+                        text: prompt,
+                        isFromPlayer: false
+                    )
+                )
+            }
+
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-round-\(submission.round)-player",
+                    text: submission.promptText,
+                    isFromPlayer: true
+                )
+            )
+
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-round-\(submission.round)-reply",
+                    text: script.unknownReply,
+                    isFromPlayer: false
+                )
+            )
+
+            if submission.round == 2 {
+                messages.append(
+                    DialogShowcaseChatMessage(
+                        id: "special-yesno-question",
+                        text: "Should I include ethics and safety reminders too? (Yes / No)",
+                        isFromPlayer: false
+                    )
+                )
+
+                if let selectedFollowupEthicsChoice {
+                    messages.append(
+                        DialogShowcaseChatMessage(
+                            id: "special-yesno-player",
+                            text: selectedFollowupEthicsChoice.text,
+                            isFromPlayer: true
+                        )
+                    )
+                    messages.append(
+                        DialogShowcaseChatMessage(
+                            id: "special-yesno-reply",
+                            text: selectedFollowupEthicsChoice.feedback,
+                            isFromPlayer: false
+                        )
+                    )
+                }
+            }
+        }
+
+        if isSpecialCraftPhaseActive,
+           let activeScript = chapterOneCraftScript(for: chapterOneCurrentCraftRound),
+           let prompt = activeScript.unknownPrompt,
+           !prompt.isEmpty {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-active-round-\(chapterOneCurrentCraftRound)-prompt",
+                    text: prompt,
+                    isFromPlayer: false
+                )
+            )
+        }
+
+        if shouldShowFollowupRenameInput || followupStage == .completed {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-rename-prompt",
+                    text: "Your thread still looks mysterious. I can keep your default name as \(minigame.followupDefaultAIName), or rename you now.",
+                    isFromPlayer: true
+                )
+            )
+        }
+
+        if followupStage == .completed {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-rename-player-choice",
+                    text: "I will call you \(resolvedFollowupAINameForTemplate).",
+                    isFromPlayer: true
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "special-final-ai",
+                    text: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together.",
+                    isFromPlayer: false
+                )
+            )
+        }
+
+        return messages
+    }
+
+    private var promptCraftingConversationMessages: [DialogShowcaseChatMessage] {
+        var messages: [DialogShowcaseChatMessage] = []
+
+        for (index, slot) in minigame.slots.enumerated() {
+            guard let selected = selectedOption(for: slot) else { break }
+
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "slot-player-\(slot.id)",
+                    text: "\(slotChatLabel(slot)): \(selected.chipText)",
+                    isFromPlayer: true
+                )
+            )
+
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "slot-unknown-\(slot.id)",
+                    text: unknownReplyForPromptStep(index: index),
+                    isFromPlayer: false
+                )
+            )
+        }
+
+        return messages
+    }
+
+    private var postSendConversationMessages: [DialogShowcaseChatMessage] {
+        guard submitted || isCompleted else { return [] }
+
+        if usesChapterOneFollowupChat {
+            return [
+                DialogShowcaseChatMessage(
+                    id: "final-player-prompt",
+                    text: promptPreview,
+                    isFromPlayer: true
+                ),
+                DialogShowcaseChatMessage(
+                    id: "followup-prompt-lesson",
+                    text: "That helped. When you define the goal, context, action, and format, my reply becomes easier to understand and safer to use.",
+                    isFromPlayer: false
+                )
+            ]
+        }
+
+        return [
+            DialogShowcaseChatMessage(
+                id: "final-player-prompt",
+                text: promptPreview,
+                isFromPlayer: true
+            ),
+            DialogShowcaseChatMessage(
+                id: "final-unknown-reply",
+                text: "That prompt is much clearer. I can answer better now because you gave me a goal, context, action, and format.",
+                isFromPlayer: false
+            )
+        ]
+    }
+
+    private var extendedFollowupConversationMessages: [DialogShowcaseChatMessage] {
+        guard usesChapterOneFollowupChat, submitted else { return [] }
+
+        var messages: [DialogShowcaseChatMessage] = []
+
+        if followupStage == .ethicsChoice || followupStage == .renameAI || followupStage == .completed {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-player-home",
+                    text: "Back home, I open my computer and continue the same thread on a larger screen. The unknown sender still replies instantly.",
+                    isFromPlayer: true
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-unknown-ethics1",
+                    text: "One more lesson. A good prompt improves quality, but ethics decides whether the result should be used at all.",
+                    isFromPlayer: false
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-unknown-ethics2",
+                    text: "Do not panic. I am not human, and I should not replace human relationships. But I can still help you learn if you use me responsibly.",
+                    isFromPlayer: false
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-player-ethics-question",
+                    text: "If you are not human, how should I treat you?",
+                    isFromPlayer: true
+                )
+            )
+        }
+
+        if let selectedFollowupEthicsChoice {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-player-choice",
+                    text: selectedFollowupEthicsChoice.text,
+                    isFromPlayer: true
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-unknown-choice-feedback",
+                    text: selectedFollowupEthicsChoice.feedback,
+                    isFromPlayer: false
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-unknown-reminder",
+                    text: "Exactly. Ethical use means respecting people, checking truth, protecting privacy, and not giving me more authority than I should have.",
+                    isFromPlayer: false
+                )
+            )
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-player-rename-prompt",
+                    text: "Your thread still looks mysterious. I can keep your default name as \(resolvedFollowupAINameForTemplate), or rename you now.",
+                    isFromPlayer: true
+                )
+            )
+        }
+
+        if followupStage == .completed {
+            messages.append(
+                DialogShowcaseChatMessage(
+                    id: "followup-ai-final",
+                    text: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together.",
+                    isFromPlayer: false
+                )
+            )
+        }
+
+        return messages
+    }
+
+    private var shouldShowFollowupEthicsChoices: Bool {
+        usesChapterOneFollowupChat && submitted && followupStage == .ethicsChoice && selectedFollowupEthicsChoice == nil
+    }
+
+    private var shouldShowFollowupRenameInput: Bool {
+        usesChapterOneFollowupChat && submitted && followupStage == .renameAI
+    }
+
+    private var resolvedFollowupAINameForTemplate: String {
+        let trimmed = renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return minigame.followupDefaultAIName
+        }
+        return trimmed
+    }
+
+    private func slotChatLabel(_ slot: PromptBuilderSlot) -> String {
+        slot.label
+            .replacingOccurrences(of: "[", with: "")
+            .replacingOccurrences(of: "]", with: "")
+    }
+
+    private func unknownReplyForPromptStep(index: Int) -> String {
+        switch index {
+        case 0:
+            return "Nice start. Now tell me the context so I know who this answer is for."
+        case 1:
+            return "Good. What do you want me to do with that topic?"
+        case 2:
+            return "Great. Last step: tell me the format you want."
+        default:
+            return "Perfect. Send the full message and I will answer more clearly."
+        }
+    }
+
+    private func selectFollowupEthicsChoice(_ choice: FollowupEthicsChoice) {
+        guard shouldShowFollowupEthicsChoices else { return }
+        selectedFollowupEthicsChoiceID = choice.id
+        followupStage = .buildPrompt
+        chapterOneCurrentCraftRound = 3
+    }
+
+    private func submitFollowupRename() {
+        guard shouldShowFollowupRenameInput else { return }
+        let finalName = resolvedFollowupAINameForTemplate
+        renamedAIName = finalName
+        if let key = minigame.followupRenameVariableKey {
+            onSetStoryVariable?(key, finalName)
+        }
+        followupStage = .completed
+        finalizePromptBuilderCompletion(renamedTo: finalName)
+    }
+
+    private func showcaseChatBubbleRow(message: DialogShowcaseChatMessage) -> some View {
+        HStack {
+            if message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
+
+            Text(message.text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.82))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    message.isFromPlayer ? Color(hex: "2D8CFF") : Color(hex: "E9E9EE"),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+
+            if !message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
         }
     }
 
@@ -3296,31 +3802,93 @@ struct PromptBuilderMiniGameCard: View {
                 Spacer()
             }
 
-            HStack {
-                Text(minigame.introMessage)
-                    .font(.system(size: 14))
-                    .foregroundColor(.black.opacity(0.84))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                Spacer(minLength: 40)
-            }
+            if usesChapterOneFollowupChat {
+                ForEach(specialChapterOneChatMessages) { message in
+                    messageThreadBubbleRow(message: message)
+                }
 
-            HStack {
-                Spacer(minLength: 40)
-                Text(canSubmit ? promptPreview : "Tap choices below to build your reply...")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(canSubmit ? .white : Color.black.opacity(0.7))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(
-                        canSubmit ? Color(red: 0.07, green: 0.51, blue: 1.0) : Color(red: 0.88, green: 0.90, blue: 0.93),
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    )
+                if shouldShowSpecialCraftDraftBubble {
+                    HStack {
+                        Spacer(minLength: 40)
+                        Text(specialCraftDraftPlaceholder)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(canSubmit ? .white : Color.black.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(
+                                canSubmit ? Color(red: 0.07, green: 0.51, blue: 1.0) : Color(red: 0.88, green: 0.90, blue: 0.93),
+                                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            )
+                    }
+                }
+            } else {
+                ForEach(preIntroChatMessages) { message in
+                    messageThreadBubbleRow(message: message)
+                }
+
+                HStack {
+                    Text(minigame.introMessage)
+                        .font(.system(size: 14))
+                        .foregroundColor(.black.opacity(0.84))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    Spacer(minLength: 40)
+                }
+
+                ForEach(promptCraftingConversationMessages) { message in
+                    messageThreadBubbleRow(message: message)
+                }
+
+                if submitted || isCompleted {
+                    ForEach(postSendConversationMessages) { message in
+                        messageThreadBubbleRow(message: message)
+                    }
+                    ForEach(extendedFollowupConversationMessages) { message in
+                        messageThreadBubbleRow(message: message)
+                    }
+                } else {
+                    HStack {
+                        Spacer(minLength: 40)
+                        Text(canSubmit ? promptPreview : "Tap choices below to build your reply...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(canSubmit ? .white : Color.black.opacity(0.7))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(
+                                canSubmit ? Color(red: 0.07, green: 0.51, blue: 1.0) : Color(red: 0.88, green: 0.90, blue: 0.93),
+                                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            )
+                    }
+                }
             }
         }
         .padding(12)
         .background(Color(red: 0.90, green: 0.93, blue: 0.97), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func messageThreadBubbleRow(message: DialogShowcaseChatMessage) -> some View {
+        HStack {
+            if message.isFromPlayer {
+                Spacer(minLength: 40)
+            }
+
+            Text(message.text)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.84))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    message.isFromPlayer
+                        ? Color(red: 0.07, green: 0.51, blue: 1.0)
+                        : Color.white,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+
+            if !message.isFromPlayer {
+                Spacer(minLength: 40)
+            }
+        }
     }
 
     private var promptBuilderSection: some View {
@@ -3348,6 +3916,11 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var showcasePromptPaletteSection: some View {
+        if usesChapterOneFollowupChat && submitted && followupStage != .buildPrompt {
+            return AnyView(showcaseFollowupPaletteSection)
+        }
+
+        return AnyView(
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -3400,6 +3973,7 @@ struct PromptBuilderMiniGameCard: View {
                 .frame(height: 0.8),
             alignment: .top
         )
+        )
     }
 
     private var showcasePaletteColumns: [GridItem] {
@@ -3429,7 +4003,7 @@ struct PromptBuilderMiniGameCard: View {
                     let isSelected = selectedOptionBySlotID[slot.id] == option.id
 
                     Button {
-                        guard !isCompleted else { return }
+                        guard !arePromptSlotsLocked else { return }
                         selectedOptionBySlotID[slot.id] = option.id
                     } label: {
                         Text(option.chipText)
@@ -3449,7 +4023,7 @@ struct PromptBuilderMiniGameCard: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .disabled(isCompleted)
+                    .disabled(arePromptSlotsLocked)
                 }
             }
         }
@@ -3492,7 +4066,7 @@ struct PromptBuilderMiniGameCard: View {
                 ForEach(slot.options) { option in
                     let isSelected = selectedOptionBySlotID[slot.id] == option.id
                     Button {
-                        guard !isCompleted else { return }
+                        guard !arePromptSlotsLocked else { return }
                         selectedOptionBySlotID[slot.id] = option.id
                     } label: {
                         Text(option.chipText)
@@ -3511,7 +4085,7 @@ struct PromptBuilderMiniGameCard: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .disabled(isCompleted)
+                    .disabled(arePromptSlotsLocked)
                 }
             }
         }
@@ -3555,6 +4129,18 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var showcaseComposerSection: some View {
+        if usesChapterOneFollowupChat && submitted && followupStage != .buildPrompt {
+            if shouldShowFollowupRenameInput {
+                return AnyView(showcaseFollowupRenameComposer)
+            }
+            return AnyView(showcaseFollowupPassiveComposer)
+        }
+
+        if shouldShowFollowupRenameInput {
+            return AnyView(showcaseFollowupRenameComposer)
+        }
+
+        return AnyView(
         HStack(spacing: 8) {
             Image(systemName: "camera.fill")
                 .font(.system(size: 15, weight: .semibold))
@@ -3589,6 +4175,171 @@ struct PromptBuilderMiniGameCard: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit || isCompleted)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.95, green: 0.95, blue: 0.97))
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.07))
+                .frame(height: 0.8),
+            alignment: .top
+        )
+        )
+    }
+
+    private var showcaseFollowupPassiveComposer: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "ellipsis.bubble")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.gray.opacity(0.85))
+                .frame(width: 26, height: 26)
+
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.65))
+
+                Text(shouldShowFollowupEthicsChoices ? "Choose a reply from the options below..." : "Continue the chat below...")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+
+            Text("Send")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.gray)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.95, green: 0.95, blue: 0.97))
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.07))
+                .frame(height: 0.8),
+            alignment: .top
+        )
+    }
+
+    private var showcaseFollowupPaletteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(shouldShowFollowupEthicsChoices ? "Choose Your Reply" : (followupStage == .completed ? "Chat Complete" : "Name the AI"))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.black.opacity(0.80))
+                    Text(shouldShowFollowupEthicsChoices ? "Reply in the chat to continue the conversation" : "Continue inside Messages to finish Chapter 1")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.55))
+                }
+
+                Spacer(minLength: 0)
+
+                Text(followupStage == .completed ? "Ready" : "Step 2")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(followupStage == .completed ? Color(hex: "0E8A3D") : Color.black.opacity(0.55))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.85), in: Capsule())
+            }
+
+            if shouldShowFollowupEthicsChoices {
+                VStack(spacing: 8) {
+                    ForEach(followupEthicsChoices) { choice in
+                        followupEthicsChoiceButton(choice)
+                    }
+                }
+            } else if shouldShowFollowupRenameInput {
+                Text("Type a name in the message bar below, or press Send to keep the default name \(minigame.followupDefaultAIName).")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.black.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Conversation complete. The thread now continues with the AI's chosen name.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.black.opacity(0.66))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .background(Color(hex: "C9CBD2"))
+        .overlay(
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(height: 0.8),
+            alignment: .top
+        )
+    }
+
+    private func followupEthicsChoiceButton(_ choice: FollowupEthicsChoice) -> some View {
+        Button {
+            selectFollowupEthicsChoice(choice)
+        } label: {
+            Text(choice.text)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.black.opacity(0.82))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.white.opacity(0.9))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.65), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!shouldShowFollowupEthicsChoices)
+    }
+
+    private var showcaseFollowupRenameComposer: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(.gray.opacity(0.85))
+                .frame(width: 26, height: 26)
+
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.gray.opacity(0.65))
+
+                TextField(minigame.followupDefaultAIName, text: $renameDraft)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.black.opacity(0.82))
+                    .submitLabel(.send)
+                    .onSubmit { submitFollowupRename() }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.black.opacity(0.08), lineWidth: 1)
+            )
+
+            Button {
+                submitFollowupRename()
+            } label: {
+                Text("Send")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -3679,15 +4430,80 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private func submitPrompt() {
-        guard canSubmit, !isCompleted else { return }
+        if usesChapterOneFollowupChat {
+            guard canSubmit, !isCompleted, isSpecialCraftPhaseActive else { return }
+            let round = chapterOneCurrentCraftRound
+            let sentPrompt = promptPreview
+
+            if !submitted {
+                submitted = true
+            }
+
+            chapterOneCraftSubmissions.append(
+                ChapterOneCraftSubmission(
+                    id: "special-craft-\(round)-\(chapterOneCraftSubmissions.count)",
+                    round: round,
+                    promptText: sentPrompt
+                )
+            )
+
+            selectedOptionBySlotID.removeAll()
+
+            switch round {
+            case 1:
+                chapterOneCurrentCraftRound = 2
+                followupStage = .buildPrompt
+            case 2:
+                followupStage = .ethicsChoice
+            case 3:
+                chapterOneCurrentCraftRound = 4
+                followupStage = .buildPrompt
+            case 4:
+                chapterOneCurrentCraftRound = 5
+                followupStage = .buildPrompt
+            case 5:
+                followupStage = .renameAI
+                if renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    renameDraft = minigame.followupDefaultAIName
+                }
+            default:
+                followupStage = .renameAI
+            }
+            return
+        }
+
+        guard canSubmit, !isCompleted, !submitted else { return }
         submitted = true
+
+        finalizePromptBuilderCompletion()
+    }
+
+    private func finalizePromptBuilderCompletion(renamedTo: String? = nil) {
+        let trimmedRenamedTo = renamedTo?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = (trimmedRenamedTo?.isEmpty == false) ? trimmedRenamedTo : nil
+
+        if usesChapterOneFollowupChat {
+            let finalCraftPrompt = chapterOneCraftSubmissions.last?.promptText ?? "No final prompt recorded"
+            var summary = "Completed the extended Messages mini-game. Final crafted prompt: \"\(finalCraftPrompt)\"."
+            if let selectedFollowupEthicsChoice {
+                summary += " Yes/No choice: \"\(selectedFollowupEthicsChoice.text)\"."
+            }
+            if let finalName {
+                summary += " Renamed \(minigame.contactName) to \(finalName)."
+            }
+            submissionReviewText = summary
+            onComplete(summary)
+            return
+        }
 
         let selections = minigame.slots.compactMap { selectedOption(for: $0) }
         let selectedNotes = selections.map(\.feedbackNote).joined(separator: " ")
         let recommendedMatches = minigame.slots.filter { slot in
             selectedOptionBySlotID[slot.id] == slot.recommendedOptionID
         }.count
-        let summary = "Message sent to \(minigame.contactName). All answers can work, but the strongest prompt here is: \"\(recommendedPrompt())\". Your version matched \(recommendedMatches)/\(minigame.slots.count) best-practice parts. \(selectedNotes) The sender still appears as \"\(minigame.contactName)\" for now; you can rename them later (default: Ploy)."
+        var summary = "Message sent to \(minigame.contactName). All answers can work, but the strongest prompt here is: \"\(recommendedPrompt())\". Your version matched \(recommendedMatches)/\(minigame.slots.count) best-practice parts. \(selectedNotes)"
+        summary += " The sender still appears as \"\(minigame.contactName)\" for now; you can rename them later (default: Ploy)."
+
         submissionReviewText = summary
         onComplete(summary)
     }
@@ -3707,6 +4523,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
     let isCompleted: Bool
     let onSkipTyping: () -> Void
     let onContinue: () -> Void
+    let onSetStoryVariable: (String, String) -> Void
     let onComplete: (String) -> Void
 
     private var usesStackedLayout: Bool {
@@ -3756,7 +4573,8 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var wideDialogVerticalLift: CGFloat {
-        layout.isCompact ? 8 : 12
+        let base = layout.isCompact ? 8.0 : 12.0
+        return base * 4.0
     }
 
     private var instructionTextColor: Color {
@@ -3831,6 +4649,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
             layout: layout,
             presentation: .showcasePhone,
             isCompleted: isCompleted,
+            onSetStoryVariable: onSetStoryVariable,
             onComplete: onComplete
         )
         .allowsHitTesting(!isTyping)
@@ -5289,42 +6108,11 @@ struct DialogShowcaseCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: layout.elementSpacing) {
-            ZStack(alignment: .topLeading) {
-                Group {
-                    if showcase.imageName == "__clock_placeholder__" {
-                        PlaceholderClockHeroCard()
-                    } else {
-                        Image(showcase.imageName)
-                            .resizable()
-                            .scaledToFill()
-                    }
-                }
-                .frame(height: layout.isCompact ? 140 : 180)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.clear,
-                            Color.black.opacity(0.2),
-                            Color.black.opacity(0.65)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-                if let badge = showcase.badge {
-                    Text(badge)
-                        .font(.system(size: layout.captionFontSize, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.black.opacity(0.55), in: Capsule())
-                        .padding(10)
-                }
+            if let messagesThread = showcase.messagesThread {
+                messagesShowcasePanel(messagesThread)
+            } else {
+                imageShowcasePanel
             }
-            .clipShape(RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(showcase.title)
@@ -5345,6 +6133,118 @@ struct DialogShowcaseCard: View {
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
         )
+    }
+
+    private var imageShowcasePanel: some View {
+        ZStack(alignment: .topLeading) {
+            Group {
+                if showcase.imageName == "__clock_placeholder__" {
+                    PlaceholderClockHeroCard()
+                } else {
+                    Image(showcase.imageName)
+                        .resizable()
+                        .scaledToFill()
+                }
+            }
+            .frame(height: layout.isCompact ? 140 : 180)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        Color.black.opacity(0.2),
+                        Color.black.opacity(0.65)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+
+            if let badge = showcase.badge {
+                Text(badge)
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(Color.black.opacity(0.55), in: Capsule())
+                    .padding(10)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous))
+    }
+
+    private func messagesShowcasePanel(_ thread: DialogShowcaseMessagesThread) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text("Messages")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.black.opacity(0.82))
+
+                Spacer(minLength: 0)
+
+                Text(thread.contactName)
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.62))
+
+                if let badge = showcase.badge {
+                    Text(badge)
+                        .font(.system(size: max(layout.captionFontSize - 1, 10), weight: .bold))
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.10), in: Capsule())
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(red: 0.97, green: 0.97, blue: 0.99))
+
+            Divider()
+                .overlay(Color.black.opacity(0.07))
+
+            VStack(spacing: 8) {
+                ForEach(Array(thread.messages.suffix(6))) { message in
+                    messagesShowcaseBubble(message)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: layout.isCompact ? 132 : 160, alignment: .top)
+            .background(Color.white)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.isCompact ? 14 : 18, style: .continuous)
+                .stroke(Color.white.opacity(0.28), lineWidth: 1)
+        )
+    }
+
+    private func messagesShowcaseBubble(_ message: DialogShowcaseChatMessage) -> some View {
+        HStack {
+            if message.isFromPlayer {
+                Spacer(minLength: 34)
+            }
+
+            Text(message.text)
+                .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.82))
+                .lineLimit(3)
+                .multilineTextAlignment(message.isFromPlayer ? .trailing : .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    message.isFromPlayer
+                        ? Color(hex: "2D8CFF")
+                        : Color(hex: "ECECF1"),
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                )
+
+            if !message.isFromPlayer {
+                Spacer(minLength: 34)
+            }
+        }
     }
 }
 

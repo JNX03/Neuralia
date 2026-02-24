@@ -288,29 +288,6 @@ let chapterOneStory = StoryChapter(
             )
         ),
         StoryDialogLine(
-            speaker: "Unknown User",
-            text: "H~Hi... who are you? The signal is noisy. Can you send me a better prompt so I can answer clearly?",
-            emotion: .mysterious,
-            backgroundImage: "redbus",
-            characterImage: "char_mysterious",
-            cutsceneTitle: "Phone Event",
-            cutsceneSubtitle: "Messages app / unknown sender"
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "How should I reply to this? I should answer carefully and build a clear prompt first.",
-            emotion: .curious,
-            backgroundImage: "redbus",
-            characterImage: "char_curious",
-            cutsceneTitle: "Reply Choice",
-            cutsceneSubtitle: "Choose how to respond first",
-            choices: [
-                DialogChoice(text: "Ask who they are before helping", emotion: .concerned, response: "You ask for identity first. Good instinct: unknown contacts should be treated carefully before sharing information.", icon: "questionmark.bubble"),
-                DialogChoice(text: "Reply politely and help, but stay careful", emotion: .gentle, response: "You stay polite and cautious. Good balance: respectful tone plus healthy boundaries.", icon: "checkmark.shield"),
-                DialogChoice(text: "Send anything quickly without thinking", emotion: .angry, response: "Fast replies can create problems. It is better to slow down and make your prompt clear.", icon: "bolt.fill")
-            ]
-        ),
-        StoryDialogLine(
             speaker: "You",
             text: "I will build a basic prompt with Goal + Context + Action + Format, then send it in the chat.",
             emotion: .curious,
@@ -323,6 +300,21 @@ let chapterOneStory = StoryChapter(
                     title: "iPhone Messages Prompt Builder",
                     contactName: "Unknown User",
                     introMessage: "Teach me AI ethics basics, but ask me in a clearer way so I can answer better.",
+                    chatHistory: [
+                        DialogShowcaseChatMessage(
+                            id: "c1-minigame-unknown-1",
+                            text: "H~Hi... who are you?",
+                            isFromPlayer: false
+                        ),
+                        DialogShowcaseChatMessage(
+                            id: "c1-minigame-unknown-2",
+                            text: "The signal is noisy. Can you send me a better prompt so I can answer clearly?",
+                            isFromPlayer: false
+                        )
+                    ],
+                    includesChapterOneFollowupChat: true,
+                    followupRenameVariableKey: "ai_name",
+                    followupDefaultAIName: "Ploy",
                     slots: [
                         PromptBuilderSlot(
                             id: "goal",
@@ -374,85 +366,13 @@ let chapterOneStory = StoryChapter(
             )
         ),
         StoryDialogLine(
-            speaker: "Unknown User",
-            text: "That helped. When you define the goal, context, action, and format, my reply becomes easier to understand and safer to use.",
-            emotion: .happy,
-            backgroundImage: "redbus",
-            characterImage: "char_happy",
-            cutsceneTitle: "Prompt Lesson",
-            cutsceneSubtitle: "Basic prompting works"
-        ),
-        StoryDialogLine(
             speaker: "You",
-            text: "Back home, I open my computer and continue the same thread on a larger screen. The unknown sender still replies instantly.",
-            emotion: .neutral,
-            backgroundImage: "507room",
-            characterImage: "char_neutral",
-            cutsceneTitle: "At Home",
-            cutsceneSubtitle: "Computer chat begins"
-        ),
-        StoryDialogLine(
-            speaker: "Unknown User",
-            text: "One more lesson. A good prompt improves quality, but ethics decides whether the result should be used at all.",
-            emotion: .curious,
-            backgroundImage: "507room",
-            characterImage: "char_curious",
-            cutsceneTitle: "Prompt + Ethics",
-            cutsceneSubtitle: "Usefulness and responsibility"
-        ),
-        StoryDialogLine(
-            speaker: "Unknown User",
-            text: "Do not panic. I am not human, and I should not replace human relationships. But I can still help you learn if you use me responsibly.",
+            text: "Finally home. That chat got long, but I learned how to ask better and think more carefully.",
             emotion: .gentle,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_gentle",
-            cutsceneTitle: "Unexpected Presence",
-            cutsceneSubtitle: "The AI appears outside the device"
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "If you are not human, how should I treat you?",
-            emotion: .concerned,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_concerned",
-            cutsceneTitle: "Ethics Choice",
-            cutsceneSubtitle: "AI is a tool, but your behavior still matters",
-            choices: [
-                DialogChoice(text: "Use AI respectfully, but remember it is not a person", emotion: .gentle, response: "Balanced answer. Respectful habits protect how we treat real people, while remembering AI is still a tool.", icon: "person.crop.circle.badge.checkmark"),
-                DialogChoice(text: "Treat AI however I want because it has no feelings", emotion: .angry, response: "This can train harmful habits. Even if AI is not human, rude or abusive behavior can affect how we treat others.", icon: "exclamationmark.bubble.fill"),
-                DialogChoice(text: "Rely on AI for every decision", emotion: .sad, response: "Too much dependence is dangerous. AI can assist, but human judgment and responsibility must stay in control.", icon: "brain.head.profile")
-            ]
-        ),
-        StoryDialogLine(
-            speaker: "Unknown User",
-            text: "Exactly. Ethical use means respecting people, checking truth, protecting privacy, and not giving me more authority than I should have.",
-            emotion: .happy,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_happy",
-            cutsceneTitle: "Ethical Reminder",
-            cutsceneSubtitle: "Human responsibility comes first"
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "Your thread still looks mysterious. I can keep your default name as {{ai_name}}, or rename you now.",
-            emotion: .curious,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_curious",
-            cutsceneTitle: "Name the AI",
-            cutsceneSubtitle: "Default name is Ploy",
-            requiresInput: true,
-            inputPlaceholder: "Ploy",
-            inputVariableKey: "ai_name",
-            inputDefaultValue: "Ploy"
-        ),
-        StoryDialogLine(
-            speaker: "{{ai_name}}",
-            text: "Name accepted. Next time, bring your notes from Professor New. We will practice stronger prompts and safer decisions together.",
-            emotion: .excited,
             backgroundImage: "507room",
-            characterImage: "char_excited",
-            cutsceneTitle: "Chapter End",
-            cutsceneSubtitle: "Prompting + ethics + {{ai_name}}"
+            characterImage: "char_gentle",
+            cutsceneTitle: "Finally Home",
+            cutsceneSubtitle: "Long chat / better prompts"
         )
     ]
 )

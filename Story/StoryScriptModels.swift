@@ -9,19 +9,44 @@ struct DialogShowcaseMedia: Sendable {
     let imageName: String
     let badge: String?
     let prefersSplitLayout: Bool
+    let messagesThread: DialogShowcaseMessagesThread?
 
     init(
         title: String,
         subtitle: String,
         imageName: String,
         badge: String? = nil,
-        prefersSplitLayout: Bool = false
+        prefersSplitLayout: Bool = false,
+        messagesThread: DialogShowcaseMessagesThread? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
         self.imageName = imageName
         self.badge = badge
         self.prefersSplitLayout = prefersSplitLayout
+        self.messagesThread = messagesThread
+    }
+}
+
+struct DialogShowcaseChatMessage: Identifiable, Sendable {
+    let id: String
+    let text: String
+    let isFromPlayer: Bool
+
+    init(id: String, text: String, isFromPlayer: Bool) {
+        self.id = id
+        self.text = text
+        self.isFromPlayer = isFromPlayer
+    }
+}
+
+struct DialogShowcaseMessagesThread: Sendable {
+    let contactName: String
+    let messages: [DialogShowcaseChatMessage]
+
+    init(contactName: String, messages: [DialogShowcaseChatMessage]) {
+        self.contactName = contactName
+        self.messages = messages
     }
 }
 
@@ -87,6 +112,10 @@ struct PromptBuilderMiniGame: Sendable {
     let title: String
     let contactName: String
     let introMessage: String
+    let chatHistory: [DialogShowcaseChatMessage]
+    let includesChapterOneFollowupChat: Bool
+    let followupRenameVariableKey: String?
+    let followupDefaultAIName: String
     let slots: [PromptBuilderSlot]
     let tip: String?
 
@@ -94,12 +123,20 @@ struct PromptBuilderMiniGame: Sendable {
         title: String,
         contactName: String = "Unknown User",
         introMessage: String,
+        chatHistory: [DialogShowcaseChatMessage] = [],
+        includesChapterOneFollowupChat: Bool = false,
+        followupRenameVariableKey: String? = nil,
+        followupDefaultAIName: String = "Ploy",
         slots: [PromptBuilderSlot],
         tip: String? = nil
     ) {
         self.title = title
         self.contactName = contactName
         self.introMessage = introMessage
+        self.chatHistory = chatHistory
+        self.includesChapterOneFollowupChat = includesChapterOneFollowupChat
+        self.followupRenameVariableKey = followupRenameVariableKey
+        self.followupDefaultAIName = followupDefaultAIName
         self.slots = slots
         self.tip = tip
     }
