@@ -3855,22 +3855,23 @@ struct PromptBuilderMessagesMiniGameStage: View {
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .zIndex(0)
 
                 wideBottomGradientOverlay
                     .frame(width: proxy.size.width, height: proxy.size.height)
+                    .zIndex(1)
 
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    HStack(spacing: 0) {
-                        wideBottomDialogOverlay
-                        Spacer(minLength: 0)
-                    }
-                }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
+                wideBottomDialogOverlay
+                    .frame(
+                        width: proxy.size.width,
+                        height: proxy.size.height,
+                        alignment: .bottomLeading
+                    )
+                    .zIndex(10)
 
-                // Keep the character above the dialog text so the scene reads naturally.
                 wideCharacterLayer
                     .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
+                    .zIndex(5)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -3950,36 +3951,40 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var wideBottomDialogOverlay: some View {
-        VStack(spacing: layout.isCompact ? 8 : 10) {
-            HStack(alignment: .top, spacing: layout.isCompact ? 12 : 18) {
-                promptBottomDialogPane(
-                    name: speaker.isEmpty ? "You" : speaker,
-                    role: roleLabel ?? emotion.rawValue.capitalized,
-                    text: instructionText.isEmpty ? "Build a clear reply before sending it in the chat." : instructionText,
-                    accent: emotionAccent
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
 
-                Color.clear
-                    .frame(maxWidth: .infinity, minHeight: 1)
-                    .allowsHitTesting(false)
-            }
+            VStack(spacing: layout.isCompact ? 8 : 10) {
+                HStack(alignment: .top, spacing: layout.isCompact ? 12 : 18) {
+                    promptBottomDialogPane(
+                        name: speaker.isEmpty ? "You" : speaker,
+                        role: roleLabel ?? emotion.rawValue.capitalized,
+                        text: instructionText.isEmpty ? "Build a clear reply before sending it in the chat." : instructionText,
+                        accent: emotionAccent
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            if isCompleted {
-                Button(action: onContinue) {
-                    Label("Continue Story", systemImage: "arrow.right.circle.fill")
-                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.green.opacity(0.92), in: Capsule())
+                    Color.clear
+                        .frame(maxWidth: .infinity, minHeight: 1, maxHeight: 1)
+                        .allowsHitTesting(false)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 2)
+
+                if isCompleted {
+                    Button(action: onContinue) {
+                        Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.92), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 2)
+                }
             }
         }
-        .frame(maxWidth: wideStageMaxWidth, alignment: .leading)
+        .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity, alignment: .bottomLeading)
         .padding(.horizontal, 4)
         .padding(.bottom, wideDialogVerticalLift)
     }
