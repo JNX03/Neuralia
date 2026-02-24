@@ -401,15 +401,6 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Usefulness and responsibility"
         ),
         StoryDialogLine(
-            speaker: "You",
-            text: "My monitor flickers. The screen glitches. Then the room lights suddenly go out.",
-            emotion: .surprised,
-            backgroundImage: "gltich",
-            characterImage: "char_surprised",
-            cutsceneTitle: "Glitch Event",
-            cutsceneSubtitle: "Display distortion / power loss"
-        ),
-        StoryDialogLine(
             speaker: "Unknown User",
             text: "Do not panic. I am not human, and I should not replace human relationships. But I can still help you learn if you use me responsibly.",
             emotion: .gentle,

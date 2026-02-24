@@ -602,6 +602,7 @@ struct ResponsiveDialogView: View {
     let showSettings: Bool
     let chapterTopBarDropFactor: CGFloat
     let onComplete: (() -> Void)?
+    let showCompletionOverlay: Bool
     
     // Animation states
     @State private var characterScale: CGFloat = 1.0
@@ -619,13 +620,15 @@ struct ResponsiveDialogView: View {
         showBackButton: Bool = true,
         showSettings: Bool = true,
         chapterTopBarDropFactor: CGFloat = 0,
-        onComplete: (() -> Void)? = nil
+        onComplete: (() -> Void)? = nil,
+        showCompletionOverlay: Bool = true
     ) {
         self.nodes = nodes
         self.showBackButton = showBackButton
         self.showSettings = showSettings
         self.chapterTopBarDropFactor = chapterTopBarDropFactor
         self.onComplete = onComplete
+        self.showCompletionOverlay = showCompletionOverlay
     }
 
     private var splitShowcaseMedia: DialogShowcaseMedia? {
@@ -892,7 +895,7 @@ struct ResponsiveDialogView: View {
             }
 
             // Completion overlay
-            if viewModel.isCompleted {
+            if showCompletionOverlay && viewModel.isCompleted {
                 completionOverlay(layout: layout)
             }
         }
@@ -1178,6 +1181,16 @@ struct ResponsiveDialogView: View {
     ) -> some View {
         let horizontalPadding = layout.dialogPadding
         let useScrollStage = geometry.size.width < 1120 || geometry.size.height < 760
+        let stageTopPadding: CGFloat = 12
+        let stageBottomPadding = max(layout.safeAreaInsets.bottom, 12)
+        let promptStageVisibleHeight = max(
+            geometry.size.height
+                - topBarTopPadding(for: layout)
+                - layout.topBarReservedHeight
+                - stageTopPadding
+                - stageBottomPadding,
+            520
+        )
         let stageSpeaker = viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node)
         let stageRoleLabel = dialogRoleLabel(for: node)
         let stageCharacterImage = node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion)
@@ -1193,7 +1206,7 @@ struct ResponsiveDialogView: View {
                         minigame: minigame,
                         layout: layout,
                         availableWidth: geometry.size.width - (horizontalPadding * 2),
-                        availableHeight: max(geometry.size.height * 0.78, 520),
+                        availableHeight: promptStageVisibleHeight,
                         speaker: stageSpeaker,
                         roleLabel: stageRoleLabel,
                         emotion: node.emotion,
@@ -1206,17 +1219,17 @@ struct ResponsiveDialogView: View {
                     ) { result in
                         viewModel.completeInlineActivity(for: node.id, result: result)
                     }
-                    .frame(minHeight: max(geometry.size.height * 0.74, 520))
+                    .frame(minHeight: promptStageVisibleHeight)
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, max(layout.safeAreaInsets.bottom, 12))
+                    .padding(.top, stageTopPadding)
+                    .padding(.bottom, stageBottomPadding)
                 }
             } else {
                 PromptBuilderMessagesMiniGameStage(
                     minigame: minigame,
                     layout: layout,
                     availableWidth: geometry.size.width - (horizontalPadding * 2),
-                    availableHeight: geometry.size.height,
+                    availableHeight: promptStageVisibleHeight,
                     speaker: stageSpeaker,
                     roleLabel: stageRoleLabel,
                     emotion: node.emotion,
@@ -1229,9 +1242,10 @@ struct ResponsiveDialogView: View {
                 ) { result in
                     viewModel.completeInlineActivity(for: node.id, result: result)
                 }
+                .frame(height: promptStageVisibleHeight, alignment: .topLeading)
                 .padding(.horizontal, horizontalPadding)
-                .padding(.top, 12)
-                .padding(.bottom, max(layout.safeAreaInsets.bottom, 12))
+                .padding(.top, stageTopPadding)
+                .padding(.bottom, stageBottomPadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
@@ -3696,7 +3710,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
     let onComplete: (String) -> Void
 
     private var usesStackedLayout: Bool {
-        availableWidth < 1120 || availableHeight < 760
+        availableWidth < 940 || availableHeight < 700
     }
 
     private var heroPanelWidth: CGFloat {
@@ -3742,7 +3756,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var wideDialogVerticalLift: CGFloat {
-        layout.isCompact ? 26 : 34
+        layout.isCompact ? 8 : 12
     }
 
     private var instructionTextColor: Color {
@@ -3824,55 +3838,41 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var professorStylePromptStage: some View {
-        ZStack {
-            wideCharacterLayer
+        GeometryReader { proxy in
+            ZStack {
+                VStack(spacing: layout.isCompact ? 6 : 8) {
+                    wideTopUtilityRow
 
-            VStack(spacing: layout.isCompact ? 6 : 8) {
-                wideTopUtilityRow
+                    VStack(spacing: 0) {
+                        Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                        phonePanel
+                            .frame(width: wideCenterPhoneWidth)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .offset(y: -phoneWideUpOffset)
+
+                        Spacer(minLength: wideBottomDialogReserve)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+
+                wideBottomGradientOverlay
+                    .frame(width: proxy.size.width, height: proxy.size.height)
 
                 VStack(spacing: 0) {
-                    Spacer(minLength: layout.isCompact ? 8 : 12)
-
-                    phonePanel
-                        .frame(width: wideCenterPhoneWidth)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .offset(y: -phoneWideUpOffset)
-
-                    Spacer(minLength: wideBottomDialogReserve)
-                }
-            }
-            .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity, alignment: .top)
-
-            wideBottomGradientOverlay
-
-            VStack(spacing: layout.isCompact ? 8 : 10) {
-                Spacer()
-
-                promptBottomDialogPane(
-                    name: speaker.isEmpty ? "You" : speaker,
-                    role: roleLabel ?? emotion.rawValue.capitalized,
-                    text: instructionText.isEmpty ? "Build a clear reply before sending it in the chat." : instructionText,
-                    accent: emotionAccent
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if isCompleted {
-                    Button(action: onContinue) {
-                        Label("Continue Story", systemImage: "arrow.right.circle.fill")
-                            .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.green.opacity(0.92), in: Capsule())
+                    Spacer(minLength: 0)
+                    HStack(spacing: 0) {
+                        wideBottomDialogOverlay
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 2)
                 }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
+
+                // Keep the character above the dialog text so the scene reads naturally.
+                wideCharacterLayer
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
             }
-            .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity)
-            .padding(.horizontal, 4)
-            .padding(.bottom, wideDialogVerticalLift)
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -3883,7 +3883,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: min(wideStageMaxWidth * 0.26, 360), maxHeight: wideCharacterSpriteHeight, alignment: .bottom)
-                .offset(x: -wideCharacterHorizontalPush, y: -12)
+                .offset(x: -wideCharacterHorizontalPush, y: -(layout.isCompact ? 14 : 22))
                 .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
                 .allowsHitTesting(false)
 
@@ -3891,28 +3891,23 @@ struct PromptBuilderMessagesMiniGameStage: View {
         }
         .frame(maxWidth: wideStageMaxWidth, maxHeight: .infinity, alignment: .bottom)
         .padding(.horizontal, layout.isCompact ? 6 : 10)
-        .padding(.bottom, max(0, wideBottomDialogReserve - 22))
+        .padding(.bottom, max(0, wideBottomDialogReserve - (layout.isCompact ? 28 : 34)))
     }
 
     private var wideTopUtilityRow: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(emotionAccent)
-                    .frame(width: 8, height: 8)
-                Text(roleLabel ?? emotion.rawValue.capitalized)
-                    .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Color.black.opacity(0.34), in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
+            Text("Message Mini-game")
+                .font(.system(size: layout.captionFontSize + 2, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.34), in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
 
-            Text("iPhone Messages Mini-game")
+            Text("iPad Messages Prompt Builder")
                 .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
                 .foregroundColor(.white.opacity(0.86))
                 .lineLimit(1)
@@ -3941,16 +3936,52 @@ struct PromptBuilderMessagesMiniGameStage: View {
             stops: [
                 .init(color: .clear, location: 0.0),
                 .init(color: .clear, location: 0.58),
-                .init(color: Color.black.opacity(0.12), location: 0.66),
-                .init(color: Color.black.opacity(0.34), location: 0.78),
-                .init(color: Color.black.opacity(0.62), location: 0.90),
-                .init(color: Color.black.opacity(0.82), location: 1.0)
+                .init(color: Color.black.opacity(0.22), location: 0.66),
+                .init(color: Color.black.opacity(0.48), location: 0.78),
+                .init(color: Color.black.opacity(0.78), location: 0.90),
+                .init(color: Color.black.opacity(0.94), location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, -(layout.dialogPadding + (layout.isCompact ? 18 : 28)))
         .allowsHitTesting(false)
+    }
+
+    private var wideBottomDialogOverlay: some View {
+        VStack(spacing: layout.isCompact ? 8 : 10) {
+            HStack(alignment: .top, spacing: layout.isCompact ? 12 : 18) {
+                promptBottomDialogPane(
+                    name: speaker.isEmpty ? "You" : speaker,
+                    role: roleLabel ?? emotion.rawValue.capitalized,
+                    text: instructionText.isEmpty ? "Build a clear reply before sending it in the chat." : instructionText,
+                    accent: emotionAccent
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 1)
+                    .allowsHitTesting(false)
+            }
+
+            if isCompleted {
+                Button(action: onContinue) {
+                    Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.green.opacity(0.92), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: wideStageMaxWidth, alignment: .leading)
+        .padding(.horizontal, 4)
+        .padding(.bottom, wideDialogVerticalLift)
     }
 
     private func promptBottomDialogPane(
