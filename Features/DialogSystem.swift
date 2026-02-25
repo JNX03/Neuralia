@@ -1204,70 +1204,48 @@ struct ResponsiveDialogView: View {
         node: DialogNode,
         minigame: BiasDataAuditMiniGame
     ) -> some View {
-        // Messenger/chat style (like Chapter 1's PromptBuilder)
+        // Classroom/stage style (like Chapter 2's LectureQuiz)
         let horizontalPadding = layout.dialogPadding
-        let useScrollStage = geometry.size.width < 1120 || geometry.size.height < 760
-        let stageTopPadding: CGFloat = 12
-        let stageBottomPadding = max(layout.safeAreaInsets.bottom, 12)
+        let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
+        let bottomInset = max(layout.safeAreaInsets.bottom, 10)
         let stageSpeaker = viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node)
         let stageRoleLabel = dialogRoleLabel(for: node)
         let stageCharacterImage = node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion)
 
-        return VStack(spacing: 0) {
-            topBar(layout: layout)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, topBarTopPadding(for: layout))
-
-            if useScrollStage {
-                ScrollView(showsIndicators: false) {
-                    MessengerBiasDataAuditMiniGameStage(
-                        minigame: minigame,
-                        layout: layout,
-                        availableWidth: geometry.size.width - (horizontalPadding * 2),
-                        availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
-                        speaker: stageSpeaker,
-                        roleLabel: stageRoleLabel,
-                        emotion: node.emotion,
-                        characterImageName: stageCharacterImage,
-                        instructionText: viewModel.displayedText,
-                        isTyping: viewModel.isTyping,
-                        isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
-                        onSkipTyping: { handleSkipTypingAction() },
-                        onContinue: { handleAdvanceAction() }
-                    ) { result in
-                        viewModel.completeInlineActivity(for: node.id, result: result)
-                    }
-                    .frame(minHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding)
+        return ZStack {
+            VStack {
+                topBar(layout: layout)
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, stageTopPadding)
-                    .padding(.bottom, stageBottomPadding)
-                }
-            } else {
-                MessengerBiasDataAuditMiniGameStage(
-                    minigame: minigame,
-                    layout: layout,
-                    availableWidth: geometry.size.width - (horizontalPadding * 2),
-                    availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
-                    speaker: stageSpeaker,
-                    roleLabel: stageRoleLabel,
-                    emotion: node.emotion,
-                    characterImageName: stageCharacterImage,
-                    instructionText: viewModel.displayedText,
-                    isTyping: viewModel.isTyping,
-                    isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
-                    onSkipTyping: { handleSkipTypingAction() },
-                    onContinue: { handleAdvanceAction() }
-                ) { result in
-                    viewModel.completeInlineActivity(for: node.id, result: result)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, stageTopPadding)
-                .padding(.bottom, stageBottomPadding)
+                    .padding(.top, topBarTopPadding(for: layout))
+                Spacer()
             }
+            .zIndex(20)
+
+            ClassroomBiasDataAuditMiniGameStage(
+                minigame: minigame,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                isTyping: viewModel.isTyping,
+                instructionText: viewModel.displayedText,
+                speaker: stageSpeaker,
+                roleLabel: stageRoleLabel,
+                characterImageName: stageCharacterImage,
+                onSkipTyping: { handleSkipTypingAction() },
+                onComplete: { result in
+                    viewModel.completeInlineActivity(for: node.id, result: result)
+                },
+                onContinue: {
+                    guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
+                    handleAdvanceAction()
+                }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
+
 
     private func chapter3KNNRescueActivityScene(
         layout: DialogAdaptiveLayout,
@@ -7541,45 +7519,36 @@ struct BiasDataAuditMiniGameCard: View {
     }
 }
 
-// MARK: - Messenger Style Bias Data Audit (Quiz by Quiz with Fade Dialogs)
-struct MessengerBiasDataAuditMiniGameStage: View {
+// MARK: - Classroom Stage Style Bias Data Audit (Card by Card with Dialog Panes)
+struct ClassroomBiasDataAuditMiniGameStage: View {
     let minigame: BiasDataAuditMiniGame
     let layout: DialogAdaptiveLayout
-    let availableWidth: CGFloat
-    let availableHeight: CGFloat
+    let isCompleted: Bool
+    let isTyping: Bool
+    let instructionText: String
     let speaker: String
     let roleLabel: String?
-    let emotion: Emotion
     let characterImageName: String
-    let instructionText: String
-    let isTyping: Bool
-    let isCompleted: Bool
     let onSkipTyping: () -> Void
-    let onContinue: () -> Void
     let onComplete: (String) -> Void
+    let onContinue: () -> Void
 
     @State private var currentCardIndex = 0
     @State private var selectionsByCardID: [String: String] = [:]
-    @State private var chatMessages: [DialogShowcaseChatMessage] = []
-    @State private var isShowingChoices = false
-    @State private var hasSubmitted = false
+    @State private var feedbackVisible = false
+    @State private var showConfigStep = false
     @State private var noiseLevel: Double = 78
     @State private var diversityLevel: Double = 32
     @State private var labelQualityLevel: Double = 46
-    @State private var showConfigStep = false
+    @State private var hasSubmitted = false
 
-    private var cards: [BiasDataAuditCard] {
-        minigame.cards
-    }
+    private var cards: [BiasDataAuditCard] { minigame.cards }
 
     private var currentCard: BiasDataAuditCard {
-        let index = min(max(currentCardIndex, 0), max(cards.count - 1, 0))
-        return cards[index]
+        cards[min(max(currentCardIndex, 0), max(cards.count - 1, 0))]
     }
 
-    private var isLastCard: Bool {
-        currentCardIndex >= cards.count - 1
-    }
+    private var isLastCard: Bool { currentCardIndex >= cards.count - 1 }
 
     private var allCardsSorted: Bool {
         cards.allSatisfy { selectionsByCardID[$0.id] != nil }
@@ -7587,74 +7556,7 @@ struct MessengerBiasDataAuditMiniGameStage: View {
 
     private var correctSortCount: Int {
         cards.reduce(0) { count, card in
-            guard let selected = selectionsByCardID[card.id],
-                  selected == card.correctBucketID else { return count }
-            return count + 1
-        }
-    }
-
-    private var aiName: String {
-        speaker.isEmpty ? "AI Friend" : speaker
-    }
-
-    private var usesStackedLayout: Bool {
-        availableWidth < 940 || availableHeight < 700
-    }
-
-    private var emotionAccent: Color {
-        switch emotion {
-        case .happy, .excited: return Color(hex: "5CE38C")
-        case .sad, .concerned: return Color(hex: "8ED0F7")
-        case .angry: return Color(hex: "FF7D7D")
-        case .mysterious: return Color(hex: "BE93F5")
-        case .surprised: return Color(hex: "FFD77A")
-        case .gentle: return Color(hex: "91F0C3")
-        case .curious: return Color(hex: "4AB0FF")
-        case .neutral: return Color.white.opacity(0.85)
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            if usesStackedLayout {
-                bottomSceneFade
-            }
-
-            if usesStackedLayout {
-                VStack(spacing: 12) {
-                    phonePanel
-                        .frame(maxWidth: min(availableWidth, 920))
-
-                    heroPanel
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: min(max(availableHeight * 0.48, 250), 430))
-                }
-            } else {
-                wideLayoutStage
-            }
-
-            if isCompleted || (allCardsSorted && configPassed) {
-                VStack {
-                    Spacer(minLength: 0)
-                    if usesStackedLayout {
-                        Button(action: onContinue) {
-                            Label("Continue Story", systemImage: "arrow.right.circle.fill")
-                                .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.green.opacity(0.92), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.bottom, 6)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-        .onAppear {
-            initializeChat()
+            selectionsByCardID[card.id] == card.correctBucketID ? count + 1 : count
         }
     }
 
@@ -7664,478 +7566,626 @@ struct MessengerBiasDataAuditMiniGameStage: View {
             && labelQualityLevel >= minigame.labelQualityTargetMin
     }
 
-    private var phonePanel: some View {
-        VStack(spacing: 0) {
-            // Phone header
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(hex: "2D8CFF"))
+    private var currentSelectedBucket: BiasDataAuditBucket? {
+        guard let bucketID = selectionsByCardID[currentCard.id] else { return nil }
+        return minigame.buckets.first(where: { $0.id == bucketID })
+    }
 
-                Image(characterImageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+    private var isCurrentCardAnswered: Bool { currentSelectedBucket != nil }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(aiName)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.black)
-                    Text(roleLabel ?? "AI Friend")
-                        .font(.system(size: 11))
-                        .foregroundColor(Color.black.opacity(0.5))
+    private var canGoNext: Bool {
+        isCurrentCardAnswered && feedbackVisible && !isLastCard && !isCompleted
+    }
+
+    private var canShowConfig: Bool {
+        isCurrentCardAnswered && feedbackVisible && isLastCard && !showConfigStep && !isCompleted
+    }
+
+    private var aiName: String { speaker.isEmpty ? "AI Friend" : speaker }
+
+    // MARK: Layout Dimensions
+    private var stageMaxWidth: CGFloat {
+        min(layout.width - (layout.isCompact ? 12 : 24), layout.isCompact ? 760 : 1500)
+    }
+
+    private var rightPanelMaxWidth: CGFloat {
+        layout.width < 700 ? .infinity : min(layout.width * 0.55, 650)
+    }
+
+    private var spriteHeight: CGFloat {
+        let lo: CGFloat = layout.isCompact ? 300 : 380
+        let hi: CGFloat = layout.isCompact ? 450 : 700
+        return min(max(layout.height * (layout.isCompact ? 0.45 : 0.65), lo), hi)
+    }
+    
+    // To leave space for the bottom currency/bounty bar
+    private var bottomBarReserve: CGFloat { layout.isCompact ? 140 : 160 }
+
+    // MARK: Dialog Strings
+    private var teacherDialogText: String {
+        if showConfigStep {
+            return configPassed
+                ? "Settings look great! The data pipeline is much healthier now."
+                : "Tune the sliders to improve the data quality before we finish."
+        }
+        if isCurrentCardAnswered, feedbackVisible {
+            let isCorrect = selectionsByCardID[currentCard.id] == currentCard.correctBucketID
+            return isCorrect ? "✅ Correct: \(currentCard.feedback)" : "❌ Incorrect: \(currentCard.feedback)"
+        }
+        if isTyping && !instructionText.isEmpty { return instructionText }
+        if currentCardIndex == 0 && !instructionText.isEmpty { return instructionText }
+        return "Please review this case and select the correct issue category."
+    }
+
+    // MARK: - Body
+    var body: some View {
+        ZStack {
+            // Background Layer
+            backgroundGradient
+            
+            // Content Layout
+            if layout.width < 700 {
+                // Stacked Layout for compact width
+                VStack(spacing: 0) {
+                    topHeaderRow
+                        .padding(.top, 10)
+                        .padding(.horizontal, layout.dialogPadding)
+                    
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 16) {
+                            characterImageLayer
+                                .frame(height: spriteHeight * 0.7)
+                            
+                            rightContentPanel
+                                .padding(.horizontal, layout.dialogPadding)
+                                .padding(.bottom, bottomBarReserve + 20)
+                        }
+                    }
                 }
-
+            } else {
+                // Location Select Side-by-Side Layout
+                HStack(spacing: 0) {
+                    // Left Column - Character
+                    VStack {
+                        topHeaderRow
+                            .padding(.top, 20)
+                            .padding(.leading, max(20, layout.dialogPadding))
+                        
+                        Spacer()
+                        characterImageLayer
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // Right Column - Case Selection / Config
+                    VStack {
+                        Spacer(minLength: layout.safeAreaInsets.top + 20)
+                        
+                        ScrollView(showsIndicators: false) {
+                            rightContentPanel
+                                .padding(.trailing, max(20, layout.dialogPadding))
+                                .padding(.bottom, bottomBarReserve + 40)
+                                .padding(.top, 40)
+                        }
+                    }
+                    .frame(width: rightPanelMaxWidth)
+                }
+                .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .center)
+            }
+            
+            // Bottom Dialog / Bounty Bar
+            VStack(spacing: 0) {
                 Spacer()
-
-                Image(systemName: "video.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(hex: "2D8CFF"))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.white)
-            .overlay(
-                Rectangle()
-                    .fill(Color.black.opacity(0.08))
-                    .frame(height: 0.5)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-            )
-
-            // Chat messages
-            ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 8) {
-                        ForEach(chatMessages) { message in
-                            chatBubbleRow(message: message)
-                        }
-
-                        if showConfigStep && allCardsSorted {
-                            configPanel
-                        } else if isShowingChoices && !isTyping && !hasSubmitted && !showConfigStep {
-                            cardChoicesPanel
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                }
-                .background(Color.white)
-                .onChange(of: chatMessages.count) { _ in
-                    if let last = chatMessages.last {
-                        withAnimation {
-                            proxy.scrollTo(last.id, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-        }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        )
-    }
-
-    private var heroPanel: some View {
-        VStack(spacing: layout.isCompact ? 10 : 14) {
-            if !usesStackedLayout {
-                HStack { Spacer() }
-            }
-
-            HStack(spacing: layout.isCompact ? 12 : 18) {
-                Image(characterImageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: min(max(availableHeight * (usesStackedLayout ? 0.30 : 0.56), 200), usesStackedLayout ? 300 : 520))
-                    .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
-
-                if !usesStackedLayout {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(aiName)
-                            .font(.system(size: layout.isCompact ? 20 : 26, weight: .heavy))
-                            .foregroundColor(.white)
-                        if let roleLabel, !roleLabel.isEmpty {
-                            Text(roleLabel)
-                                .font(.system(size: layout.isCompact ? 14 : 17, weight: .medium))
-                                .foregroundColor(emotionAccent)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if !instructionText.isEmpty {
-                Text(instructionText)
-                    .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(isTyping ? 0.92 : 0.82))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, layout.isCompact ? 14 : 18)
-                    .padding(.vertical, layout.isCompact ? 10 : 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.black.opacity(0.35))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                    )
-            }
-        }
-        .padding(.horizontal, layout.isCompact ? 12 : 16)
-        .padding(.vertical, layout.isCompact ? 10 : 14)
-    }
-
-    private var wideLayoutStage: some View {
-        GeometryReader { proxy in
-            ZStack {
-                VStack(spacing: layout.isCompact ? 6 : 8) {
-                    HStack { Spacer() }
-
-                    VStack(spacing: 0) {
-                        Spacer(minLength: layout.isCompact ? 8 : 12)
-
-                        phonePanel
-                            .frame(width: min(availableWidth * 0.52, 840))
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .offset(y: -min(max(availableHeight * 0.12, 64), 150))
-
-                        Spacer(minLength: min(max(availableHeight * 0.18, 178), 210))
-                    }
-                }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
-                .zIndex(0)
-
+                
+                // Dialog pane fading
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.22), location: 0.70),
-                        .init(color: Color.black.opacity(0.55), location: 0.85),
-                        .init(color: Color.black.opacity(0.78), location: 1.0)
+                        .init(color: Color.black.opacity(0.4), location: 0.2),
+                        .init(color: Color.black.opacity(0.85), location: 0.6),
+                        .init(color: Color.black.opacity(0.95), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(width: proxy.size.width, height: proxy.size.height)
-                .zIndex(1)
-
-                VStack(spacing: layout.isCompact ? 8 : 10) {
-                    Spacer()
-                    HStack(alignment: .bottom, spacing: 0) {
-                        heroPanel
-                            .frame(width: min(availableWidth * 0.38, 520), alignment: .leading)
-                        Spacer(minLength: 0)
-                    }
+                .frame(height: bottomBarReserve + 80)
+                .allowsHitTesting(false)
+                .overlay(alignment: .bottom) {
+                    bottomBountyActionRow
+                        .padding(.bottom, layout.safeAreaInsets.bottom + 16)
+                        .padding(.horizontal, layout.dialogPadding)
+                        .frame(maxWidth: stageMaxWidth)
                 }
-                .padding(.horizontal, layout.isCompact ? 16 : 28)
-                .padding(.bottom, layout.isCompact ? 20 : 32)
-                .zIndex(10)
-
-                HStack {
-                    Image(characterImageName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: min(min(availableWidth, 1480) * 0.26, 360), maxHeight: min(max(availableHeight * 0.46, 280), 520), alignment: .bottom)
-                        .offset(x: availableWidth < 1200 ? -12 : (availableWidth < 1450 ? -24 : -38), y: -(layout.isCompact ? 14 : 22))
-                        .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
-                        .allowsHitTesting(false)
-                    Spacer(minLength: 0)
-                }
-                .zIndex(5)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .ignoresSafeArea()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private var bottomSceneFade: some View {
+    
+    // MARK: - Background
+    private var backgroundGradient: some View {
         LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0.0),
-                .init(color: Color.black.opacity(0.15), location: 0.58),
-                .init(color: Color.black.opacity(0.45), location: 0.78),
-                .init(color: Color.black.opacity(0.78), location: 1.0)
+            colors: [
+                Color(hex: "0D1424"),
+                Color(hex: "132743"),
+                Color(hex: "0F1A2C")
             ],
-            startPoint: .top,
-            endPoint: .bottom
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
-    }
-
-    private func chatBubbleRow(message: DialogShowcaseChatMessage) -> some View {
-        HStack {
-            if message.isFromPlayer {
-                Spacer(minLength: 46)
-            }
-
-            Text(message.text)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.82))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(
-                    message.isFromPlayer ? Color(hex: "2D8CFF") : Color(hex: "E9E9EE"),
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                )
-
-            if !message.isFromPlayer {
-                Spacer(minLength: 46)
-            }
-        }
-        .id(message.id)
-        .transition(.asymmetric(insertion: .move(edge: message.isFromPlayer ? .trailing : .leading).combined(with: .opacity), removal: .opacity))
-    }
-
-    private var cardChoicesPanel: some View {
-        VStack(spacing: 8) {
-            Text("Which bucket does this belong to?")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color.black.opacity(0.5))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
-                .padding(.top, 8)
-
-            // Show current card
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    if let systemImage = currentCard.systemImage {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 14))
-                            .foregroundColor(Color.black.opacity(0.6))
+        .overlay(
+            // Subtle tech grid pattern effect
+            GeometryReader { geo in
+                Path { path in
+                    let step: CGFloat = 40
+                    for x in stride(from: 0, to: geo.size.width, by: step) {
+                        path.move(to: CGPoint(x: x, y: 0))
+                        path.addLine(to: CGPoint(x: x, y: geo.size.height))
                     }
-                    Text(currentCard.title)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(Color.black.opacity(0.85))
+                    for y in stride(from: 0, to: geo.size.height, by: step) {
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: geo.size.width, y: y))
+                    }
                 }
-                Text(currentCard.detail)
-                    .font(.system(size: 12))
-                    .foregroundColor(Color.black.opacity(0.6))
+                .stroke(Color.white.opacity(0.015), lineWidth: 1)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color(hex: "F5F5F7"))
-            .cornerRadius(10)
+        )
+    }
 
-            // Bucket choices
-            ForEach(minigame.buckets) { bucket in
-                bucketButton(for: bucket)
+    // MARK: - Character
+    private var characterImageLayer: some View {
+        Image(characterImageName)
+            .resizable()
+            .scaledToFit()
+            .frame(maxHeight: spriteHeight, alignment: .bottomLeft)
+            .shadow(color: Color.cyan.opacity(0.15), radius: 25, x: 0, y: 0)
+            .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 15)
+            .allowsHitTesting(false)
+            .offset(y: layout.width < 700 ? 0 : 20)
+    }
+
+    // MARK: - Header
+    private var topHeaderRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(showConfigStep ? "PARAMETER TUNING" : "DATA CASE SELECT")
+                    .font(.system(size: layout.isCompact ? 22 : 30, weight: .black, design: .rounded))
+                    .italic()
+                    .foregroundColor(.white)
+                    .shadow(color: Color.blue.opacity(0.5), radius: 8, x: 0, y: 2)
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 12))
+                    Text(minigame.title.uppercased())
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                }
+                .foregroundColor(.cyan.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            if !showConfigStep {
+                // Progress counter pill
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.fill")
+                    Text("\(currentCardIndex + 1) / \(cards.count)")
+                        .fontWeight(.heavy)
+                }
+                .font(.system(size: layout.isCompact ? 14 : 16))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
             }
         }
     }
+    
+    // MARK: - Right Panel Content
+    private var rightContentPanel: some View {
+        VStack(spacing: layout.isCompact ? 16 : 24) {
+            if showConfigStep {
+                configStagePanel
+            } else {
+                locationSelectCaseList
+                
+                if feedbackVisible {
+                    feedbackCard
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+    }
+    
+    // MARK: Location Select Style Case List
+    private var locationSelectCaseList: some View {
+        VStack(spacing: layout.isCompact ? 10 : 14) {
+            ForEach(Array(cards.enumerated()), id: \\.element.id) { index, caseCard in
+                caseListItem(index: index, caseCard: caseCard)
+            }
+        }
+    }
+    
+    private func caseListItem(index: Int, caseCard: BiasDataAuditCard) -> some View {
+        let isActive = index == currentCardIndex
+        let isAnswered = selectionsByCardID[caseCard.id] != nil
+        let isCorrect = selectionsByCardID[caseCard.id] == caseCard.correctBucketID
+        
+        return Button {
+            if !isAnswered && !isCompleted {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    currentCardIndex = index
+                    feedbackVisible = false
+                }
+            }
+        } label: {
+            HStack(spacing: 0) {
+                // Left Accent Bar
+                Rectangle()
+                    .fill(isActive ? Color.cyan : (isAnswered ? (isCorrect ? Color.green : Color.orange) : Color.white.opacity(0.1)))
+                    .frame(width: 6)
+                
+                HStack(spacing: 16) {
+                    // Icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.08))
+                            .frame(width: 44, height: 44)
+                        if let sysImg = caseCard.systemImage {
+                            Image(systemName: sysImg)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(isActive ? .cyan : (isAnswered ? .white : .white.opacity(0.5)))
+                        }
+                    }
+                    
+                    // Texts
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(caseCard.title)
+                            .font(.system(size: layout.isCompact ? 15 : 18, weight: .bold, design: .rounded))
+                            .foregroundColor(isActive ? .white : .white.opacity(0.8))
+                            .lineLimit(1)
+                        
+                        Text(caseCard.detail)
+                            .font(.system(size: layout.isCompact ? 12 : 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.5))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    
+                    Spacer(minLength: 10)
+                    
+                    // Status Badge (like Bounty Tickets)
+                    VStack {
+                        if isAnswered {
+                            HStack(spacing: 4) {
+                                Image(systemName: isCorrect ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                                Text(isCorrect ? "CLEARED" : "REVIEW")
+                            }
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(isCorrect ? .green : .orange)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background((isCorrect ? Color.green : Color.orange).opacity(0.15), in: Capsule())
+                        } else if isActive {
+                            HStack(spacing: 4) {
+                                Image(systemName: "magnifyingglass")
+                                Text("ACTIVE")
+                            }
+                            .font(.system(size: 10, weight: .black))
+                            .foregroundColor(.cyan)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.cyan.opacity(0.15), in: Capsule())
+                        }
+                    }
+                }
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(
+                    ZStack {
+                        Color.white.opacity(isActive ? 0.08 : 0.03)
+                        if isActive {
+                            LinearGradient(
+                                colors: [Color.cyan.opacity(0.15), .clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        }
+                    }
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isActive ? Color.cyan.opacity(0.5) : Color.white.opacity(0.05), lineWidth: isActive ? 1.5 : 1)
+            )
+            .shadow(color: isActive ? Color.cyan.opacity(0.2) : .clear, radius: 8, x: 0, y: 0)
+        }
+        .buttonStyle(.plain)
+        .disabled(isAnswered || isCompleted)
+        .opacity(isAnswered && !isActive ? 0.6 : 1.0)
+    }
+    
+    // MARK: - Feedback Card
+    private var feedbackCard: some View {
+        let isCorrect = selectionsByCardID[currentCard.id] == currentCard.correctBucketID
+        let selectedBucket = currentSelectedBucket
+        let correctBucket = minigame.buckets.first(where: { $0.id == currentCard.correctBucketID })
 
-    private func bucketButton(for bucket: BiasDataAuditBucket) -> some View {
-        let isSelected = selectionsByCardID[currentCard.id] == bucket.id
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .font(.system(size: 24))
+                Text(isCorrect ? "ANALYSIS CORRECT" : "ANALYSIS FAILED")
+                    .font(.system(size: 16, weight: .black, design: .monospaced))
+                Spacer()
+            }
+            .foregroundColor(isCorrect ? .green : .red)
+            
+            Text(currentCard.feedback)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+                
+            if !isCorrect, let selectedBucket, let correctBucket {
+                Divider().background(Color.white.opacity(0.2))
+                HStack(spacing: 8) {
+                    Text("Selected:").foregroundColor(.white.opacity(0.5))
+                    Text(selectedBucket.title).foregroundColor(Color(hex: selectedBucket.accentHex))
+                    Spacer()
+                    Text("Target:").foregroundColor(.white.opacity(0.5))
+                    Text(correctBucket.title).foregroundColor(Color(hex: correctBucket.accentHex))
+                        .fontWeight(.bold)
+                }
+                .font(.system(size: 13, weight: .medium))
+            }
+        }
+        .padding(16)
+        .background(
+            Color.black.opacity(0.4)
+                .overlay(
+                    LinearGradient(
+                        colors: [(isCorrect ? Color.green : Color.red).opacity(0.1), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke((isCorrect ? Color.green : Color.red).opacity(0.3), lineWidth: 1)
+        )
+    }
 
+    // MARK: - Config Stage Panel
+    private var configStagePanel: some View {
+        VStack(spacing: layout.isCompact ? 16 : 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                    Text("SYSTEM CALIBRATION")
+                }
+                .font(.system(size: 16, weight: .black, design: .monospaced))
+                .foregroundColor(.cyan)
+                
+                Text(minigame.configHint)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 8)
+
+            VStack(spacing: 16) {
+                stageSlider(title: "Noise Filter Level", subtitle: "Target: ≤ \(Int(minigame.noiseTargetMax))%", value: $noiseLevel, passed: noiseLevel <= minigame.noiseTargetMax, tint: .orange)
+                
+                stageSlider(title: "Dataset Diversity", subtitle: "Target: ≥ \(Int(minigame.diversityTargetMin))%", value: $diversityLevel, passed: diversityLevel >= minigame.diversityTargetMin, tint: .blue)
+                
+                stageSlider(title: "Label Verification", subtitle: "Target: ≥ \(Int(minigame.labelQualityTargetMin))%", value: $labelQualityLevel, passed: labelQualityLevel >= minigame.labelQualityTargetMin, tint: .green)
+            }
+            
+            Text("SORT ACCURACY: \(correctSortCount)/\(cards.count)")
+                .font(.system(size: 12, weight: .black, design: .monospaced))
+                .foregroundColor(Color.white.opacity(0.4))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 8)
+        }
+        .padding(20)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+    }
+
+    private func stageSlider(title: String, subtitle: String, value: Binding<Double>, passed: Bool, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(passed ? tint : .white.opacity(0.4))
+                Text(String(format: "%02d%%", Int(value.wrappedValue)))
+                    .font(.system(size: 15, weight: .black, design: .monospaced))
+                    .foregroundColor(passed ? tint : .white)
+                    .frame(width: 45, alignment: .trailing)
+            }
+            
+            Slider(value: value, in: 0...100, step: 1)
+                .tint(tint)
+            
+            ProgressView(value: passed ? 1.0 : 0.0)
+                .progressViewStyle(.linear)
+                .tint(passed ? tint : .clear)
+                .frame(height: 2)
+                .opacity(0.5)
+        }
+        .padding(14)
+        .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(tint.opacity(passed ? 0.3 : 0.05), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Bottom Bounty / Action Row
+    private var bottomBountyActionRow: some View {
+        VStack(spacing: 12) {
+            // Teacher / System Dialog
+            HStack(alignment: .top, spacing: 12) {
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.cyan.opacity(0.5), lineWidth: 1.5))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(aiName.uppercased())
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .foregroundColor(.cyan)
+                    Text(teacherDialogText)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            
+            // Actions / Shop Bar
+            HStack(spacing: layout.isCompact ? 8 : 12) {
+                if isCompleted {
+                    // Continue Story Button
+                    Button(action: onContinue) {
+                        HStack {
+                            Text("FINISH LAB")
+                            Image(systemName: "chevron.right.2")
+                        }
+                        .font(.system(size: 15, weight: .black, design: .monospaced))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.cyan)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                } else if showConfigStep {
+                    // Complete Calibration Button
+                    Button(action: completeAudit) {
+                        HStack {
+                            Text(configPassed ? "APPLY CALIBRATION" : "TUNING REQUIRED")
+                            Image(systemName: configPassed ? "checkmark.circle.fill" : "lock.fill")
+                        }
+                        .font(.system(size: 14, weight: .black, design: .monospaced))
+                        .foregroundColor(configPassed ? .black : .white.opacity(0.5))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(configPassed ? Color.green : Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!configPassed || hasSubmitted)
+                } else if !isCurrentCardAnswered {
+                    // Bucket Selection Choices
+                    ForEach(minigame.buckets) { bucket in
+                        bucketChoicePill(bucket: bucket)
+                    }
+                } else {
+                    // Next / Config Progression
+                    Button {
+                        if canGoNext { goToNextCard() }
+                        else if canShowConfig { withAnimation(.spring) { showConfigStep = true } }
+                    } label: {
+                        HStack {
+                            Text(canGoNext ? "NEXT CASE" : "BEGIN CALIBRATION")
+                            Image(systemName: canGoNext ? "arrow.right" : "slider.horizontal.3")
+                        }
+                        .font(.system(size: 14, weight: .black, design: .monospaced))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+    
+    // Bottom action pill for Bucket selection
+    private func bucketChoicePill(bucket: BiasDataAuditBucket) -> some View {
+        let bucketColor = Color(hex: bucket.accentHex)
         return Button {
             selectBucket(bucket)
         } label: {
-            HStack(spacing: 10) {
-                if let systemImage = bucket.systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 14))
-                        .foregroundColor(isSelected ? .white : Color(hex: bucket.accentHex))
-                        .frame(width: 20)
+            HStack(spacing: 6) {
+                if let sysImg = bucket.systemImage {
+                    Image(systemName: sysImg)
+                        .font(.system(size: 14, weight: .bold))
                 }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(bucket.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(isSelected ? .white : Color.black.opacity(0.85))
-                    Text(bucket.description)
-                        .font(.system(size: 11))
-                        .foregroundColor(isSelected ? .white.opacity(0.9) : Color.black.opacity(0.5))
-                        .lineLimit(2)
-                }
-
-                Spacer()
-
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
-                }
+                Text(bucket.title.uppercased())
+                    .font(.system(size: layout.isCompact ? 11 : 13, weight: .heavy, design: .monospaced))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .foregroundColor(bucketColor)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(Color.black.opacity(0.6))
             .background(
+                LinearGradient(
+                    colors: [bucketColor.opacity(0.15), .clear],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isSelected ? Color(hex: bucket.accentHex) : Color(hex: "F2F2F7"))
+                    .stroke(bucketColor.opacity(0.5), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .disabled(selectionsByCardID[currentCard.id] != nil)
+        .disabled(isTyping || isCompleted)
     }
 
-    private var configPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Now tune the data quality settings:")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(Color.black.opacity(0.8))
-
-            VStack(spacing: 8) {
-                configSliderRow(
-                    title: "Noise Level",
-                    subtitle: "Target: ≤ \(Int(minigame.noiseTargetMax))%",
-                    value: $noiseLevel,
-                    targetPassed: noiseLevel <= minigame.noiseTargetMax,
-                    tint: Color.orange
-                )
-
-                configSliderRow(
-                    title: "Dataset Diversity",
-                    subtitle: "Target: ≥ \(Int(minigame.diversityTargetMin))%",
-                    value: $diversityLevel,
-                    targetPassed: diversityLevel >= minigame.diversityTargetMin,
-                    tint: Color.blue
-                )
-
-                configSliderRow(
-                    title: "Label Quality",
-                    subtitle: "Target: ≥ \(Int(minigame.labelQualityTargetMin))%",
-                    value: $labelQualityLevel,
-                    targetPassed: labelQualityLevel >= minigame.labelQualityTargetMin,
-                    tint: Color.green
-                )
-            }
-
-            if configPassed {
-                Button {
-                    completeAudit()
-                } label: {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Complete Lab")
-                            .fontWeight(.bold)
-                    }
-                    .font(.system(size: 14))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.green, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.top, 8)
-    }
-
-    private func configSliderRow(title: String, subtitle: String, value: Binding<Double>, targetPassed: Bool, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.black.opacity(0.8))
-                Spacer()
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(targetPassed ? tint : Color.black.opacity(0.5))
-                Text("\(Int(value.wrappedValue))%")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(targetPassed ? tint : Color.black.opacity(0.8))
-            }
-
-            Slider(value: value, in: 0...100, step: 1)
-                .tint(tint)
-        }
-        .padding(.horizontal, 4)
-    }
-
-    private func initializeChat() {
-        chatMessages = []
-        isShowingChoices = false
-        hasSubmitted = false
-        showConfigStep = false
-
-        // Add intro message from AI
-        chatMessages.append(DialogShowcaseChatMessage(
-            id: "intro",
-            text: "Let's sort these data problems together. I'll show you one case at a time.",
-            isFromPlayer: false
-        ))
-
-        // Show first card
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            showCurrentCard()
-        }
-    }
-
-    private func showCurrentCard() {
-        let card = currentCard
-
-        chatMessages.append(DialogShowcaseChatMessage(
-            id: "card-\(card.id)",
-            text: "📋 \(card.title)\n\n\(card.detail)",
-            isFromPlayer: false
-        ))
-
-        withAnimation {
-            isShowingChoices = true
-        }
-    }
-
+    // MARK: - Actions
     private func selectBucket(_ bucket: BiasDataAuditBucket) {
         guard selectionsByCardID[currentCard.id] == nil else { return }
-
-        selectionsByCardID[currentCard.id] = bucket.id
-
-        // Add player's choice to chat
-        chatMessages.append(DialogShowcaseChatMessage(
-            id: "answer-\(currentCard.id)",
-            text: "This is \(bucket.title)",
-            isFromPlayer: true
-        ))
-
-        // Add feedback after brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let isCorrect = bucket.id == currentCard.correctBucketID
-            let feedbackText = isCorrect
-                ? "✅ \(currentCard.feedback)"
-                : "❌ Not quite. \(currentCard.feedback)"
-
-            withAnimation {
-                chatMessages.append(DialogShowcaseChatMessage(
-                    id: "feedback-\(currentCard.id)",
-                    text: feedbackText,
-                    isFromPlayer: false
-                ))
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+            selectionsByCardID[currentCard.id] = bucket.id
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            withAnimation(.easeInOut(duration: 0.25)) {
+                feedbackVisible = true
             }
+        }
+    }
 
-            // Move to next card or config step
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                if isLastCard {
-                    showConfigStep = true
-                    chatMessages.append(DialogShowcaseChatMessage(
-                        id: "config-intro",
-                        text: "Great! Now let's tune the data quality settings to fix these issues.",
-                        isFromPlayer: false
-                    ))
-                } else {
-                    currentCardIndex += 1
-                    showCurrentCard()
-                }
-            }
+    private func goToNextCard() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            feedbackVisible = false
+            currentCardIndex = min(currentCardIndex + 1, max(cards.count - 1, 0))
         }
     }
 
     private func completeAudit() {
-        let summary = "Completed \(minigame.title). Sorted \(correctSortCount)/\(cards.count) cases correctly. Final settings: noise \(Int(noiseLevel))%, diversity \(Int(diversityLevel))%, label quality \(Int(labelQualityLevel))%. \(minigame.summaryNote)"
-
-        chatMessages.append(DialogShowcaseChatMessage(
-            id: "complete",
-            text: "Lab complete! You correctly identified the data issues and tuned the settings. Well done!",
-            isFromPlayer: false
-        ))
-
+        guard !hasSubmitted else { return }
         hasSubmitted = true
+        let summary = "Completed \(minigame.title). Sorted \(correctSortCount)/\(cards.count) cases correctly. Final settings: noise \(Int(noiseLevel))%, diversity \(Int(diversityLevel))%, label quality \(Int(labelQualityLevel))%. \(minigame.summaryNote)"
         onComplete(summary)
     }
 }
+
 
 struct LectureQuizMiniGameCard: View {
     let quiz: LectureQuizMiniGame

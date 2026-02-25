@@ -428,12 +428,71 @@ struct Chapter3KNNRescueMiniGame: Sendable {
     }
 }
 
+struct Chapter2InteractiveLabStage: Identifiable, Sendable {
+    let id: String
+    let backgroundVisualKey: String?
+    let defaultSpeakerText: String
+    let speakerRole: String?
+    let aiProfileImage: String
+    let aiGuessText: String
+    let isAIThinking: Bool
+    
+    // Stage type configuration
+    let type: StageType
+    enum StageType: Sendable {
+        case timeCorrection(options: [String], correctOptions: Set<String>)
+        case imageLabeling(options: [String], correctOptions: Set<String>, badgeText: String)
+        case swipeReveal(baseImage: String, overlayImage: String)
+    }
+    
+    let feedbackCorrectText: String
+    let feedbackIncorrectText: String
+    
+    init(
+        id: String,
+        backgroundVisualKey: String? = nil,
+        defaultSpeakerText: String,
+        speakerRole: String? = nil,
+        aiProfileImage: String = "char_neutral",
+        aiGuessText: String,
+        isAIThinking: Bool = false,
+        type: StageType,
+        feedbackCorrectText: String,
+        feedbackIncorrectText: String
+    ) {
+        self.id = id
+        self.backgroundVisualKey = backgroundVisualKey
+        self.defaultSpeakerText = defaultSpeakerText
+        self.speakerRole = speakerRole
+        self.aiProfileImage = aiProfileImage
+        self.aiGuessText = aiGuessText
+        self.isAIThinking = isAIThinking
+        self.type = type
+        self.feedbackCorrectText = feedbackCorrectText
+        self.feedbackIncorrectText = feedbackIncorrectText
+    }
+}
+
+struct Chapter2InteractiveLabMiniGame: Sendable {
+    let title: String
+    let stages: [Chapter2InteractiveLabStage]
+    
+    init(
+        title: String,
+        stages: [Chapter2InteractiveLabStage]
+    ) {
+        self.title = title
+        self.stages = stages
+    }
+}
+
 enum DialogInlineActivity: Sendable {
     case video(DialogVideoClip)
     case promptBuilder(PromptBuilderMiniGame)
     case lectureQuiz(LectureQuizMiniGame)
     case biasDataAudit(BiasDataAuditMiniGame)
     case chapter3KNNRescue(Chapter3KNNRescueMiniGame)
+    case chapter2InteractiveLab(Chapter2InteractiveLabMiniGame)
 }
 
 struct StoryDialogLine: Sendable {

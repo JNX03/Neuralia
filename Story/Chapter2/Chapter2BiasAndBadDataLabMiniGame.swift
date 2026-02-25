@@ -1,90 +1,65 @@
 import Foundation
 
-// MARK: - Bias & Bad Data Lab (Messenger Style)
-// Original card sorting data, but presented in messenger/chat UI
-// One card at a time, fade dialogs like PromptBuilder
+import Foundation
 
-let chapter2BiasAndBadDataLabMiniGame =
-    BiasDataAuditMiniGame(
-        title: "Bias & Bad Data Lab",
-        promptLabel: "Sort each problem into the correct bucket, then tune the model setup.",
-        buckets: [
-            BiasDataAuditBucket(
-                id: "bias",
-                title: "Bias Pattern",
-                description: "Narrow or unbalanced examples teach the wrong rule.",
-                accentHex: "F59E0B",
-                systemImage: "brain.head.profile"
+let chapter2BiasAndBadDataLabMiniGame = Chapter2InteractiveLabMiniGame(
+    title: "Understanding Bias & Bad Data",
+    stages: [
+        // Beat 1: Time Hallucination
+        Chapter2InteractiveLabStage(
+            id: "time_correction",
+            defaultSpeakerText: "",
+            aiGuessText: "10:67.",
+            type: .timeCorrection(
+                options: ["11:07", "10:67", "10:07"],
+                correctOptions: ["11:07"] // Contextual, anything but 10:67. Let's assume the real time is a valid choice.
             ),
-            BiasDataAuditBucket(
-                id: "bad-data",
-                title: "Bad Data",
-                description: "Noisy, blurry, wrong, or missing input/labels.",
-                accentHex: "EF4444",
-                systemImage: "waveform.path.badge.minus"
+            feedbackCorrectText: "You correct the clock.",
+            feedbackIncorrectText: "That's also not a real time... wait, let me check the physical clock."
+        ),
+        
+        // Beat 2: Zoo Bird Labeling
+        Chapter2InteractiveLabStage(
+            id: "zoo_bird",
+            backgroundVisualKey: "bg_zoo",
+            defaultSpeakerText: "You point at a bird.",
+            aiGuessText: "That's... a plane?",
+            type: .imageLabeling(
+                options: ["Plane", "Bird", "Drone"],
+                correctOptions: ["Bird"],
+                badgeText: "Identifying object"
             ),
-            BiasDataAuditBucket(
-                id: "healthy",
-                title: "Healthy Data",
-                description: "Clear inputs, balanced examples, and verified labels.",
-                accentHex: "10B981",
-                systemImage: "checkmark.shield.fill"
-            )
-        ],
-        cards: [
-            BiasDataAuditCard(
-                id: "daylight-only-photos",
-                title: "Only daytime zoo photos in training",
-                detail: "The model rarely sees night enclosures, so it misses nocturnal animals.",
-                correctBucketID: "bias",
-                feedback: "This is bias from an unbalanced dataset. The model learned mostly daylight patterns, not the full range.",
-                systemImage: "sun.max.fill"
+            feedbackCorrectText: "(Photo memory unlocked: Ploy pointing confidently at a pigeon, calling it a Boeing 747.)",
+            feedbackIncorrectText: "No... that's definitely not it. Use your eyes, Ploy."
+        ),
+        
+        // Beat 3: Red Panda Bias
+        Chapter2InteractiveLabStage(
+            id: "red_panda",
+            backgroundVisualKey: "bg_zoo",
+            defaultSpeakerText: "You point at the Red Panda enclosure.",
+            aiGuessText: "Look! A fox! Or maybe a raccoon? Impossible. My pattern says panda = big, black and white, and eats bamboo. This one is small and red.",
+            type: .imageLabeling(
+                options: ["Fox", "Raccoon", "Red Panda"],
+                correctOptions: ["Red Panda"],
+                badgeText: "Reading sign"
             ),
-            BiasDataAuditCard(
-                id: "blurry-aquarium-glass",
-                title: "Blurry aquarium camera frame",
-                detail: "Dirty glass and motion blur hide the fish shape.",
-                correctBucketID: "bad-data",
-                feedback: "This is bad data. The evidence is noisy/unclear, so the prediction becomes unreliable.",
-                systemImage: "camera.metering.unknown"
+            feedbackCorrectText: "(Photo memory unlocked: You pointing at the sign while Ploy looks confused at the small red 'panda'.)",
+            feedbackIncorrectText: "Read the sign carefully..."
+        ),
+        
+        // Beat 4: Aquarium Algae Wiping
+        Chapter2InteractiveLabStage(
+            id: "aquarium_algae",
+            backgroundVisualKey: "bg_aquarium",
+            defaultSpeakerText: "Ploy suddenly points at a dark shape behind thick green algae on the glass.",
+            aiGuessText: "Alert! I detected a Sea Monster! Green slime skin, 10 meters long!",
+            type: .swipeReveal(
+                baseImage: "catfish_clear",
+                overlayImage: "algae_dirty"
             ),
-            BiasDataAuditCard(
-                id: "red-panda-rule",
-                title: "Training labels teach 'panda = only big black-and-white'",
-                detail: "The model rejects red pandas because it learned a narrow pattern as a rule.",
-                correctBucketID: "bias",
-                feedback: "This is bias. The training examples are too narrow, so valid exceptions get rejected.",
-                systemImage: "pawprint.fill"
-            ),
-            BiasDataAuditCard(
-                id: "wrong-copypaste-labels",
-                title: "Copied labels are wrong on many images",
-                detail: "Catfish photos are labeled as 'rock' after a bad import.",
-                correctBucketID: "bad-data",
-                feedback: "This is bad data. Incorrect labels directly poison the training signal.",
-                systemImage: "tag.slash.fill"
-            ),
-            BiasDataAuditCard(
-                id: "single-accent-voice-set",
-                title: "Speech dataset uses only one accent",
-                detail: "The AI performs poorly when visitors speak with different accents.",
-                correctBucketID: "bias",
-                feedback: "This is bias from limited representation. The training set does not cover real-world diversity.",
-                systemImage: "waveform.badge.mic"
-            ),
-            BiasDataAuditCard(
-                id: "balanced-verified-zoo-set",
-                title: "Balanced, clear, verified zoo dataset",
-                detail: "Multiple angles, lighting conditions, ages, and checked labels.",
-                correctBucketID: "healthy",
-                feedback: "This is healthy data. Diversity + clarity + verified labels improves model reliability.",
-                systemImage: "checkmark.seal.fill"
-            )
-        ],
-        configTitle: "Noise Config + Bias Fix",
-        configHint: "Reduce noise, increase dataset diversity, and improve label checks before trusting the AI output.",
-        noiseTargetMax: 25,
-        diversityTargetMin: 70,
-        labelQualityTargetMin: 80,
-        summaryNote: "Bias usually comes from narrow or unbalanced training examples. Bad data usually comes from noisy inputs or wrong labels. Safer AI needs both better data quality and better data coverage."
-    )
+            feedbackCorrectText: "(Photo memory unlocked: The giant catfish happily swimming, no longer a 'sea monster'.)",
+            feedbackIncorrectText: "Wait... look closer. Wipe the glass."
+        )
+    ]
+)

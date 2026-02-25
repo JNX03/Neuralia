@@ -1,9 +1,53 @@
 import SwiftUI
 
+// MARK: - Slanted Shape Direction
+enum SlantDirection {
+    case forward
+    case backward
+}
+
+// MARK: - Slanted Rectangle Shape
+struct SlantedRect: Shape {
+    var offset: CGFloat = 20
+    var direction: SlantDirection = .forward
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        if direction == .forward {
+            // Forward slant: /
+            path.move(to: CGPoint(x: offset, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+            path.addLine(to: CGPoint(x: rect.width - offset, y: rect.height))
+            path.addLine(to: CGPoint(x: 0, y: rect.height))
+        } else {
+            // Backward slant: \
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: rect.width - offset, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: rect.height))
+            path.addLine(to: CGPoint(x: offset, y: rect.height))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+// MARK: - Story Chapter Hub View
 @MainActor
 struct StoryChapterHubView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var progressStore = StoryProgressStore.shared
     private let chapters = StoryChapterRepository.all
+    @State private var selectedChapterIndex: Int = 0
+
+    private var selectedChapter: StoryChapter {
+        chapters[selectedChapterIndex]
+    }
+
+    // MARK: - Visual Novel / Blue Archive Theme Colors
+    private let themeBlue = Color(red: 0.08, green: 0.58, blue: 0.90)   // Main vivid blue
+    private let themeLight = Color(red: 0.85, green: 0.94, blue: 0.98)  // Sky light background
+    private let themeDark = Color(red: 0.05, green: 0.20, blue: 0.35)   // Heavy dark blue for text
+    private let themeWhite = Color.white
 
     var body: some View {
         GeometryReader { geo in
@@ -14,210 +58,301 @@ struct StoryChapterHubView: View {
             )
 
             ZStack {
-                Color(red: 0.08, green: 0.09, blue: 0.11)
-                    .ignoresSafeArea()
+                // 1. Slanted Background Layer
+                backgroundLayer(layout: layout, geo: geo)
 
-                VStack(spacing: layout.sectionSpacing) {
-                    header(layout: layout, geo: geo)
-
-                    ScrollView(layout.isLandscape ? .horizontal : .vertical, showsIndicators: false) {
-                        if layout.isLandscape {
-                            HStack(spacing: layout.elementSpacing) {
-                                ForEach(chapters) { chapter in
-                                    chapterCard(chapter: chapter, layout: layout)
-                                        .frame(width: min(max(geo.size.width * 0.42, 320), 520))
-                                }
-                            }
-                            .padding(.horizontal, layout.padding)
-                            .padding(.bottom, layout.padding)
-                        } else {
-                            VStack(spacing: layout.elementSpacing) {
-                                ForEach(chapters) { chapter in
-                                    chapterCard(chapter: chapter, layout: layout)
-                                }
-                            }
-                            .padding(.horizontal, layout.padding)
-                            .padding(.bottom, layout.padding)
-                        }
-                    }
-
-                    Button(action: { dismiss() }) {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.system(size: layout.scaled(16), weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, layout.scaled(18))
-                            .padding(.vertical, layout.scaled(12))
-                            .background(Color.white.opacity(0.08), in: Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.bottom, layout.padding)
+                // 2. Main Stacks
+                if layout.isLandscape {
+                    landscapeLayout(layout: layout, geo: geo)
+                } else {
+                    portraitLayout(layout: layout, geo: geo)
                 }
+
+                // 3. Floating Back Button
+                VStack {
+                    HStack {
+                        backButton(layout: layout)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
+                .padding(.leading, layout.scaled(20))
+                .zIndex(2)
             }
         }
         .navigationBarBackButtonHidden(true)
     }
 
-    private func header(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        VStack(alignment: .leading, spacing: layout.scaled(10)) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: layout.scaled(4)) {
-                    Text("Story Chapters")
-                        .font(.system(size: layout.scaled(30), weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("Data-driven dialog / cutscene / character / choice scripts")
-                        .font(.system(size: layout.scaled(13), weight: .medium))
-                        .foregroundColor(.white.opacity(0.72))
-                }
+    // MARK: - Background
+    private func backgroundLayer(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: [themeWhite, themeLight, themeWhite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            SlantedRect(offset: layout.scaled(100), direction: .forward)
+                .fill(themeWhite.opacity(0.6))
+                .frame(width: geo.size.width * 0.8, height: geo.size.height)
+                .offset(x: -geo.size.width * 0.2)
+                .ignoresSafeArea()
+
+            SlantedRect(offset: layout.scaled(60), direction: .backward)
+                .fill(themeBlue.opacity(0.04))
+                .frame(width: geo.size.width * 0.5, height: geo.size.height)
+                .offset(x: geo.size.width * 0.4)
+                .ignoresSafeArea()
+        }
+    }
+
+    // MARK: - Layouts
+    private func landscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        HStack(spacing: layout.scaled(20)) {
+            // Hero
+            heroShowcase(layout: layout, geo: geo)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(1) // Keep character popping over the sidebar
+
+            // Sidebar
+            chapterSidebar(layout: layout, geo: geo)
+                .frame(width: min(geo.size.width * 0.38, 440))
+                .zIndex(0)
+        }
+        .padding(.top, geo.safeAreaInsets.top + layout.scaled(30))
+        .padding(.bottom, layout.scaled(40))
+        .padding(.leading, layout.scaled(40))
+        .padding(.trailing, layout.scaled(20))
+    }
+
+    private func portraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(spacing: layout.scaled(20)) {
+            // Top Hero
+            heroShowcase(layout: layout, geo: geo)
+                .frame(height: geo.size.height * 0.45)
+                .padding(.top, geo.safeAreaInsets.top + layout.scaled(55))
+                .zIndex(1)
+
+            // Bottom Sidebar
+            chapterSidebar(layout: layout, geo: geo)
+                .zIndex(0)
+        }
+        .padding(.horizontal, layout.scaled(20))
+        .padding(.bottom, layout.scaled(20))
+    }
+
+    // MARK: - Hero Showcase Container
+    private func heroShowcase(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        ZStack {
+            // A. The Cropped Background Image Map
+            ZStack {
+                Image(selectedChapter.coverBackgroundImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                LinearGradient(
+                    colors: [themeDark.opacity(0.1), themeDark.opacity(0.45)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .clipShape(SlantedRect(offset: layout.scaled(35), direction: .forward))
+            .overlay(
+                SlantedRect(offset: layout.scaled(35), direction: .forward)
+                    .stroke(themeWhite, lineWidth: layout.scaled(4))
+            )
+            .shadow(color: themeBlue.opacity(0.2), radius: 15, x: 0, y: layout.scaled(10))
+
+            // B. Full Character Image (Allowed to overflow!)
+            VStack {
                 Spacer()
-                if layout.isLandscape {
-                    Text("Landscape")
-                        .font(.system(size: layout.scaled(11), weight: .semibold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.06), in: Capsule())
+                HStack {
+                    Spacer()
+                    Image(selectedChapter.coverCharacterImage)
+                        .resizable()
+                        .scaledToFit()
+                        // Slightly larger than container to ensure it pops out
+                        .frame(height: layout.isLandscape ? geo.size.height * 0.75 : geo.size.height * 0.45)
+                        .shadow(color: Color.black.opacity(0.25), radius: 15, x: 0, y: layout.scaled(10))
+                        // Overlap onto the right naturally
+                        .offset(x: layout.scaled(20), y: layout.scaled(15))
+                        .allowsHitTesting(false)
                 }
             }
 
-            HStack(spacing: layout.scaled(10)) {
-                statPill(title: "Chapters", value: "\(chapters.count)")
-                statPill(title: "Scenes", value: "\(chapters.reduce(0) { $0 + $1.lines.count })")
-                statPill(title: "Mode", value: "Story")
+            // C. Bottom-Left Information Panel
+            VStack {
+                Spacer()
+                HStack {
+                    chapterInfoPanel(layout: layout)
+                    Spacer()
+                }
             }
         }
-        .padding(.horizontal, layout.padding)
-        .padding(.top, geo.safeAreaInsets.top + layout.scaled(12))
-        .padding(.bottom, layout.scaled(8))
     }
 
-    private func statPill(title: String, value: String) -> some View {
-        HStack(spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white.opacity(0.45))
-            Text(value)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white)
+    // MARK: - Info Panel Details
+    private func chapterInfoPanel(layout: ResponsiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.scaled(6)) {
+            Text("CHAPTER \(selectedChapterIndex + 1)")
+                .font(.system(size: layout.scaled(13), weight: .black, design: .rounded))
+                .foregroundColor(themeBlue)
+                .tracking(2)
+
+            Text(selectedChapter.title)
+                .font(.system(size: layout.scaled(26), weight: .heavy, design: .rounded))
+                .foregroundColor(themeDark)
+                .lineLimit(2)
+
+            Text(selectedChapter.subtitle)
+                .font(.system(size: layout.scaled(14), weight: .bold))
+                .foregroundColor(.gray)
+
+            Text(selectedChapter.overview)
+                .font(.system(size: layout.scaled(12), weight: .medium))
+                .foregroundColor(themeDark.opacity(0.75))
+                .lineLimit(layout.isLandscape ? 3 : 2)
+                .padding(.top, layout.scaled(4))
+                .frame(maxWidth: layout.scaled(280), alignment: .leading)
+
+            // Play Button
+            NavigationLink {
+                StoryChapterPlayerView(initialChapter: selectedChapter)
+            } label: {
+                HStack(spacing: layout.scaled(8)) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: layout.scaled(18)))
+                    Text("START MISSION")
+                        .font(.system(size: layout.scaled(15), weight: .black, design: .rounded))
+                        .tracking(1)
+                }
+                .foregroundColor(themeWhite)
+                .padding(.horizontal, layout.scaled(20))
+                .padding(.vertical, layout.scaled(12))
+                .background(themeBlue)
+                .clipShape(SlantedRect(offset: layout.scaled(8), direction: .forward))
+                .shadow(color: themeBlue.opacity(0.4), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, layout.scaled(8))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.06), in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
+        .padding(layout.scaled(24))
+        .background(themeWhite.opacity(0.95))
+        .clipShape(SlantedRect(offset: layout.scaled(18), direction: .forward))
+        .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
+        .padding(.leading, layout.isLandscape ? layout.scaled(-10) : layout.scaled(10))
+        .padding(.bottom, layout.scaled(20))
     }
 
-    private func chapterCard(chapter: StoryChapter, layout: ResponsiveLayout) -> some View {
-        NavigationLink {
-            StoryChapterPlayerView(initialChapter: chapter)
+    // MARK: - Sidebar Menu
+    private func chapterSidebar(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(alignment: .leading, spacing: layout.scaled(12)) {
+            Text("MISSION SELECT")
+                .font(.system(size: layout.scaled(20), weight: .heavy, design: .rounded))
+                .foregroundColor(themeDark)
+                .tracking(1.5)
+                .padding(.leading, layout.scaled(16))
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: layout.scaled(12)) {
+                    ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
+                        chapterMenuRow(
+                            chapter: chapter,
+                            index: index,
+                            isSelected: index == selectedChapterIndex,
+                            layout: layout
+                        )
+                    }
+                }
+                .padding(.horizontal, layout.scaled(10))
+                .padding(.bottom, layout.scaled(40))
+                .padding(.top, layout.scaled(10))
+            }
+        }
+    }
+
+    private func chapterMenuRow(chapter: StoryChapter, index: Int, isSelected: Bool, layout: ResponsiveLayout) -> some View {
+        let isUnlocked = progressStore.isChapterUnlocked(at: index)
+        let isCompleted = progressStore.isChapterCompleted(chapter.id)
+
+        return Button {
+            if isUnlocked {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    selectedChapterIndex = index
+                }
+            }
         } label: {
-            chapterCardLabel(chapter: chapter, layout: layout)
+            HStack(spacing: 0) {
+                // Accent Bar (Left side)
+                Rectangle()
+                    .fill(isSelected ? themeBlue : Color.gray.opacity(0.2))
+                    .frame(width: layout.scaled(8))
+
+                // Row Details
+                HStack(spacing: layout.scaled(12)) {
+                    Text(String(format: "%02d", index + 1))
+                        .font(.system(size: layout.scaled(22), weight: .black, design: .rounded))
+                        .foregroundColor(isSelected ? themeBlue : .gray.opacity(0.5))
+
+                    VStack(alignment: .leading, spacing: layout.scaled(2)) {
+                        Text(chapter.title)
+                            .font(.system(size: layout.scaled(15), weight: .bold))
+                            .foregroundColor(isSelected ? themeDark : .gray)
+                            .lineLimit(1)
+
+                        Text(chapter.subtitle)
+                            .font(.system(size: layout.scaled(12), weight: .bold))
+                            .foregroundColor(isSelected ? themeBlue.opacity(0.85) : .gray.opacity(0.5))
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if isCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(themeBlue)
+                            .font(.system(size: layout.scaled(16)))
+                    } else if !isUnlocked {
+                        Image(systemName: "lock.fill")
+                            .foregroundColor(.gray.opacity(0.4))
+                            .font(.system(size: layout.scaled(14)))
+                    }
+                }
+                .padding(.vertical, layout.scaled(14))
+                .padding(.horizontal, layout.scaled(14))
+                .background(isSelected ? themeWhite : themeWhite.opacity(0.7))
+            }
+            .clipShape(SlantedRect(offset: layout.scaled(12), direction: .backward))
+            .overlay(
+                SlantedRect(offset: layout.scaled(12), direction: .backward)
+                    .stroke(isSelected ? themeBlue : Color.clear, lineWidth: layout.scaled(2))
+            )
+            .shadow(color: isSelected ? themeBlue.opacity(0.25) : .black.opacity(0.05), radius: layout.scaled(8), x: 0, y: layout.scaled(4))
+            .offset(x: isSelected ? layout.scaled(-10) : 0) // Selected row pops out to the left slightly
         }
         .buttonStyle(.plain)
+        .opacity(isUnlocked ? 1.0 : 0.6)
     }
 
-    private func chapterCardLabel(chapter: StoryChapter, layout: ResponsiveLayout) -> some View {
-        let cardHeight = layout.isLandscape ? layout.scaled(250) : layout.scaled(220)
-        let outerCornerRadius = layout.scaled(24)
-
-        return ZStack(alignment: .bottomLeading) {
-            chapterCardBackground(chapter: chapter, cardHeight: cardHeight)
-            chapterCardInfo(chapter: chapter, layout: layout)
-            chapterCardPlayIcon(layout: layout)
-        }
-        .background(Color.white.opacity(0.02))
-        .clipShape(RoundedRectangle(cornerRadius: outerCornerRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: outerCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 6)
-    }
-
-    private func chapterCardBackground(chapter: StoryChapter, cardHeight: CGFloat) -> some View {
-        Image(chapter.coverBackgroundImage)
-            .resizable()
-            .scaledToFill()
-            .frame(maxWidth: .infinity)
-            .frame(height: cardHeight)
-            .clipped()
-            .overlay(Color.black.opacity(0.18))
-    }
-
-    private func chapterCardInfo(chapter: StoryChapter, layout: ResponsiveLayout) -> some View {
-        let interactiveCount = chapter.lines.reduce(into: 0) { count, line in
-            if (line.choices?.isEmpty == false) || line.requiresInput {
-                count += 1
+    // MARK: - Back Button
+    private func backButton(layout: ResponsiveLayout) -> some View {
+        Button(action: { dismiss() }) {
+            HStack(spacing: layout.scaled(6)) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: layout.scaled(12), weight: .bold))
+                Text("Back")
+                    .font(.system(size: layout.scaled(14), weight: .bold, design: .rounded))
             }
+            .foregroundColor(themeDark)
+            .padding(.horizontal, layout.scaled(16))
+            .padding(.vertical, layout.scaled(10))
+            .background(themeWhite.opacity(0.95))
+            .clipShape(SlantedRect(offset: layout.scaled(8), direction: .forward))
+            .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: layout.scaled(3))
         }
-        let innerCornerRadius = layout.scaled(18)
-
-        return HStack(alignment: .bottom, spacing: layout.scaled(12)) {
-            Image(chapter.coverCharacterImage)
-                .resizable()
-                .scaledToFit()
-                .frame(width: layout.scaled(110), height: layout.scaled(150))
-                .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
-
-            VStack(alignment: .leading, spacing: layout.scaled(6)) {
-                Text(chapter.title)
-                    .font(.system(size: layout.scaled(20), weight: .heavy, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.leading)
-
-                Text(chapter.subtitle)
-                    .font(.system(size: layout.scaled(12), weight: .semibold))
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.leading)
-
-                Text(chapter.overview)
-                    .font(.system(size: layout.scaled(12)))
-                    .foregroundColor(.white.opacity(0.7))
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-
-                HStack(spacing: 8) {
-                    chip("\(chapter.lines.count) scenes")
-                    chip("\(interactiveCount) interact")
-                }
-            }
-        }
-        .padding(layout.scaled(16))
-        .background(
-            RoundedRectangle(cornerRadius: innerCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.62))
-        )
-        .padding(layout.scaled(10))
-    }
-
-    private func chapterCardPlayIcon(layout: ResponsiveLayout) -> some View {
-        VStack {
-            HStack {
-                Spacer()
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: layout.scaled(28)))
-                    .foregroundColor(.white.opacity(0.92))
-            }
-            Spacer()
-        }
-        .padding(layout.scaled(14))
-    }
-
-    private func chip(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .bold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.white.opacity(0.08), in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
+        .buttonStyle(.plain)
     }
 }
