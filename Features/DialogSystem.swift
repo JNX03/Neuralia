@@ -5663,6 +5663,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
     @State private var shuffledChoicesByQuestionID: [String: [LectureQuizOption]] = [:]
     @State private var isFieldGuideOpen = false
     @State private var fieldGuidePageIndex = 0
+    @State private var spokenTeacherIntroQuestionIDs: Set<String> = []
 
     private var questions: [LectureQuizQuestion] {
         quiz.questions.isEmpty
@@ -5798,6 +5799,14 @@ struct ClassroomLectureQuizMiniGameStage: View {
         return "Hmm... maybe. Can we check the sign or field guide one more time before we save that?"
     }
 
+    private var teacherIntroSpeechText: String? {
+        if let aiGuessLine = currentQuestion.aiGuessLine?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !aiGuessLine.isEmpty {
+            return aiGuessLine
+        }
+        return nil
+    }
+
     private var teacherDialogText: String {
         if let selected = currentSelectedChoice {
             if isProfessorTypingCurrentQuestion {
@@ -5808,7 +5817,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         if isTyping && !instructionText.isEmpty {
             return instructionText
         }
-        if clampedQuestionIndex == 0, answeredCount == 0, !instructionText.isEmpty {
+        if clampedQuestionIndex == 0, answeredCount == 0, !instructionText.isEmpty, !studentGivesCorrectionFeedback {
             return instructionText
         }
         if let aiGuessLine = currentQuestion.aiGuessLine, !aiGuessLine.isEmpty {
@@ -5967,10 +5976,16 @@ struct ClassroomLectureQuizMiniGameStage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             prepareShuffledChoicesIfNeeded()
+            speakTeacherIntroIfNeeded()
         }
         .onChange(of: clampedQuestionIndex) { _, _ in
             isFieldGuideOpen = false
             fieldGuidePageIndex = 0
+            speakTeacherIntroIfNeeded()
+        }
+        .onChange(of: isTyping) { _, typing in
+            guard !typing else { return }
+            speakTeacherIntroIfNeeded()
         }
         .onDisappear {
             professorTypingTask?.cancel()
@@ -6610,6 +6625,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
             pulsingChoiceID = choice.id
         }
 
+        speechManager.stop()
         let playerReply = playerCorrectionText(for: choice)
         playerSpeechManager.speak(playerReply, emotion: .neutral, voiceProfile: .playerFemale)
 
@@ -6727,6 +6743,25 @@ struct ClassroomLectureQuizMiniGameStage: View {
             next[question.id] = question.choices.shuffled()
         }
         shuffledChoicesByQuestionID = next
+    }
+
+    private func speakTeacherIntroIfNeeded() {
+        guard !isCompleted else { return }
+        guard !isTyping else { return }
+        guard currentSelectedChoice == nil else { return }
+        guard !isProfessorTypingCurrentQuestion else { return }
+        if clampedQuestionIndex == 0, answeredCount == 0, !instructionText.isEmpty, !studentGivesCorrectionFeedback {
+            return
+        }
+        guard !spokenTeacherIntroQuestionIDs.contains(currentQuestion.id) else { return }
+        guard let introText = teacherIntroSpeechText else { return }
+
+        spokenTeacherIntroQuestionIDs.insert(currentQuestion.id)
+        speechManager.speak(
+            introText,
+            emotion: .neutral,
+            voiceProfile: teacherUsesFemaleVoice ? .playerFemale : .professorMale
+        )
     }
 
     private func submitQuizIfNeeded() {
