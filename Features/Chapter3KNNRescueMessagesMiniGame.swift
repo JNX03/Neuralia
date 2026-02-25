@@ -33,6 +33,7 @@ struct TrainingSamplePreview: Identifiable {
 }
 
 // MARK: - Main MiniGame View (Classroom Style)
+@MainActor
 struct Chapter3KNNRescueMessagesMiniGame: View {
     let minigame: Chapter3KNNRescueMiniGame
     let layout: DialogAdaptiveLayout
@@ -922,18 +923,16 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         // Animate training progress
         var progress = 0.0
         trainingTimer?.invalidate()
-        trainingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            DispatchQueue.main.async {
-                progress += 0.05
-                trainingProgress = min(progress, 1.0)
+        trainingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            progress += 0.05
+            trainingProgress = min(progress, 1.0)
+            
+            if progress >= 1.0 {
+                trainingTimer?.invalidate()
+                trainingTimer = nil
                 
-                if progress >= 1.0 {
-                    timer.invalidate()
-                    trainingTimer = nil
-                    
-                    // Load asset images for evaluation
-                    evaluateTrainingWithAssets()
-                }
+                // Load asset images for evaluation
+                evaluateTrainingWithAssets()
             }
         }
     }
@@ -1244,3 +1243,4 @@ struct LabelButton: View {
         .buttonStyle(.plain)
     }
 }
+

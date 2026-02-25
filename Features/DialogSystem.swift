@@ -1204,95 +1204,67 @@ struct ResponsiveDialogView: View {
         node: DialogNode,
         minigame: BiasDataAuditMiniGame
     ) -> some View {
+        // Messenger/chat style (like Chapter 1's PromptBuilder)
         let horizontalPadding = layout.dialogPadding
-        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
-        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
-        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+        let useScrollStage = geometry.size.width < 1120 || geometry.size.height < 760
+        let stageTopPadding: CGFloat = 12
+        let stageBottomPadding = max(layout.safeAreaInsets.bottom, 12)
+        let stageSpeaker = viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node)
+        let stageRoleLabel = dialogRoleLabel(for: node)
+        let stageCharacterImage = node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion)
 
         return VStack(spacing: 0) {
             topBar(layout: layout)
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, topBarTopPadding(for: layout))
 
-            if useVerticalLayout {
+            if useScrollStage {
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        BiasDataAuditMiniGameCard(
-                            minigame: minigame,
-                            layout: layout,
-                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                        ) { result in
-                            viewModel.completeInlineActivity(for: node.id, result: result)
-                        }
-                        .allowsHitTesting(!viewModel.isTyping)
-                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
-
-                        MiniGameStageCharacterPanel(
-                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
-                            emotion: node.emotion,
-                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
-                            instructionText: viewModel.displayedText,
-                            isTyping: viewModel.isTyping,
-                            layout: layout,
-                            accentColor: getEmotionColor(node.emotion),
-                            onSkipTyping: { handleSkipTypingAction() }
-                        )
-                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
-                    }
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
-                }
-            } else {
-                HStack(alignment: .top, spacing: layout.sectionSpacing) {
-                    MiniGameStageCharacterPanel(
-                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                    MessengerBiasDataAuditMiniGameStage(
+                        minigame: minigame,
+                        layout: layout,
+                        availableWidth: geometry.size.width - (horizontalPadding * 2),
+                        availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
+                        speaker: stageSpeaker,
+                        roleLabel: stageRoleLabel,
                         emotion: node.emotion,
-                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        characterImageName: stageCharacterImage,
                         instructionText: viewModel.displayedText,
                         isTyping: viewModel.isTyping,
-                        layout: layout,
-                        accentColor: getEmotionColor(node.emotion),
-                        onSkipTyping: { handleSkipTypingAction() }
-                    )
-                    .frame(width: leftWidth)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 12) {
-                            BiasDataAuditMiniGameCard(
-                                minigame: minigame,
-                                layout: layout,
-                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                            ) { result in
-                                viewModel.completeInlineActivity(for: node.id, result: result)
-                            }
-                            .allowsHitTesting(!viewModel.isTyping)
-                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                        onSkipTyping: { handleSkipTypingAction() },
+                        onContinue: { handleAdvanceAction() }
+                    ) { result in
+                        viewModel.completeInlineActivity(for: node.id, result: result)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, stageTopPadding)
+                    .padding(.bottom, stageBottomPadding)
+                }
+            } else {
+                MessengerBiasDataAuditMiniGameStage(
+                    minigame: minigame,
+                    layout: layout,
+                    availableWidth: geometry.size.width - (horizontalPadding * 2),
+                    availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
+                    speaker: stageSpeaker,
+                    roleLabel: stageRoleLabel,
+                    emotion: node.emotion,
+                    characterImageName: stageCharacterImage,
+                    instructionText: viewModel.displayedText,
+                    isTyping: viewModel.isTyping,
+                    isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                    onSkipTyping: { handleSkipTypingAction() },
+                    onContinue: { handleAdvanceAction() }
+                ) { result in
+                    viewModel.completeInlineActivity(for: node.id, result: result)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(.horizontal, horizontalPadding)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+                .padding(.top, stageTopPadding)
+                .padding(.bottom, stageBottomPadding)
             }
-
-            MiniGameBottomBar(
-                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
-                    ? "Lab complete. Continue when you are ready."
-                    : "Sort the issues and tune the data quality settings to continue.",
-                continueTitle: "Continue Story",
-                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
-                layout: layout,
-                onContinue: { handleAdvanceAction() }
-            )
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, bottomSafePadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -7566,6 +7538,602 @@ struct BiasDataAuditMiniGameCard: View {
 
     private func percentText(_ value: Double) -> String {
         "\(Int(value.rounded()))%"
+    }
+}
+
+// MARK: - Messenger Style Bias Data Audit (Quiz by Quiz with Fade Dialogs)
+struct MessengerBiasDataAuditMiniGameStage: View {
+    let minigame: BiasDataAuditMiniGame
+    let layout: DialogAdaptiveLayout
+    let availableWidth: CGFloat
+    let availableHeight: CGFloat
+    let speaker: String
+    let roleLabel: String?
+    let emotion: Emotion
+    let characterImageName: String
+    let instructionText: String
+    let isTyping: Bool
+    let isCompleted: Bool
+    let onSkipTyping: () -> Void
+    let onContinue: () -> Void
+    let onComplete: (String) -> Void
+
+    @State private var currentCardIndex = 0
+    @State private var selectionsByCardID: [String: String] = [:]
+    @State private var chatMessages: [DialogShowcaseChatMessage] = []
+    @State private var isShowingChoices = false
+    @State private var hasSubmitted = false
+    @State private var noiseLevel: Double = 78
+    @State private var diversityLevel: Double = 32
+    @State private var labelQualityLevel: Double = 46
+    @State private var showConfigStep = false
+
+    private var cards: [BiasDataAuditCard] {
+        minigame.cards
+    }
+
+    private var currentCard: BiasDataAuditCard {
+        let index = min(max(currentCardIndex, 0), max(cards.count - 1, 0))
+        return cards[index]
+    }
+
+    private var isLastCard: Bool {
+        currentCardIndex >= cards.count - 1
+    }
+
+    private var allCardsSorted: Bool {
+        cards.allSatisfy { selectionsByCardID[$0.id] != nil }
+    }
+
+    private var correctSortCount: Int {
+        cards.reduce(0) { count, card in
+            guard let selected = selectionsByCardID[card.id],
+                  selected == card.correctBucketID else { return count }
+            return count + 1
+        }
+    }
+
+    private var aiName: String {
+        speaker.isEmpty ? "AI Friend" : speaker
+    }
+
+    private var usesStackedLayout: Bool {
+        availableWidth < 940 || availableHeight < 700
+    }
+
+    private var emotionAccent: Color {
+        switch emotion {
+        case .happy, .excited: return Color(hex: "5CE38C")
+        case .sad, .concerned: return Color(hex: "8ED0F7")
+        case .angry: return Color(hex: "FF7D7D")
+        case .mysterious: return Color(hex: "BE93F5")
+        case .surprised: return Color(hex: "FFD77A")
+        case .gentle: return Color(hex: "91F0C3")
+        case .curious: return Color(hex: "4AB0FF")
+        case .neutral: return Color.white.opacity(0.85)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            if usesStackedLayout {
+                bottomSceneFade
+            }
+
+            if usesStackedLayout {
+                VStack(spacing: 12) {
+                    phonePanel
+                        .frame(maxWidth: min(availableWidth, 920))
+
+                    heroPanel
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: min(max(availableHeight * 0.48, 250), 430))
+                }
+            } else {
+                wideLayoutStage
+            }
+
+            if isCompleted || (allCardsSorted && configPassed) {
+                VStack {
+                    Spacer(minLength: 0)
+                    if usesStackedLayout {
+                        Button(action: onContinue) {
+                            Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                                .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.green.opacity(0.92), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 6)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .onAppear {
+            initializeChat()
+        }
+    }
+
+    private var configPassed: Bool {
+        noiseLevel <= minigame.noiseTargetMax
+            && diversityLevel >= minigame.diversityTargetMin
+            && labelQualityLevel >= minigame.labelQualityTargetMin
+    }
+
+    private var phonePanel: some View {
+        VStack(spacing: 0) {
+            // Phone header
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "2D8CFF"))
+
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(aiName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black)
+                    Text(roleLabel ?? "AI Friend")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.black.opacity(0.5))
+                }
+
+                Spacer()
+
+                Image(systemName: "video.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "2D8CFF"))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.white)
+            .overlay(
+                Rectangle()
+                    .fill(Color.black.opacity(0.08))
+                    .frame(height: 0.5)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            )
+
+            // Chat messages
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 8) {
+                        ForEach(chatMessages) { message in
+                            chatBubbleRow(message: message)
+                        }
+
+                        if showConfigStep && allCardsSorted {
+                            configPanel
+                        } else if isShowingChoices && !isTyping && !hasSubmitted && !showConfigStep {
+                            cardChoicesPanel
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+                .background(Color.white)
+                .onChange(of: chatMessages.count) { _ in
+                    if let last = chatMessages.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    private var heroPanel: some View {
+        VStack(spacing: layout.isCompact ? 10 : 14) {
+            if !usesStackedLayout {
+                HStack { Spacer() }
+            }
+
+            HStack(spacing: layout.isCompact ? 12 : 18) {
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: min(max(availableHeight * (usesStackedLayout ? 0.30 : 0.56), 200), usesStackedLayout ? 300 : 520))
+                    .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
+
+                if !usesStackedLayout {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(aiName)
+                            .font(.system(size: layout.isCompact ? 20 : 26, weight: .heavy))
+                            .foregroundColor(.white)
+                        if let roleLabel, !roleLabel.isEmpty {
+                            Text(roleLabel)
+                                .font(.system(size: layout.isCompact ? 14 : 17, weight: .medium))
+                                .foregroundColor(emotionAccent)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !instructionText.isEmpty {
+                Text(instructionText)
+                    .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(isTyping ? 0.92 : 0.82))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, layout.isCompact ? 14 : 18)
+                    .padding(.vertical, layout.isCompact ? 10 : 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.black.opacity(0.35))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
+                    )
+            }
+        }
+        .padding(.horizontal, layout.isCompact ? 12 : 16)
+        .padding(.vertical, layout.isCompact ? 10 : 14)
+    }
+
+    private var wideLayoutStage: some View {
+        GeometryReader { proxy in
+            ZStack {
+                VStack(spacing: layout.isCompact ? 6 : 8) {
+                    HStack { Spacer() }
+
+                    VStack(spacing: 0) {
+                        Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                        phonePanel
+                            .frame(width: min(availableWidth * 0.52, 840))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .offset(y: -min(max(availableHeight * 0.12, 64), 150))
+
+                        Spacer(minLength: min(max(availableHeight * 0.18, 178), 210))
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .zIndex(0)
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: Color.black.opacity(0.22), location: 0.70),
+                        .init(color: Color.black.opacity(0.55), location: 0.85),
+                        .init(color: Color.black.opacity(0.78), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .zIndex(1)
+
+                VStack(spacing: layout.isCompact ? 8 : 10) {
+                    Spacer()
+                    HStack(alignment: .bottom, spacing: 0) {
+                        heroPanel
+                            .frame(width: min(availableWidth * 0.38, 520), alignment: .leading)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.horizontal, layout.isCompact ? 16 : 28)
+                .padding(.bottom, layout.isCompact ? 20 : 32)
+                .zIndex(10)
+
+                HStack {
+                    Image(characterImageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: min(min(availableWidth, 1480) * 0.26, 360), maxHeight: min(max(availableHeight * 0.46, 280), 520), alignment: .bottom)
+                        .offset(x: availableWidth < 1200 ? -12 : (availableWidth < 1450 ? -24 : -38), y: -(layout.isCompact ? 14 : 22))
+                        .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
+                        .allowsHitTesting(false)
+                    Spacer(minLength: 0)
+                }
+                .zIndex(5)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var bottomSceneFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: Color.black.opacity(0.15), location: 0.58),
+                .init(color: Color.black.opacity(0.45), location: 0.78),
+                .init(color: Color.black.opacity(0.78), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+
+    private func chatBubbleRow(message: DialogShowcaseChatMessage) -> some View {
+        HStack {
+            if message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
+
+            Text(message.text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.82))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    message.isFromPlayer ? Color(hex: "2D8CFF") : Color(hex: "E9E9EE"),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+
+            if !message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
+        }
+        .id(message.id)
+        .transition(.asymmetric(insertion: .move(edge: message.isFromPlayer ? .trailing : .leading).combined(with: .opacity), removal: .opacity))
+    }
+
+    private var cardChoicesPanel: some View {
+        VStack(spacing: 8) {
+            Text("Which bucket does this belong to?")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.5))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+
+            // Show current card
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    if let systemImage = currentCard.systemImage {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 14))
+                            .foregroundColor(Color.black.opacity(0.6))
+                    }
+                    Text(currentCard.title)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(Color.black.opacity(0.85))
+                }
+                Text(currentCard.detail)
+                    .font(.system(size: 12))
+                    .foregroundColor(Color.black.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(hex: "F5F5F7"))
+            .cornerRadius(10)
+
+            // Bucket choices
+            ForEach(minigame.buckets) { bucket in
+                bucketButton(for: bucket)
+            }
+        }
+    }
+
+    private func bucketButton(for bucket: BiasDataAuditBucket) -> some View {
+        let isSelected = selectionsByCardID[currentCard.id] == bucket.id
+
+        return Button {
+            selectBucket(bucket)
+        } label: {
+            HStack(spacing: 10) {
+                if let systemImage = bucket.systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 14))
+                        .foregroundColor(isSelected ? .white : Color(hex: bucket.accentHex))
+                        .frame(width: 20)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bucket.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isSelected ? .white : Color.black.opacity(0.85))
+                    Text(bucket.description)
+                        .font(.system(size: 11))
+                        .foregroundColor(isSelected ? .white.opacity(0.9) : Color.black.opacity(0.5))
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color(hex: bucket.accentHex) : Color(hex: "F2F2F7"))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(selectionsByCardID[currentCard.id] != nil)
+    }
+
+    private var configPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Now tune the data quality settings:")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(Color.black.opacity(0.8))
+
+            VStack(spacing: 8) {
+                configSliderRow(
+                    title: "Noise Level",
+                    subtitle: "Target: ≤ \(Int(minigame.noiseTargetMax))%",
+                    value: $noiseLevel,
+                    targetPassed: noiseLevel <= minigame.noiseTargetMax,
+                    tint: Color.orange
+                )
+
+                configSliderRow(
+                    title: "Dataset Diversity",
+                    subtitle: "Target: ≥ \(Int(minigame.diversityTargetMin))%",
+                    value: $diversityLevel,
+                    targetPassed: diversityLevel >= minigame.diversityTargetMin,
+                    tint: Color.blue
+                )
+
+                configSliderRow(
+                    title: "Label Quality",
+                    subtitle: "Target: ≥ \(Int(minigame.labelQualityTargetMin))%",
+                    value: $labelQualityLevel,
+                    targetPassed: labelQualityLevel >= minigame.labelQualityTargetMin,
+                    tint: Color.green
+                )
+            }
+
+            if configPassed {
+                Button {
+                    completeAudit()
+                } label: {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Complete Lab")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: 14))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.green, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private func configSliderRow(title: String, subtitle: String, value: Binding<Double>, targetPassed: Bool, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.black.opacity(0.8))
+                Spacer()
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundColor(targetPassed ? tint : Color.black.opacity(0.5))
+                Text("\(Int(value.wrappedValue))%")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(targetPassed ? tint : Color.black.opacity(0.8))
+            }
+
+            Slider(value: value, in: 0...100, step: 1)
+                .tint(tint)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private func initializeChat() {
+        chatMessages = []
+        isShowingChoices = false
+        hasSubmitted = false
+        showConfigStep = false
+
+        // Add intro message from AI
+        chatMessages.append(DialogShowcaseChatMessage(
+            id: "intro",
+            text: "Let's sort these data problems together. I'll show you one case at a time.",
+            isFromPlayer: false
+        ))
+
+        // Show first card
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            showCurrentCard()
+        }
+    }
+
+    private func showCurrentCard() {
+        let card = currentCard
+
+        chatMessages.append(DialogShowcaseChatMessage(
+            id: "card-\(card.id)",
+            text: "📋 \(card.title)\n\n\(card.detail)",
+            isFromPlayer: false
+        ))
+
+        withAnimation {
+            isShowingChoices = true
+        }
+    }
+
+    private func selectBucket(_ bucket: BiasDataAuditBucket) {
+        guard selectionsByCardID[currentCard.id] == nil else { return }
+
+        selectionsByCardID[currentCard.id] = bucket.id
+
+        // Add player's choice to chat
+        chatMessages.append(DialogShowcaseChatMessage(
+            id: "answer-\(currentCard.id)",
+            text: "This is \(bucket.title)",
+            isFromPlayer: true
+        ))
+
+        // Add feedback after brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let isCorrect = bucket.id == currentCard.correctBucketID
+            let feedbackText = isCorrect
+                ? "✅ \(currentCard.feedback)"
+                : "❌ Not quite. \(currentCard.feedback)"
+
+            withAnimation {
+                chatMessages.append(DialogShowcaseChatMessage(
+                    id: "feedback-\(currentCard.id)",
+                    text: feedbackText,
+                    isFromPlayer: false
+                ))
+            }
+
+            // Move to next card or config step
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if isLastCard {
+                    showConfigStep = true
+                    chatMessages.append(DialogShowcaseChatMessage(
+                        id: "config-intro",
+                        text: "Great! Now let's tune the data quality settings to fix these issues.",
+                        isFromPlayer: false
+                    ))
+                } else {
+                    currentCardIndex += 1
+                    showCurrentCard()
+                }
+            }
+        }
+    }
+
+    private func completeAudit() {
+        let summary = "Completed \(minigame.title). Sorted \(correctSortCount)/\(cards.count) cases correctly. Final settings: noise \(Int(noiseLevel))%, diversity \(Int(diversityLevel))%, label quality \(Int(labelQualityLevel))%. \(minigame.summaryNote)"
+
+        chatMessages.append(DialogShowcaseChatMessage(
+            id: "complete",
+            text: "Lab complete! You correctly identified the data issues and tuned the settings. Well done!",
+            isFromPlayer: false
+        ))
+
+        hasSubmitted = true
+        onComplete(summary)
     }
 }
 
