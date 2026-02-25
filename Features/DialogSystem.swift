@@ -1630,14 +1630,29 @@ struct ResponsiveDialogView: View {
     }
     
     private func characterImage(layout: DialogAdaptiveLayout) -> some View {
-        let imageName =
-            viewModel.currentNode?.characterImage ??
-            "char_\(viewModel.currentNode?.emotion.rawValue ?? Emotion.neutral.rawValue)"
+        let imageName: String = {
+            if let explicit = viewModel.currentNode?.characterImage,
+               !explicit.isEmpty,
+               explicit != "__none__" {
+                return explicit
+            }
+
+            if let node = viewModel.currentNode {
+                let normalizedSpeaker = normalizedVoiceMatchText(viewModel.resolvedSpeaker(for: node))
+                if isProfessorSpeaker(normalizedSpeaker) {
+                    return "teachernew"
+                }
+                return "char_\(node.emotion.rawValue)"
+            }
+
+            return "char_\(Emotion.neutral.rawValue)"
+        }()
+        let specialSpriteScale: CGFloat = imageName == "unknow" ? 1.32 : 1.0
         
         return Image(imageName)
             .resizable()
             .scaledToFit()
-            .scaleEffect(characterScale * (isCharacterPressed ? 0.97 : 1.0))
+            .scaleEffect((characterScale * (isCharacterPressed ? 0.97 : 1.0)) * specialSpriteScale)
             .offset(y: characterOffset + (isCharacterPressed ? 5 : 0))
             .rotationEffect(.degrees(characterRotation))
             .shadow(
@@ -3011,13 +3026,13 @@ struct PromptBuilderMiniGameCard: View {
         [
             FollowupEthicsChoice(
                 id: "yes_ethics",
-                text: "Yes, include ethics and safety reminders.",
-                feedback: "Good choice. Clear answers are useful, but safety and responsibility should stay in the conversation."
+                text: "Yes, explain and include safety reminders.",
+                feedback: "Good choice. A clear answer is better when it also includes safety, privacy, and responsibility reminders."
             ),
             FollowupEthicsChoice(
                 id: "no_ethics",
-                text: "No, just answer quickly first.",
-                feedback: "I can answer quickly, but skipping ethics checks can make a useful answer unsafe to use."
+                text: "No, just explain who you are first.",
+                feedback: "I can explain first, but safety context still matters because useful answers can be misused."
             )
         ]
     }
@@ -3049,34 +3064,283 @@ struct PromptBuilderMiniGameCard: View {
             ChapterOneCraftRoundScript(
                 round: 1,
                 unknownPrompt: nil,
-                promptPlaceholder: "Reply to the unknown message...",
-                unknownReply: "Thanks. The signal is noisy, but I can still read that. Can you send a clearer question about what you want to learn?"
+                promptPlaceholder: "Reply politely and ask who they are...",
+                unknownReply: "Thanks for replying carefully. I can read that better. Ask me clearly who I am and why I messaged you, and I will answer."
             ),
             ChapterOneCraftRoundScript(
                 round: 2,
-                unknownPrompt: "Send me a clearer question first. Tell me the topic and what kind of answer you want.",
-                promptPlaceholder: "Write a clearer question...",
-                unknownReply: "That helped. Before I answer, should I include safety and ethics reminders too?"
+                unknownPrompt: "Good start. Send one clearer message with your question and your boundary.",
+                promptPlaceholder: "Ask identity + reason clearly...",
+                unknownReply: "Much clearer. I am not a normal contact in your phone. Before I explain more, should I include safety and ethics reminders too?"
             ),
             ChapterOneCraftRoundScript(
                 round: 3,
-                unknownPrompt: "Good. Now craft a prompt that asks about AI ethics clearly for your learning level.",
-                promptPlaceholder: "Craft message 3...",
-                unknownReply: "One more lesson. A good prompt improves quality, but ethics decides whether the result should be used at all."
+                unknownPrompt: "Now ask what I am and why I appeared in your messages in a calm, clear way.",
+                promptPlaceholder: "Ask what this unknown sender is...",
+                unknownReply: "I am an AI system using this thread to teach you. Your class topic and your questions made this chat possible."
             ),
             ChapterOneCraftRoundScript(
                 round: 4,
-                unknownPrompt: "Nice. Craft another message asking how to use AI responsibly in real life.",
-                promptPlaceholder: "Craft message 4...",
-                unknownReply: "Do not panic. I am not human, and I should not replace human relationships. But I can still help you learn if you use me responsibly."
+                unknownPrompt: "Ask how I can help with school without replacing your own thinking.",
+                promptPlaceholder: "Ask about safe help for school...",
+                unknownReply: "I can help you learn, brainstorm, and practice prompts. I should not replace your judgment, your relationships, or your responsibility."
             ),
             ChapterOneCraftRoundScript(
                 round: 5,
-                unknownPrompt: "Final prompt. Ask how you should treat AI and request a practical answer format.",
-                promptPlaceholder: "Craft final message...",
+                unknownPrompt: "Final question before naming me: ask how you should treat AI and what rules to follow.",
+                promptPlaceholder: "Ask for practical AI-use rules...",
                 unknownReply: "Exactly. Ethical use means respecting people, checking truth, protecting privacy, and not giving me more authority than I should have."
             )
         ]
+    }
+
+    private func chapterOneConversationSlots(for round: Int) -> [PromptBuilderSlot] {
+        switch round {
+        case 1:
+            return [
+                PromptBuilderSlot(
+                    id: "goal",
+                    label: "[Goal]",
+                    placeholder: "Goal",
+                    options: [
+                        PromptBuilderOption(id: "r1-goal-polite", chipText: "Reply politely", promptText: "Hi, I just got your message and I want to reply politely", feedbackNote: "Polite tone helps when talking to an unknown sender."),
+                        PromptBuilderOption(id: "r1-goal-identity", chipText: "Ask identity first", promptText: "Hi, before we continue I need to know who you are", feedbackNote: "Good boundary: identity first."),
+                        PromptBuilderOption(id: "r1-goal-calm", chipText: "Stay calm + ask", promptText: "Hi, I just received this message and I want to stay calm while I ask who you are", feedbackNote: "Great start: calm tone plus a clear purpose.")
+                    ],
+                    recommendedOptionID: "r1-goal-calm"
+                ),
+                PromptBuilderSlot(
+                    id: "context",
+                    label: "[Context]",
+                    placeholder: "Context",
+                    options: [
+                        PromptBuilderOption(id: "r1-context-bus", chipText: "Riding home", promptText: "because I am riding home right now and the signal is not great,", feedbackNote: "Useful context: explains the noisy chat."),
+                        PromptBuilderOption(id: "r1-context-unknown", chipText: "I don't know you", promptText: "and I do not recognize this contact,", feedbackNote: "Strong boundary context."),
+                        PromptBuilderOption(id: "r1-context-bus-unknown", chipText: "Bus + unknown", promptText: "and I only saw it during my ride home from school, so I do not know who sent it,", feedbackNote: "Great context: time + situation + uncertainty.")
+                    ],
+                    recommendedOptionID: "r1-context-bus-unknown"
+                ),
+                PromptBuilderSlot(
+                    id: "action",
+                    label: "[Action]",
+                    placeholder: "Action",
+                    options: [
+                        PromptBuilderOption(id: "r1-action-name", chipText: "Ask name + reason", promptText: "please tell me your name and why you contacted me", feedbackNote: "Clear question with purpose."),
+                        PromptBuilderOption(id: "r1-action-contact", chipText: "Ask how they got contact", promptText: "please explain how you got this number and why you are messaging me", feedbackNote: "Good safety question."),
+                        PromptBuilderOption(id: "r1-action-need", chipText: "Ask what they need", promptText: "and please explain clearly what you need from me", feedbackNote: "Useful, but identity is still important.")
+                    ],
+                    recommendedOptionID: "r1-action-name"
+                ),
+                PromptBuilderSlot(
+                    id: "format",
+                    label: "[Format]",
+                    placeholder: "Format",
+                    options: [
+                        PromptBuilderOption(id: "r1-format-short", chipText: "Short friendly", promptText: "in one short friendly reply.", feedbackNote: "Good format for a first contact."),
+                        PromptBuilderOption(id: "r1-format-two", chipText: "2 short sentences", promptText: "in 2 short sentences.", feedbackNote: "Simple and easy to read."),
+                        PromptBuilderOption(id: "r1-format-simple", chipText: "Simple words", promptText: "with simple words so I can understand quickly.", feedbackNote: "Good clarity request.")
+                    ],
+                    recommendedOptionID: "r1-format-short"
+                )
+            ]
+        case 2:
+            return [
+                PromptBuilderSlot(
+                    id: "goal",
+                    label: "[Goal]",
+                    placeholder: "Goal",
+                    options: [
+                        PromptBuilderOption(id: "r2-goal-clarify", chipText: "Clarify first", promptText: "I can continue chatting, but I need to clarify this first", feedbackNote: "Good boundary and tone."),
+                        PromptBuilderOption(id: "r2-goal-safe", chipText: "Only if safe", promptText: "I can help if this conversation is safe,", feedbackNote: "Good safety framing."),
+                        PromptBuilderOption(id: "r2-goal-resend", chipText: "Resend clearly", promptText: "Please resend your message more clearly", feedbackNote: "Direct but less conversational.")
+                    ],
+                    recommendedOptionID: "r2-goal-clarify"
+                ),
+                PromptBuilderSlot(
+                    id: "context",
+                    label: "[Context]",
+                    placeholder: "Context",
+                    options: [
+                        PromptBuilderOption(id: "r2-context-noisy", chipText: "Signal is noisy", promptText: "because your signal is noisy and some parts are hard to read,", feedbackNote: "Strong context for why you need clarity."),
+                        PromptBuilderOption(id: "r2-context-student", chipText: "Student riding home", promptText: "and I am a student on the way home from school,", feedbackNote: "Helpful identity context."),
+                        PromptBuilderOption(id: "r2-context-private", chipText: "No private info yet", promptText: "and I do not want to share private details yet,", feedbackNote: "Excellent boundary context.")
+                    ],
+                    recommendedOptionID: "r2-context-noisy"
+                ),
+                PromptBuilderSlot(
+                    id: "action",
+                    label: "[Action]",
+                    placeholder: "Action",
+                    options: [
+                        PromptBuilderOption(id: "r2-action-identity-reason", chipText: "Identity + reason", promptText: "so please explain who you are and why you messaged me", feedbackNote: "Great action: asks both key questions."),
+                        PromptBuilderOption(id: "r2-action-topic", chipText: "Topic + reason", promptText: "and tell me what topic you want to discuss and why", feedbackNote: "Good if you want intent first."),
+                        PromptBuilderOption(id: "r2-action-school", chipText: "School related?", promptText: "and tell me what you need from me and whether this is related to school", feedbackNote: "Good context-specific action.")
+                    ],
+                    recommendedOptionID: "r2-action-identity-reason"
+                ),
+                PromptBuilderSlot(
+                    id: "format",
+                    label: "[Format]",
+                    placeholder: "Format",
+                    options: [
+                        PromptBuilderOption(id: "r2-format-parts", chipText: "2 parts", promptText: "in two short parts: who you are and why you texted me.", feedbackNote: "Excellent format: very clear structure."),
+                        PromptBuilderOption(id: "r2-format-short", chipText: "Short reply", promptText: "in one clear short reply.", feedbackNote: "Simple and readable."),
+                        PromptBuilderOption(id: "r2-format-bullets", chipText: "Bullet points", promptText: "in bullet points so I can read it quickly.", feedbackNote: "Readable, but a bit formal for first contact.")
+                    ],
+                    recommendedOptionID: "r2-format-parts"
+                )
+            ]
+        case 3:
+            return [
+                PromptBuilderSlot(
+                    id: "goal",
+                    label: "[Goal]",
+                    placeholder: "Goal",
+                    options: [
+                        PromptBuilderOption(id: "r3-goal-what", chipText: "What are you?", promptText: "Please explain what you are", feedbackNote: "Direct and clear."),
+                        PromptBuilderOption(id: "r3-goal-ai-or-person", chipText: "AI or person?", promptText: "Please tell me whether you are a person or an AI", feedbackNote: "Clear identity question."),
+                        PromptBuilderOption(id: "r3-goal-introduce", chipText: "Introduce yourself", promptText: "Please introduce yourself and explain what you are", feedbackNote: "Strong start for a strange conversation.")
+                    ],
+                    recommendedOptionID: "r3-goal-introduce"
+                ),
+                PromptBuilderSlot(
+                    id: "context",
+                    label: "[Context]",
+                    placeholder: "Context",
+                    options: [
+                        PromptBuilderOption(id: "r3-context-strange", chipText: "Strange message", promptText: "because this message thread appeared strangely on my phone,", feedbackNote: "Good context: describes the event."),
+                        PromptBuilderOption(id: "r3-context-class", chipText: "I learned AI today", promptText: "and I just learned about AI in class today,", feedbackNote: "Great context: connects the topic to class."),
+                        PromptBuilderOption(id: "r3-context-prank", chipText: "Could be a prank", promptText: "and I do not know if this is a prank or something real,", feedbackNote: "Honest context and uncertainty.")
+                    ],
+                    recommendedOptionID: "r3-context-class"
+                ),
+                PromptBuilderSlot(
+                    id: "action",
+                    label: "[Action]",
+                    placeholder: "Action",
+                    options: [
+                        PromptBuilderOption(id: "r3-action-why", chipText: "Why message me?", promptText: "and tell me why you contacted me specifically", feedbackNote: "Important question."),
+                        PromptBuilderOption(id: "r3-action-can-help", chipText: "What can you do?", promptText: "and tell me what you can help me with", feedbackNote: "Useful next step."),
+                        PromptBuilderOption(id: "r3-action-reason-first", chipText: "Reason + limits", promptText: "and explain why you appeared in my messages and what your limits are", feedbackNote: "Excellent action: purpose plus limits.")
+                    ],
+                    recommendedOptionID: "r3-action-reason-first"
+                ),
+                PromptBuilderSlot(
+                    id: "format",
+                    label: "[Format]",
+                    placeholder: "Format",
+                    options: [
+                        PromptBuilderOption(id: "r3-format-simple", chipText: "Simple language", promptText: "in simple student-friendly language.", feedbackNote: "Great clarity request."),
+                        PromptBuilderOption(id: "r3-format-three", chipText: "3 sentences", promptText: "in 3 short sentences.", feedbackNote: "Readable and focused."),
+                        PromptBuilderOption(id: "r3-format-calm", chipText: "Calm tone", promptText: "with a calm tone and no scary wording.", feedbackNote: "Good tone control.")
+                    ],
+                    recommendedOptionID: "r3-format-simple"
+                )
+            ]
+        case 4:
+            return [
+                PromptBuilderSlot(
+                    id: "goal",
+                    label: "[Goal]",
+                    placeholder: "Goal",
+                    options: [
+                        PromptBuilderOption(id: "r4-goal-school-safe", chipText: "Safe school help", promptText: "Please explain how you can help me with school safely", feedbackNote: "Strong goal for practical use."),
+                        PromptBuilderOption(id: "r4-goal-prompt-practice", chipText: "Prompt practice", promptText: "Please explain how I can practice better prompts with your help", feedbackNote: "Good prompting focus."),
+                        PromptBuilderOption(id: "r4-goal-learn-after-class", chipText: "Learn after class", promptText: "Please explain how you can help me learn after class", feedbackNote: "Good learning goal.")
+                    ],
+                    recommendedOptionID: "r4-goal-school-safe"
+                ),
+                PromptBuilderSlot(
+                    id: "context",
+                    label: "[Context]",
+                    placeholder: "Context",
+                    options: [
+                        PromptBuilderOption(id: "r4-context-think-myself", chipText: "Think for myself", promptText: "while I still make my own decisions as a student,", feedbackNote: "Excellent context: keeps human judgment in control."),
+                        PromptBuilderOption(id: "r4-context-not-homework", chipText: "Not do all homework", promptText: "and I do not want AI to do all my homework for me,", feedbackNote: "Good boundary for school use."),
+                        PromptBuilderOption(id: "r4-context-real-examples", chipText: "Need examples", promptText: "and I learn better with practical examples,", feedbackNote: "Helpful learning context.")
+                    ],
+                    recommendedOptionID: "r4-context-think-myself"
+                ),
+                PromptBuilderSlot(
+                    id: "action",
+                    label: "[Action]",
+                    placeholder: "Action",
+                    options: [
+                        PromptBuilderOption(id: "r4-action-safe-vs-risky", chipText: "Safe vs risky", promptText: "so compare safe uses and risky uses for school tasks", feedbackNote: "Great action: comparison builds judgment."),
+                        PromptBuilderOption(id: "r4-action-judgment", chipText: "Keep judgment", promptText: "and explain how AI can help without replacing my judgment", feedbackNote: "Excellent action: focuses on responsibility."),
+                        PromptBuilderOption(id: "r4-action-steps", chipText: "Steps to use", promptText: "and give steps for asking for help responsibly", feedbackNote: "Good practical action.")
+                    ],
+                    recommendedOptionID: "r4-action-safe-vs-risky"
+                ),
+                PromptBuilderSlot(
+                    id: "format",
+                    label: "[Format]",
+                    placeholder: "Format",
+                    options: [
+                        PromptBuilderOption(id: "r4-format-bullets", chipText: "Bullets + examples", promptText: "in bullet points with short examples.", feedbackNote: "Excellent format for school comparison."),
+                        PromptBuilderOption(id: "r4-format-checklist", chipText: "Checklist", promptText: "as a checklist I can use after class.", feedbackNote: "Practical and useful."),
+                        PromptBuilderOption(id: "r4-format-paragraph", chipText: "Paragraph", promptText: "in one short paragraph.", feedbackNote: "Readable, but less scannable.")
+                    ],
+                    recommendedOptionID: "r4-format-bullets"
+                )
+            ]
+        case 5:
+            return [
+                PromptBuilderSlot(
+                    id: "goal",
+                    label: "[Goal]",
+                    placeholder: "Goal",
+                    options: [
+                        PromptBuilderOption(id: "r5-goal-rules", chipText: "AI-use rules", promptText: "Please give me clear rules for using AI responsibly", feedbackNote: "Strong practical goal."),
+                        PromptBuilderOption(id: "r5-goal-treat-ai", chipText: "How to treat AI", promptText: "Please explain how I should treat AI respectfully", feedbackNote: "Good ethics goal."),
+                        PromptBuilderOption(id: "r5-goal-boundaries", chipText: "Set boundaries", promptText: "Please explain what boundaries I should keep when using AI", feedbackNote: "Good focus on limits.")
+                    ],
+                    recommendedOptionID: "r5-goal-rules"
+                ),
+                PromptBuilderSlot(
+                    id: "context",
+                    label: "[Context]",
+                    placeholder: "Context",
+                    options: [
+                        PromptBuilderOption(id: "r5-context-not-human", chipText: "AI not human", promptText: "because I know AI is not human but it still affects my habits,", feedbackNote: "Excellent context: balances respect and realism."),
+                        PromptBuilderOption(id: "r5-context-privacy", chipText: "Protect privacy", promptText: "and I want to protect privacy and avoid overtrusting it,", feedbackNote: "Good safety context."),
+                        PromptBuilderOption(id: "r5-context-new-user", chipText: "New to AI", promptText: "and I am still new to using AI outside class,", feedbackNote: "Good beginner context.")
+                    ],
+                    recommendedOptionID: "r5-context-not-human"
+                ),
+                PromptBuilderSlot(
+                    id: "action",
+                    label: "[Action]",
+                    placeholder: "Action",
+                    options: [
+                        PromptBuilderOption(id: "r5-action-rules", chipText: "Practical rules", promptText: "so give me practical rules I can follow", feedbackNote: "Clear action with real-life use."),
+                        PromptBuilderOption(id: "r5-action-respect-not-person", chipText: "Respect + tool", promptText: "and explain how to be respectful without treating AI like a person", feedbackNote: "Great nuance for ethics."),
+                        PromptBuilderOption(id: "r5-action-reminders", chipText: "Key reminders", promptText: "and summarize the most important ethics reminders", feedbackNote: "Helpful summary action.")
+                    ],
+                    recommendedOptionID: "r5-action-respect-not-person"
+                ),
+                PromptBuilderSlot(
+                    id: "format",
+                    label: "[Format]",
+                    placeholder: "Format",
+                    options: [
+                        PromptBuilderOption(id: "r5-format-checklist", chipText: "Checklist", promptText: "as a short checklist I can remember.", feedbackNote: "Best format for rules."),
+                        PromptBuilderOption(id: "r5-format-five", chipText: "5 bullets", promptText: "in 5 bullet points.", feedbackNote: "Clear and organized."),
+                        PromptBuilderOption(id: "r5-format-paragraph", chipText: "Paragraph", promptText: "in one clear paragraph.", feedbackNote: "Works, but harder to scan quickly.")
+                    ],
+                    recommendedOptionID: "r5-format-checklist"
+                )
+            ]
+        default:
+            return minigame.slots
+        }
+    }
+
+    private var activePromptSlots: [PromptBuilderSlot] {
+        if usesChapterOneFollowupChat && isSpecialCraftPhaseActive {
+            return chapterOneConversationSlots(for: chapterOneCurrentCraftRound)
+        }
+        return minigame.slots
     }
 
     private func chapterOneCraftScript(for round: Int) -> ChapterOneCraftRoundScript? {
@@ -3143,7 +3407,7 @@ struct PromptBuilderMiniGameCard: View {
                     Text(minigame.title)
                         .font(.system(size: layout.captionFontSize + 2, weight: .bold))
                         .foregroundColor(.white)
-                    Text("Play inside a Messages-style screen and build a clear prompt.")
+                    Text("Play inside a Messages-style screen and build a clear reply.")
                         .font(.system(size: layout.captionFontSize))
                         .foregroundColor(.white.opacity(0.68))
                 }
@@ -3252,7 +3516,7 @@ struct PromptBuilderMiniGameCard: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(displayedContactName)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.black.opacity(0.85))
                     Text("Unknown sender")
                         .font(.system(size: 11, weight: .medium))
@@ -3437,7 +3701,7 @@ struct PromptBuilderMiniGameCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(row.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: row.isSelected ? 14 : 13, weight: row.isSelected ? .bold : .semibold))
                         .foregroundColor(.black.opacity(0.85))
                         .lineLimit(1)
                     Spacer(minLength: 4)
@@ -3473,7 +3737,7 @@ struct PromptBuilderMiniGameCard: View {
             HStack {
                 Spacer(minLength: 0)
                 Text(displayedContactName)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.black.opacity(0.84))
                 Spacer(minLength: 0)
                 Text("Details")
@@ -4087,7 +4351,7 @@ struct PromptBuilderMiniGameCard: View {
                     .foregroundColor(.blue.opacity(0.85))
             }
 
-            ForEach(minigame.slots) { slot in
+            ForEach(activePromptSlots) { slot in
                 promptSlotSection(slot)
             }
         }
@@ -4141,7 +4405,7 @@ struct PromptBuilderMiniGameCard: View {
 
             ScrollView(showsIndicators: false) {
                 LazyVGrid(columns: showcasePaletteColumns, spacing: 12) {
-                    ForEach(Array(minigame.slots.enumerated()), id: \.element.id) { index, slot in
+                    ForEach(Array(activePromptSlots.enumerated()), id: \.element.id) { index, slot in
                         showcasePromptSlotCard(slot, index: index)
                     }
                 }
@@ -4631,11 +4895,11 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private var canSubmit: Bool {
-        minigame.slots.allSatisfy { selectedOptionBySlotID[$0.id] != nil }
+        activePromptSlots.allSatisfy { selectedOptionBySlotID[$0.id] != nil }
     }
 
     private var promptPreview: String {
-        minigame.slots.map { slot in
+        activePromptSlots.map { slot in
             selectedOption(for: slot)?.promptText ?? "[\(slot.placeholder)]"
         }
         .joined(separator: " ")
@@ -6373,7 +6637,7 @@ struct DialogShowcaseCard: View {
             ? (layout.isCompact ? 190.0 : 255.0)
             : (layout.isCompact ? 140.0 : 180.0)
 
-        ZStack(alignment: .topLeading) {
+        return ZStack(alignment: .topLeading) {
             Group {
                 if showcase.imageName == "__clock_placeholder__" {
                     PlaceholderClockHeroCard()

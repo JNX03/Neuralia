@@ -48,7 +48,7 @@ let chapterOneStory = StoryChapter(
             text: "Today we study AI ethics. AI can help us learn faster, but careless use can spread mistakes, bias, privacy problems, and harm.",
             emotion: .neutral,
             backgroundImage: "schooltopview",
-            characterImage: "char_gentle",
+            characterImage: "teachernew",
             cutsceneTitle: "AI Ethics Class",
             cutsceneSubtitle: "Respect, responsibility, and critical thinking"
         ),
@@ -57,7 +57,7 @@ let chapterOneStory = StoryChapter(
             text: "A good user writes a clear prompt and checks the answer carefully. Confidence from a model is not proof that it is true.",
             emotion: .concerned,
             backgroundImage: "schooltopview",
-            characterImage: "char_concerned",
+            characterImage: "teachernew",
             cutsceneTitle: "Lesson 1",
             cutsceneSubtitle: "Prompt quality affects answer quality"
         ),
@@ -66,7 +66,7 @@ let chapterOneStory = StoryChapter(
             text: "Quick class mini-game: answer this before we continue. Even if your answer is not the best one, we will learn from it.",
             emotion: .curious,
             backgroundImage: "schooltopview",
-            characterImage: "char_curious",
+            characterImage: "teachernew",
             cutsceneTitle: "Class Mini-game",
             cutsceneSubtitle: "Multiple choice / ethics check",
             inlineActivity: .lectureQuiz(
@@ -245,7 +245,7 @@ let chapterOneStory = StoryChapter(
             text: "Also remember this: AI is not human. Do not confuse it with a person. But practice respectful communication anyway, because your habits shape how you treat real people too.",
             emotion: .gentle,
             backgroundImage: "schooltopview",
-            characterImage: "char_gentle",
+            characterImage: "teachernew",
             cutsceneTitle: "Lesson 2",
             cutsceneSubtitle: "Ethics is also about the user"
         ),
@@ -268,7 +268,7 @@ let chapterOneStory = StoryChapter(
             text: "Exactly. In this course, we practice clear prompts and ethical thinking at the same time.",
             emotion: .happy,
             backgroundImage: "schooltopview",
-            characterImage: "char_happy",
+            characterImage: "teachernew",
             cutsceneTitle: "Class Ends",
             cutsceneSubtitle: "Take the lesson home"
         ),
@@ -412,7 +412,7 @@ let chapterOneStory = StoryChapter(
             text: "Hi!?!",
             emotion: .excited,
             backgroundImage: "aicomeroom",
-            characterImage: "__none__",
+            characterImage: "unknow",
             cutsceneTitle: "AI In The Room",
             cutsceneSubtitle: "A voice appears outside the phone"
         ),
