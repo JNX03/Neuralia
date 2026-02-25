@@ -180,11 +180,11 @@ struct StoryChapterHubView: View {
                         Image(selectedChapter.coverCharacterImage)
                             .resizable()
                             .scaledToFit()
-                            .frame(height: layout.isLandscape ? heroGeo.size.height * 1.05 : heroGeo.size.height * 0.65)
+                            .frame(height: layout.isLandscape ? heroGeo.size.height * 0.85 : heroGeo.size.height * 0.55)
                             .shadow(color: Color.black.opacity(0.25), radius: 15, x: 0, y: layout.scaled(10))
                             .position(
-                                x: heroGeo.size.width - (layout.isLandscape ? layout.scaled(30) : layout.scaled(50)),
-                                y: heroGeo.size.height - ((layout.isLandscape ? heroGeo.size.height * 1.05 : heroGeo.size.height * 0.65) / 2) + layout.scaled(15)
+                                x: heroGeo.size.width - (layout.isLandscape ? layout.scaled(100) : layout.scaled(120)),
+                                y: heroGeo.size.height - ((layout.isLandscape ? heroGeo.size.height * 0.85 : heroGeo.size.height * 0.55) / 2) + layout.scaled(15)
                             )
                             .allowsHitTesting(false)
 

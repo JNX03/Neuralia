@@ -3,10 +3,14 @@ import SwiftUI
 // FeatureTestingView uses the shared ResponsiveLayout from ResponsiveLayout.swift
 
 // MARK: - Feature Testing Menu
+// MARK: - Feature Testing Menu
 struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var settings: GlobalSettingsStore
+    
     @State private var showAIHallucination = false
     @State private var showImageTraining = false
+    @State private var activeStoryChapter: StoryChapter? = nil
     
     var body: some View {
         NavigationStack {
@@ -17,7 +21,124 @@ struct FeatureTestingView: View {
                     safeAreaInsets: geo.safeAreaInsets
                 )
                 
-                featureMenuScreen(layout: layout, geo: geo)
+                ZStack {
+                    // Background
+                    Image("lantassc")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay(Color.black.opacity(0.15))
+                        .ignoresSafeArea()
+                    
+                    // Left Side Character
+                    HStack(spacing: 0) {
+                        Image("char")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: geo.size.height * 1.1)
+                            .offset(x: -geo.size.width * 0.05, y: geo.size.height * 0.1)
+                            .shadow(color: .black.opacity(0.3), radius: 20)
+                        Spacer()
+                    }
+                    .ignoresSafeArea()
+                    
+                    // Top Bar (Back button)
+                    VStack {
+                        HStack {
+                            Button(action: { dismiss() }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                                    Text("Back")
+                                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.black.opacity(0.5))
+                                .clipShape(Capsule())
+                            }
+                            Spacer()
+                        }
+                        .padding(layout.padding)
+                        Spacer()
+                    }
+                    
+                    // Right Side Menu
+                    HStack {
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: layout.elementSpacing * 1.5) {
+                            Spacer()
+                            
+                            // Top large buttons
+                            HStack(spacing: layout.elementSpacing * 1.5) {
+                                LabMissionMenuButton(
+                                    title: "AI Hallucination",
+                                    subtitle: "Test Model Reliability",
+                                    color: Color(red: 0.1, green: 0.5, blue: 0.8),
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { showAIHallucination = true }
+                                )
+                                
+                                LabMissionMenuButton(
+                                    title: "Image Lab",
+                                    subtitle: "KNN Live Draw",
+                                    color: Color.orange,
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { showImageTraining = true }
+                                )
+                            }
+                            
+                            // Chapter 2 row 1
+                            HStack(spacing: layout.elementSpacing * 1.5) {
+                                LabMissionMenuButton(
+                                    title: "Bias Audit",
+                                    subtitle: "Chapter 2 Lab",
+                                    color: Color.purple,
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { launchInlineActivity(title: "Bias Audit", inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)) }
+                                )
+                                
+                                LabMissionMenuButton(
+                                    title: "Zoo Hunt",
+                                    subtitle: "Chapter 2 Quiz",
+                                    color: Color.green,
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { launchInlineActivity(title: "Zoo Hunt", inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)) }
+                                )
+                            }
+                            
+                            // Chapter 2 row 2 + Chapter 3
+                            HStack(spacing: layout.elementSpacing * 1.5) {
+                                LabMissionMenuButton(
+                                    title: "AI Review",
+                                    subtitle: "Chapter 2 Mistakes",
+                                    color: Color.pink,
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { launchInlineActivity(title: "AI Review", inlineActivity: .biasDataAudit(oldChapter2BiasAndBadDataLabMiniGame)) }
+                                )
+                                
+                                LabMissionMenuButton(
+                                    title: "Meme Rescue",
+                                    subtitle: "Chapter 3 KNN",
+                                    color: Color.red,
+                                    layout: layout,
+                                    width: layout.scaled(200),
+                                    action: { launchInlineActivity(title: "Meme Rescue", inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)) }
+                                )
+                            }
+                            
+                            Spacer()
+                                .frame(height: layout.scaled(40))
+                        }
+                        .padding(.trailing, layout.padding * 2)
+                    }
+                }
             }
             .navigationDestination(isPresented: $showAIHallucination) {
                 AIHallucinationView()
@@ -25,89 +146,111 @@ struct FeatureTestingView: View {
             .navigationDestination(isPresented: $showImageTraining) {
                 ImageTrainingView()
             }
-        }
-    }
-
-    private func featureMenuScreen(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        ZStack {
-            LabSurfaceBackground()
-            featureMenuScrollContent(layout: layout, geo: geo)
-        }
-    }
-
-    private func featureMenuScrollContent(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        ScrollView {
-            VStack(spacing: layout.sectionSpacing) {
-                LabDashboardHeader(layout: layout)
-                    .padding(.top, geo.safeAreaInsets.top + layout.scaled(12))
-
-                LabHeroPanel(layout: layout)
-
-                LabSectionHeader(
-                    title: "Featured Labs",
-                    subtitle: "Ready to use now"
-                )
-
-                featuredLabsGrid(layout: layout)
-
-                BackButton(action: { dismiss() }, layout: layout)
-                    .padding(.top, layout.scaled(6))
-                    .padding(.bottom, layout.padding)
+            .navigationDestination(item: $activeStoryChapter) { chapter in
+                StoryChapterPlayerView(initialChapter: chapter)
             }
-            .padding(.horizontal, layout.padding)
-            .frame(maxWidth: min(layout.contentMaxWidth + layout.scaled(180), geo.size.width - layout.padding * 2))
-            .frame(maxWidth: .infinity)
         }
     }
-
-    private func featuredLabsGrid(layout: ResponsiveLayout) -> some View {
-        LazyVGrid(columns: labGridColumns(for: layout), spacing: layout.elementSpacing) {
-            aiHallucinationCard(layout: layout)
-            imageTrainingCard(layout: layout)
-        }
+    
+    private func launchInlineActivity(title: String, inlineActivity: DialogInlineActivity) {
+        let dummyLine = StoryDialogLine(
+            speaker: "System",
+            text: "Loading \(title)...",
+            emotion: .neutral,
+            inlineActivity: inlineActivity
+        )
+        let chapter = StoryChapter(
+            id: UUID().uuidString,
+            title: title,
+            subtitle: "Lab Minigame",
+            accentHex: "4A90E2",
+            coverBackgroundImage: "507room",
+            coverCharacterImage: "char",
+            overview: "",
+            lines: [dummyLine]
+        )
+        activeStoryChapter = chapter
     }
+}
 
-    private func aiHallucinationCard(layout: ResponsiveLayout) -> some View {
-        // AI image prompt: "Educational AI misclassification demo card with object photos, confidence bars, and clean training dashboard visuals."
-        LabFeatureCard(
-            title: "AI Hallucination Test",
-            subtitle: "Spot incorrect AI predictions and learn how biased training data changes model behavior.",
-            icon: "brain.head.profile",
-            accent: Color(red: 0.24, green: 0.73, blue: 0.63),
-            imageName: "cnxaqu",
-            chips: ["AI", "Quiz", "Training"],
-            status: "Ready",
-            layout: layout
-        ) {
-            showAIHallucination = true
-        }
+// Slanted shape for Blue Archive aesthetic
+struct SlantedParallelogram: Shape {
+    let slant: CGFloat
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: slant, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: 0))
+        path.addLine(to: CGPoint(x: rect.width - slant, y: rect.height))
+        path.addLine(to: CGPoint(x: 0, y: rect.height))
+        path.closeSubpath()
+        return path
     }
+}
 
-    private func imageTrainingCard(layout: ResponsiveLayout) -> some View {
-        // AI image prompt: "Hand-drawn classifier lab workspace with sketch canvas, sample thumbnails, and clean ML training controls."
-        LabFeatureCard(
-            title: "Image Training Lab",
-            subtitle: "Train a KNN classifier with your own drawings, manage classes, and test live predictions.",
-            icon: "scribble.variable",
-            accent: Color(red: 0.95, green: 0.62, blue: 0.21),
-            imageName: "507room",
-            chips: ["Drawing", "KNN", "Live"],
-            status: "Ready",
-            layout: layout
-        ) {
-            showImageTraining = true
+struct LabMissionMenuButton: View {
+    let title: String
+    let subtitle: String
+    let color: Color
+    let layout: ResponsiveLayout
+    var width: CGFloat? = nil
+    let action: () -> Void
+    
+    @State private var isPressed = false
+    
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                // Background shadow
+                SlantedParallelogram(slant: layout.scaled(15))
+                    .fill(Color.black.opacity(0.15))
+                    .offset(x: 4, y: 6)
+                
+                // Main button background
+                SlantedParallelogram(slant: layout.scaled(15))
+                    .fill(isPressed ? Color(white: 0.95) : Color.white)
+                    .overlay(
+                        SlantedParallelogram(slant: layout.scaled(15))
+                            .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                    )
+                
+                // Color accent bar on the left
+                SlantedParallelogram(slant: layout.scaled(15))
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: color, location: 0),
+                                .init(color: color, location: 0.08),
+                                .init(color: .clear, location: 0.081)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: layout.scaled(20), weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundColor(color)
+                    
+                    Text(subtitle)
+                        .font(.system(size: layout.scaled(11), weight: .bold))
+                        .foregroundColor(.black.opacity(0.6))
+                        .italic()
+                }
+                .padding(.leading, layout.scaled(30))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(width: width ?? layout.scaled(420), height: layout.scaled(80))
+            .scaleEffect(isPressed ? 0.96 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: isPressed)
         }
-    }
-
-    private func labGridColumns(for layout: ResponsiveLayout) -> [GridItem] {
-        if layout.isLandscape && !layout.isCompact {
-            return [
-                GridItem(.flexible(), spacing: layout.elementSpacing),
-                GridItem(.flexible(), spacing: layout.elementSpacing)
-            ]
-        }
-
-        return [GridItem(.flexible(), spacing: layout.elementSpacing)]
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in isPressed = true }
+                .onEnded { _ in isPressed = false }
+        )
     }
 }
 

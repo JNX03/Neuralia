@@ -504,7 +504,7 @@ struct StoryDialogLine: Sendable {
     }
 }
 
-struct StoryChapter: Identifiable, Sendable {
+struct StoryChapter: Identifiable, Sendable, Hashable {
     let id: String
     let title: String
     let subtitle: String
@@ -516,6 +516,14 @@ struct StoryChapter: Identifiable, Sendable {
 
     var nodes: [DialogNode] {
         lines.map { $0.asDialogNode() }
+    }
+
+    static func == (lhs: StoryChapter, rhs: StoryChapter) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
