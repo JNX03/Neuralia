@@ -855,20 +855,40 @@ struct ResponsiveDialogView: View {
         return voiceProfile(for: fallbackSpeaker)
     }
 
+    private func shouldSpeakForSpeaker(_ speaker: String) -> Bool {
+        let normalized = normalizedVoiceMatchText(speaker)
+        return !isPlayerSpeaker(normalized)
+    }
+
     private func speakCurrentNodeText() {
         guard let node = viewModel.currentNode else { return }
         let text = viewModel.resolvedText(for: node).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let speaker = viewModel.resolvedSpeaker(for: node)
+        guard shouldSpeakForSpeaker(speaker) else { return }
         speechManager.speak(text, emotion: node.emotion, voiceProfile: voiceProfile(for: speaker))
     }
 
     private func handleSkipTypingAction() {
+        let wasTyping = viewModel.isTyping
         speechManager.stop()
         viewModel.skipTyping()
+
+        // If the user skips the typewriter animation, resume TTS for the now-visible line.
+        if wasTyping {
+            speakCurrentNodeText()
+        }
     }
 
     private func handleAdvanceAction() {
+        if viewModel.isTyping {
+            speechManager.stop()
+            viewModel.skipTyping()
+            // Advancing while typing acts as "skip typing"; replay the full line TTS.
+            speakCurrentNodeText()
+            return
+        }
+
         speechManager.stop()
         viewModel.advance()
     }
@@ -879,7 +899,7 @@ struct ResponsiveDialogView: View {
         let currentSpeaker = viewModel.resolvedSpeaker(for: viewModel.currentNode)
         viewModel.selectChoice(choice)
 
-        if !responseText.isEmpty {
+        if !responseText.isEmpty, shouldSpeakForSpeaker(currentSpeaker) {
             speechManager.speak(
                 responseText,
                 emotion: choice.emotion,
@@ -6643,7 +6663,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
         speechManager.stop()
         let playerReply = playerCorrectionText(for: choice)
-        playerSpeechManager.speak(playerReply, emotion: .neutral, voiceProfile: .playerFemale)
+        _ = playerReply // Keep text generation for UI, but do not speak player lines.
 
         startProfessorTyping(feedback: teacherReplyText(for: choice), for: questionID)
 
@@ -6695,6 +6715,8 @@ struct ClassroomLectureQuizMiniGameStage: View {
         professorSpeechTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled, professorTypingQuestionID == questionID else { return }
+            // Avoid two synthesizers speaking over each other; prioritize the AI teacher reply.
+            playerSpeechManager.stop()
             speechManager.speak(
                 feedback,
                 emotion: .neutral,
@@ -6773,6 +6795,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         guard let introText = teacherIntroSpeechText else { return }
 
         spokenTeacherIntroQuestionIDs.insert(currentQuestion.id)
+        playerSpeechManager.stop()
         speechManager.speak(
             introText,
             emotion: .neutral,

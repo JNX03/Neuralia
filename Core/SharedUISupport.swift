@@ -45,11 +45,14 @@ final class SpeechManager: ObservableObject {
         setupProfessorMaleVoice(from: voices)
 
         let preferredVoices = [
+            "com.apple.voice.compact.en-US.Samantha",
+            "com.apple.voice.compact.en-GB.Kate",
+            "com.apple.ttsbundle.Samantha-compact",
+            "com.apple.ttsbundle.Karen-compact",
+            "com.apple.voice.compact.en-US.Noelle",
             "com.apple.voice.enhanced.en-US.Samantha",
             "com.apple.voice.supercompact.en-US.Samantha",
             "com.apple.voice.enhanced.en-GB.Kate",
-            "com.apple.voice.compact.en-US.Samantha",
-            "com.apple.voice.compact.en-GB.Kate",
             "com.apple.voice.enhanced.en-US.Noelle",
         ]
 
@@ -58,6 +61,12 @@ final class SpeechManager: ObservableObject {
             .compactMap { voiceID in voices.first(where: { $0.identifier == voiceID }) }
             .first
             ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func isLikelySiriVoice(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        let identifier = voice.identifier.lowercased()
+        let name = voice.name.lowercased()
+        return identifier.contains("siri") || name.contains("siri")
     }
 
     private func englishVoiceCandidate(_ voice: AVSpeechSynthesisVoice) -> Bool {
@@ -119,18 +128,20 @@ final class SpeechManager: ObservableObject {
 
     private func setupPlayerFemaleVoice(from voices: [AVSpeechSynthesisVoice]) {
         let preferredFemaleVoiceIDs = [
-            "com.apple.voice.enhanced.en-US.Samantha",
             "com.apple.voice.compact.en-US.Samantha",
+            "com.apple.ttsbundle.Samantha-compact",
+            "com.apple.voice.compact.en-US.Noelle",
+            "com.apple.ttsbundle.Karen-compact",
+            "com.apple.voice.compact.en-GB.Kate",
+            "com.apple.voice.compact.en-AU.Karen",
+            "com.apple.voice.enhanced.en-US.Samantha",
             "com.apple.voice.super-compact.en-US.Samantha",
             "com.apple.voice.supercompact.en-US.Samantha",
             "com.apple.voice.enhanced.en-US.Noelle",
             "com.apple.voice.compact.en-US.Noelle",
             "com.apple.voice.super-compact.en-US.Noelle",
             "com.apple.voice.enhanced.en-GB.Kate",
-            "com.apple.voice.compact.en-GB.Kate",
             "com.apple.voice.super-compact.en-GB.Kate",
-            "com.apple.ttsbundle.Samantha-compact",
-            "com.apple.ttsbundle.Karen-compact",
             "com.apple.voice.enhanced.en-AU.Karen",
             "com.apple.voice.super-compact.en-AU.Karen",
             "com.apple.voice.compact.en-AU.Karen"
@@ -146,7 +157,8 @@ final class SpeechManager: ObservableObject {
         if let candidate = voices.first(where: { voice in
             englishVoiceCandidate(voice) &&
             isUsableSpeechVoice(voice) &&
-            voice.gender == .female
+            voice.gender == .female &&
+            !isLikelySiriVoice(voice)
         }) {
             playerFemaleVoice = candidate
             return
@@ -157,6 +169,7 @@ final class SpeechManager: ObservableObject {
             let identifier = voice.identifier.lowercased()
             return englishVoiceCandidate(voice) &&
                 isUsableSpeechVoice(voice) &&
+                !isLikelySiriVoice(voice) &&
                 femaleIdentifierHints.contains(where: { identifier.contains($0) })
         }) {
             playerFemaleVoice = candidate
@@ -167,6 +180,7 @@ final class SpeechManager: ObservableObject {
         if let candidate = voices.first(where: { voice in
             englishVoiceCandidate(voice) &&
             isUsableSpeechVoice(voice) &&
+            !isLikelySiriVoice(voice) &&
             preferredFemaleNames.contains(where: { voice.name.localizedCaseInsensitiveContains($0) })
         }) {
             playerFemaleVoice = candidate
@@ -176,6 +190,7 @@ final class SpeechManager: ObservableObject {
         if let candidate = voices.first(where: { voice in
             englishVoiceCandidate(voice) &&
             isUsableSpeechVoice(voice) &&
+            !isLikelySiriVoice(voice) &&
             looksLikeFemaleVoice(voice)
         }) {
             playerFemaleVoice = candidate
@@ -185,6 +200,7 @@ final class SpeechManager: ObservableObject {
         if let candidate = voices.first(where: { voice in
             englishVoiceCandidate(voice) &&
             isUsableSpeechVoice(voice) &&
+            !isLikelySiriVoice(voice) &&
             !looksLikeMaleVoice(voice)
         }) {
             playerFemaleVoice = candidate
@@ -197,6 +213,35 @@ final class SpeechManager: ObservableObject {
         }
 
         playerFemaleVoice = AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func saferVoiceFallback(for profile: SpeechVoiceProfile) -> AVSpeechSynthesisVoice? {
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+
+        switch profile {
+        case .playerFemale:
+            let preferredSafeIDs = [
+                "com.apple.voice.compact.en-US.Samantha",
+                "com.apple.ttsbundle.Samantha-compact",
+                "com.apple.voice.compact.en-US.Noelle",
+                "com.apple.ttsbundle.Karen-compact",
+                "com.apple.voice.compact.en-GB.Kate",
+                "com.apple.voice.compact.en-AU.Karen"
+            ]
+
+            if let safePreferred = preferredSafeIDs.compactMap({ id in
+                voices.first(where: { $0.identifier == id })
+            }).first {
+                return safePreferred
+            }
+            return AVSpeechSynthesisVoice(language: "en-US")
+
+        case .professorMale:
+            return professorMaleVoice ?? AVSpeechSynthesisVoice(language: "en-US")
+
+        case .default:
+            return voice ?? AVSpeechSynthesisVoice(language: "en-US")
+        }
     }
 
     private func setupProfessorMaleVoice(from voices: [AVSpeechSynthesisVoice]) {
@@ -332,7 +377,20 @@ final class SpeechManager: ObservableObject {
         stop()
         
         let utterance = AVSpeechUtterance(string: text)
-        let selectedSpeechVoice = selectedVoice(for: voiceProfile)
+        var selectedSpeechVoice = selectedVoice(for: voiceProfile)
+        switch voiceProfile {
+        case .playerFemale:
+            // Prefer compact/bundle voices for reliability on devices where Siri/enhanced voices appear
+            // in the voice list but fail to synthesize in-app.
+            selectedSpeechVoice = saferVoiceFallback(for: .playerFemale) ?? selectedSpeechVoice
+        case .default, .professorMale:
+            if let currentVoice = selectedSpeechVoice, isLikelySiriVoice(currentVoice) {
+                selectedSpeechVoice = saferVoiceFallback(for: voiceProfile) ?? currentVoice
+            }
+        }
+        if selectedSpeechVoice == nil {
+            selectedSpeechVoice = saferVoiceFallback(for: voiceProfile)
+        }
         utterance.voice = selectedSpeechVoice
         
         switch emotion {
