@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Drawing Sample with High-Resolution Gridde
 struct DrawingSample: Identifiable, Codable {
@@ -1820,6 +1821,852 @@ struct DatasetSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Chapter 3 Story KNN Rescue (Photo + Draw Fallback)
+
+struct Chapter3PhotoKNNSample: Identifiable {
+    let id: UUID
+    let label: String
+    let features: [Double]
+    let thumbnailData: Data?
+
+    init(id: UUID = UUID(), label: String, features: [Double], thumbnailData: Data?) {
+        self.id = id
+        self.label = label
+        self.features = features
+        self.thumbnailData = thumbnailData
+    }
+}
+
+@MainActor
+final class Chapter3PhotoKNNClassifier: ObservableObject {
+    @Published private(set) var trainingSamples: [Chapter3PhotoKNNSample] = []
+    var k: Int = 3
+
+    var trainedLabels: [String] {
+        Array(Set(trainingSamples.map(\.label))).sorted()
+    }
+
+    var isTrained: Bool {
+        trainedLabels.count >= 2 && trainingSamples.count >= 2
+    }
+
+    func addSample(image: UIImage, label: String) -> Bool {
+        guard let features = Chapter3PhotoFeatureExtractor.featureVector(from: image) else {
+            return false
+        }
+        trainingSamples.append(
+            Chapter3PhotoKNNSample(
+                label: label,
+                features: features,
+                thumbnailData: Chapter3PhotoFeatureExtractor.thumbnailData(from: image)
+            )
+        )
+        return true
+    }
+
+    func classify(image: UIImage) -> (label: String, confidence: Double)? {
+        guard isTrained, let testFeatures = Chapter3PhotoFeatureExtractor.featureVector(from: image) else {
+            return nil
+        }
+
+        let ranked = trainingSamples
+            .map { sample in
+                (sample: sample, distance: euclidean(testFeatures, sample.features))
+            }
+            .sorted { $0.distance < $1.distance }
+
+        let neighbors = ranked.prefix(max(1, min(k, ranked.count)))
+        var votes: [String: Double] = [:]
+        var totalWeight = 0.0
+
+        for entry in neighbors {
+            let weight = 1.0 / max(entry.distance, 0.0001)
+            votes[entry.sample.label, default: 0] += weight
+            totalWeight += weight
+        }
+
+        guard let winner = votes.max(by: { $0.value < $1.value }) else { return nil }
+        let confidence = totalWeight > 0 ? (winner.value / totalWeight) : 0
+        return (winner.key, min(max(confidence, 0), 1))
+    }
+
+    private func euclidean(_ lhs: [Double], _ rhs: [Double]) -> Double {
+        let count = min(lhs.count, rhs.count)
+        guard count > 0 else { return .greatestFiniteMagnitude }
+        var sum = 0.0
+        for i in 0..<count {
+            let diff = lhs[i] - rhs[i]
+            sum += diff * diff
+        }
+        return sqrt(sum)
+    }
+}
+
+enum Chapter3PhotoFeatureExtractor {
+    static func featureVector(from image: UIImage) -> [Double]? {
+        let side = 32
+        guard let normalized = resizedImage(image, side: side),
+              let cgImage = normalized.cgImage else {
+            return nil
+        }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = side * bytesPerPixel
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        var pixels = [UInt8](repeating: 0, count: side * side * bytesPerPixel)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        let drawSucceeded = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let baseAddress = buffer.baseAddress,
+                  let context = CGContext(
+                    data: baseAddress,
+                    width: side,
+                    height: side,
+                    bitsPerComponent: 8,
+                    bytesPerRow: bytesPerRow,
+                    space: colorSpace,
+                    bitmapInfo: bitmapInfo
+                  ) else {
+                return false
+            }
+
+            context.interpolationQuality = .medium
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+
+        guard drawSucceeded else { return nil }
+
+        let gridCells = 8
+        let cellSize = side / gridCells
+        var gridLuma = Array(repeating: 0.0, count: gridCells * gridCells)
+        var histogram = Array(repeating: 0.0, count: 27)
+        var luminanceValues = Array(repeating: 0.0, count: side * side)
+        var saturationSum = 0.0
+
+        for y in 0..<side {
+            for x in 0..<side {
+                let offset = (y * side + x) * bytesPerPixel
+                let r = Double(pixels[offset]) / 255.0
+                let g = Double(pixels[offset + 1]) / 255.0
+                let b = Double(pixels[offset + 2]) / 255.0
+
+                let maxChannel = max(r, max(g, b))
+                let minChannel = min(r, min(g, b))
+                let saturation = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
+                saturationSum += saturation
+
+                let luma = 0.299 * r + 0.587 * g + 0.114 * b
+                luminanceValues[y * side + x] = luma
+
+                let gx = min(gridCells - 1, x / cellSize)
+                let gy = min(gridCells - 1, y / cellSize)
+                gridLuma[(gy * gridCells) + gx] += luma
+
+                let rBin = min(2, Int(r * 3.0))
+                let gBin = min(2, Int(g * 3.0))
+                let bBin = min(2, Int(b * 3.0))
+                let histIndex = (rBin * 9) + (gBin * 3) + bBin
+                histogram[histIndex] += 1
+            }
+        }
+
+        let pixelsPerCell = Double(cellSize * cellSize)
+        for index in gridLuma.indices {
+            gridLuma[index] /= pixelsPerCell
+        }
+
+        let pixelCount = Double(side * side)
+        for index in histogram.indices {
+            histogram[index] /= pixelCount
+        }
+
+        let meanLuma = luminanceValues.reduce(0, +) / pixelCount
+        let variance = luminanceValues.map { pow($0 - meanLuma, 2) }.reduce(0, +) / pixelCount
+        let stdLuma = sqrt(variance)
+        let meanSaturation = saturationSum / pixelCount
+
+        var edgeSum = 0.0
+        var edgeCount = 0.0
+        if side > 1 {
+            for y in 0..<(side - 1) {
+                for x in 0..<(side - 1) {
+                    let current = luminanceValues[y * side + x]
+                    let right = luminanceValues[y * side + (x + 1)]
+                    let down = luminanceValues[(y + 1) * side + x]
+                    edgeSum += abs(current - right) + abs(current - down)
+                    edgeCount += 2
+                }
+            }
+        }
+        let meanEdge = edgeCount > 0 ? edgeSum / edgeCount : 0
+
+        var features: [Double] = []
+        features.append(contentsOf: gridLuma)
+        features.append(contentsOf: histogram)
+        features.append(contentsOf: [meanLuma, stdLuma, meanSaturation, meanEdge])
+        return features
+    }
+
+    static func thumbnailData(from image: UIImage, maxSide: CGFloat = 144) -> Data? {
+        let size = image.size
+        guard size.width > 0, size.height > 0 else { return nil }
+        let scale = min(maxSide / size.width, maxSide / size.height, 1)
+        let target = CGSize(width: max(1, size.width * scale), height: max(1, size.height * scale))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: target, format: format)
+        let thumb = renderer.image { _ in
+            UIColor.white.setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: target)).fill()
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+        return thumb.jpegData(compressionQuality: 0.72)
+    }
+
+    private static func resizedImage(_ image: UIImage, side: Int) -> UIImage? {
+        guard side > 0 else { return nil }
+        let targetSize = CGSize(width: side, height: side)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.image { _ in
+            UIColor.white.setFill()
+            UIBezierPath(rect: CGRect(origin: .zero, size: targetSize)).fill()
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+}
+
+private enum Chapter3KNNRescueMode {
+    case photo
+    case drawFallback
+}
+
+private enum Chapter3KNNCaptureIntent {
+    case training(label: String)
+    case testing(expectedLabel: String)
+}
+
+private struct Chapter3KNNRescueTestRound: Identifiable {
+    let id = UUID()
+    let expectedLabel: String
+    let predictedLabel: String
+    let confidence: Double
+    let isCorrect: Bool
+    let thumbnailData: Data?
+}
+
+struct Chapter3KNNRescueTrainerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    let minigame: Chapter3KNNRescueMiniGame
+    let onComplete: (String) -> Void
+
+    @StateObject private var photoKNN = Chapter3PhotoKNNClassifier()
+    @StateObject private var drawKNN = KNNClassifier()
+
+    @State private var mode: Chapter3KNNRescueMode = .photo
+    @State private var selectedTrainingLabel: String
+    @State private var statusMessage = "Capture a few object photos to rebuild the KNN anchors."
+    @State private var testPromptLabel: String?
+    @State private var testRounds: [Chapter3KNNRescueTestRound] = []
+    @State private var correctTestCount = 0
+    @State private var didSubmitCompletion = false
+
+    @State private var pickerSourceType: UIImagePickerController.SourceType = .photoLibrary
+    @State private var captureIntent: Chapter3KNNCaptureIntent?
+    @State private var showImagePicker = false
+
+    // Draw fallback states
+    @State private var fallbackStrokes: [[CGPoint]] = []
+    @State private var fallbackCurrentStroke: [CGPoint] = []
+    @State private var fallbackCanvasSize: CGSize = .zero
+    @State private var fallbackPrediction: (label: String, confidence: Double)?
+    @State private var fallbackPrompt = "1"
+    @State private var fallbackStatus = "If the camera test fails, draw the number shown here."
+    @State private var didLoadFallbackTemplates = false
+
+    init(minigame: Chapter3KNNRescueMiniGame, onComplete: @escaping (String) -> Void) {
+        self.minigame = minigame
+        self.onComplete = onComplete
+        _selectedTrainingLabel = State(initialValue: minigame.trainingLabels.first ?? "Object")
+    }
+
+    private var cameraAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
+    private var photoLibraryAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.photoLibrary)
+    }
+
+    private var trainedLabels: [String] {
+        photoKNN.trainedLabels
+    }
+
+    private var isPhotoTestReady: Bool {
+        photoKNN.isTrained && photoKNN.trainingSamples.count >= minigame.minTrainingSamples
+    }
+
+    private var photoRescuePassed: Bool {
+        correctTestCount >= minigame.requiredCorrectTests
+    }
+
+    private var photoRescueFailed: Bool {
+        !photoRescuePassed && testRounds.count >= minigame.maxTestRounds
+    }
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { geo in
+                let layout = AdaptiveLayout(size: geo.size, horizontalSizeClass: horizontalSizeClass)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: layout.spacing) {
+                        rescueOverviewCard(layout: layout)
+
+                        if mode == .photo {
+                            photoTrainingSection(layout: layout)
+                            photoTestingSection(layout: layout)
+
+                            Button("Can't take a photo? Draw instead") {
+                                activateDrawFallback(reason: "Switched manually from photo mode.")
+                            }
+                            .font(.system(size: layout.fontSize, weight: .semibold))
+                            .foregroundColor(.orange)
+                            .padding(.top, 4)
+                        } else {
+                            drawFallbackSection(layout: layout)
+                        }
+                    }
+                    .padding(layout.padding)
+                }
+                .navigationTitle(minigame.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Close") { dismiss() }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if mode == .drawFallback {
+                            Button("Photo Mode") {
+                                mode = .photo
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showImagePicker, onDismiss: {
+            captureIntent = nil
+        }) {
+            StoryDeviceImagePicker(sourceType: pickerSourceType) { image in
+                handlePickedImage(image)
+                showImagePicker = false
+            } onCancel: {
+                showImagePicker = false
+            }
+            .ignoresSafeArea()
+        }
+        .onAppear {
+            if selectedTrainingLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                selectedTrainingLabel = minigame.trainingLabels.first ?? "Object"
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rescueOverviewCard(layout: AdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(minigame.promptLabel)
+                .font(.system(size: layout.fontSize, weight: .semibold))
+                .foregroundColor(.primary)
+
+            HStack(spacing: 8) {
+                Label("Train \(minigame.minTrainingSamples)+ photos", systemImage: "photo.stack")
+                Label("Pass \(minigame.requiredCorrectTests)/\(minigame.maxTestRounds)", systemImage: "checkmark.seal")
+            }
+            .font(.system(size: layout.fontSize - 3, weight: .medium))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(mode == .photo ? statusMessage : fallbackStatus)
+                .font(.system(size: layout.fontSize - 2))
+                .foregroundColor(.secondary)
+
+            Text(minigame.summaryNote)
+                .font(.system(size: layout.fontSize - 3))
+                .foregroundColor(.secondary.opacity(0.9))
+        }
+        .padding(layout.padding)
+        .background(Color(.systemGray6))
+        .cornerRadius(layout.cornerRadius)
+    }
+
+    @ViewBuilder
+    private func photoTrainingSection(layout: AdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.spacing) {
+            Text("1. Train With Real Photos")
+                .font(.system(size: layout.titleSize - 2, weight: .bold))
+
+            Text("Pick a label, then take or upload 3-4 total photos from real life (example: pen, hand, water bottle).")
+                .font(.system(size: layout.fontSize - 2))
+                .foregroundColor(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(minigame.trainingLabels, id: \.self) { label in
+                        Button(action: { selectedTrainingLabel = label }) {
+                            let count = photoKNN.trainingSamples.filter { $0.label == label }.count
+                            HStack(spacing: 6) {
+                                Text(label)
+                                Text("\(count)")
+                                    .font(.system(size: layout.fontSize - 4))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.8))
+                                    .cornerRadius(5)
+                            }
+                            .font(.system(size: layout.fontSize - 2, weight: .semibold))
+                            .foregroundColor(selectedTrainingLabel == label ? .white : .primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(selectedTrainingLabel == label ? Color.blue : Color(.systemGray5))
+                            .cornerRadius(layout.cornerRadius)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            HStack(spacing: layout.spacing) {
+                PrimaryButton(
+                    title: "Take Photo (\(selectedTrainingLabel))",
+                    action: { presentPicker(source: .camera, intent: .training(label: selectedTrainingLabel)) },
+                    layout: layout,
+                    disabled: !cameraAvailable
+                )
+                SecondaryButton(
+                    title: "Upload Image",
+                    action: { presentPicker(source: .photoLibrary, intent: .training(label: selectedTrainingLabel)) },
+                    layout: layout
+                )
+                .disabled(!photoLibraryAvailable)
+            }
+
+            if !cameraAvailable {
+                Text("Camera is unavailable on this device. Use Upload Image or switch to drawing mode.")
+                    .font(.system(size: layout.fontSize - 3))
+                    .foregroundColor(.secondary)
+            }
+
+            if photoKNN.trainingSamples.isEmpty {
+                RoundedRectangle(cornerRadius: layout.cornerRadius)
+                    .fill(Color(.systemGray6))
+                    .frame(height: 96)
+                    .overlay(
+                        Text("No training photos yet")
+                            .font(.system(size: layout.fontSize - 1, weight: .medium))
+                            .foregroundColor(.secondary)
+                    )
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 8)], spacing: 8) {
+                    ForEach(photoKNN.trainingSamples) { sample in
+                        VStack(spacing: 6) {
+                            if let data = sample.thumbnailData, let uiImage = UIImage(data: data) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 74)
+                                    .frame(maxWidth: .infinity)
+                                    .clipped()
+                                    .cornerRadius(8)
+                            } else {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 74)
+                            }
+
+                            Text(sample.label)
+                                .font(.system(size: layout.fontSize - 4, weight: .semibold))
+                                .lineLimit(1)
+                        }
+                        .padding(6)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+        .padding(layout.padding)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(layout.cornerRadius)
+    }
+
+    @ViewBuilder
+    private func photoTestingSection(layout: AdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.spacing) {
+            Text("2. Test The KNN Rescue")
+                .font(.system(size: layout.titleSize - 2, weight: .bold))
+
+            HStack(spacing: 8) {
+                Label("Correct: \(correctTestCount)/\(minigame.requiredCorrectTests)", systemImage: "checkmark.circle.fill")
+                    .foregroundColor(correctTestCount > 0 ? .green : .secondary)
+                Label("Rounds: \(testRounds.count)/\(minigame.maxTestRounds)", systemImage: "timer")
+                    .foregroundColor(.secondary)
+            }
+            .font(.system(size: layout.fontSize - 3, weight: .medium))
+
+            if !isPhotoTestReady {
+                Text("Need at least \(minigame.minTrainingSamples) training photos and 2 different labels before testing.")
+                    .font(.system(size: layout.fontSize - 2))
+                    .foregroundColor(.secondary)
+            } else if photoRescuePassed {
+                Text("Photo rescue passed. You can close this mini-game and continue the story.")
+                    .font(.system(size: layout.fontSize - 2, weight: .semibold))
+                    .foregroundColor(.green)
+            } else {
+                let currentPrompt = testPromptLabel ?? nextTestPromptSuggestion()
+                Text("Show the camera or upload a photo of: \(currentPrompt)")
+                    .font(.system(size: layout.fontSize, weight: .semibold))
+
+                HStack(spacing: layout.spacing) {
+                    PrimaryButton(
+                        title: "Take Test Photo",
+                        action: { presentPicker(source: .camera, intent: .testing(expectedLabel: currentPrompt)) },
+                        layout: layout,
+                        disabled: !cameraAvailable || photoRescueFailed
+                    )
+                    SecondaryButton(
+                        title: "Upload Test Image",
+                        action: { presentPicker(source: .photoLibrary, intent: .testing(expectedLabel: currentPrompt)) },
+                        layout: layout
+                    )
+                    .disabled(!photoLibraryAvailable || photoRescueFailed)
+                }
+
+                if photoRescueFailed {
+                    Text("Photo test failed. Switching to drawing fallback.")
+                        .font(.system(size: layout.fontSize - 2, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+            }
+
+            if !testRounds.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(testRounds) { round in
+                        HStack(spacing: 10) {
+                            if let data = round.thumbnailData, let uiImage = UIImage(data: data) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 54, height: 54)
+                                    .clipped()
+                                    .cornerRadius(8)
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Expected: \(round.expectedLabel)")
+                                    .font(.system(size: layout.fontSize - 3, weight: .semibold))
+                                Text("Predicted: \(round.predictedLabel) • \(Int((round.confidence * 100).rounded()))%")
+                                    .font(.system(size: layout.fontSize - 4))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: round.isCorrect ? "checkmark.seal.fill" : "xmark.seal.fill")
+                                .foregroundColor(round.isCorrect ? .green : .red)
+                        }
+                        .padding(8)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+        .padding(layout.padding)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                .stroke(Color(.systemGray5), lineWidth: 1)
+        )
+        .cornerRadius(layout.cornerRadius)
+    }
+
+    @ViewBuilder
+    private func drawFallbackSection(layout: AdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: layout.spacing) {
+            Text("Draw Fallback Rescue")
+                .font(.system(size: layout.titleSize - 1, weight: .bold))
+
+            Text(minigame.fallbackHint)
+                .font(.system(size: layout.fontSize - 2))
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 8) {
+                Label("Draw this number:", systemImage: "pencil.tip")
+                    .font(.system(size: layout.fontSize - 2))
+                    .foregroundColor(.secondary)
+                Text(fallbackPrompt)
+                    .font(.system(size: layout.titleSize + 4, weight: .black, design: .rounded))
+                    .foregroundColor(.orange)
+            }
+
+            DrawingCanvas(
+                strokes: $fallbackStrokes,
+                currentStroke: $fallbackCurrentStroke,
+                canvasSize: $fallbackCanvasSize,
+                layout: layout,
+                accent: .orange
+            )
+
+            HStack(spacing: layout.spacing) {
+                SecondaryButton(title: "Clear", action: {
+                    fallbackStrokes.removeAll()
+                    fallbackPrediction = nil
+                }, layout: layout)
+                PrimaryButton(
+                    title: "Check Number",
+                    action: runFallbackPrediction,
+                    layout: layout,
+                    disabled: fallbackStrokes.isEmpty,
+                    color: .orange
+                )
+            }
+
+            if let result = fallbackPrediction {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Predicted: \(result.label)")
+                        .font(.system(size: layout.fontSize, weight: .bold))
+                    Text("Confidence: \(Int((result.confidence * 100).rounded()))%")
+                        .font(.system(size: layout.fontSize - 2))
+                        .foregroundColor(.secondary)
+                    Text(fallbackStatus)
+                        .font(.system(size: layout.fontSize - 2))
+                        .foregroundColor(.secondary)
+                }
+                .padding(layout.padding)
+                .background(Color(.systemGray6))
+                .cornerRadius(layout.cornerRadius)
+            } else {
+                Text(fallbackStatus)
+                    .font(.system(size: layout.fontSize - 2))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(layout.padding)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.cornerRadius)
+                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+        )
+        .cornerRadius(layout.cornerRadius)
+        .onAppear {
+            loadFallbackDigitTemplatesIfNeeded()
+            if fallbackPrompt.isEmpty {
+                fallbackPrompt = randomFallbackDigit()
+            }
+        }
+    }
+
+    private func presentPicker(source: UIImagePickerController.SourceType, intent: Chapter3KNNCaptureIntent) {
+        switch source {
+        case .camera:
+            guard cameraAvailable else {
+                statusMessage = "Camera not available on this device."
+                return
+            }
+        case .photoLibrary:
+            guard photoLibraryAvailable else {
+                statusMessage = "Photo library is unavailable."
+                return
+            }
+        default:
+            break
+        }
+
+        captureIntent = intent
+        pickerSourceType = source
+        showImagePicker = true
+    }
+
+    private func handlePickedImage(_ image: UIImage) {
+        guard let intent = captureIntent else { return }
+
+        switch intent {
+        case .training(let label):
+            if photoKNN.addSample(image: image, label: label) {
+                let count = photoKNN.trainingSamples.filter { $0.label == label }.count
+                statusMessage = "Added \(label) sample (\(count) for \(label), \(photoKNN.trainingSamples.count) total)."
+                if testPromptLabel == nil, isPhotoTestReady {
+                    testPromptLabel = nextTestPromptSuggestion()
+                }
+            } else {
+                statusMessage = "Could not read that image. Try another photo."
+            }
+
+        case .testing(let expectedLabel):
+            guard let result = photoKNN.classify(image: image) else {
+                statusMessage = "Need more training photos before testing."
+                return
+            }
+
+            let isCorrect = result.label.caseInsensitiveCompare(expectedLabel) == .orderedSame
+            if isCorrect {
+                correctTestCount += 1
+            }
+
+            testRounds.append(
+                Chapter3KNNRescueTestRound(
+                    expectedLabel: expectedLabel,
+                    predictedLabel: result.label,
+                    confidence: result.confidence,
+                    isCorrect: isCorrect,
+                    thumbnailData: Chapter3PhotoFeatureExtractor.thumbnailData(from: image)
+                )
+            )
+
+            if correctTestCount >= minigame.requiredCorrectTests {
+                let summary = "KNN rescue complete: \(correctTestCount)/\(testRounds.count) test photos correct after training with \(photoKNN.trainingSamples.count) anchor photos."
+                completeRescue(summary)
+                return
+            }
+
+            if testRounds.count >= minigame.maxTestRounds {
+                activateDrawFallback(reason: "Photo rescue scored \(correctTestCount)/\(testRounds.count). Use drawing fallback to stabilize the transfer.")
+                return
+            }
+
+            testPromptLabel = nextTestPromptSuggestion()
+            statusMessage = isCorrect
+                ? "Correct! Keep going. \(correctTestCount)/\(minigame.requiredCorrectTests) needed."
+                : "Mismatch. Try another test photo. \(correctTestCount)/\(minigame.requiredCorrectTests) correct so far."
+        }
+    }
+
+    private func nextTestPromptSuggestion() -> String {
+        let pool = trainedLabels.isEmpty ? minigame.trainingLabels : trainedLabels
+        if let selected = pool.randomElement() {
+            return selected
+        }
+        return minigame.trainingLabels.first ?? "Object"
+    }
+
+    private func activateDrawFallback(reason: String) {
+        mode = .drawFallback
+        fallbackStatus = reason
+        if fallbackPrompt.isEmpty {
+            fallbackPrompt = randomFallbackDigit()
+        }
+        loadFallbackDigitTemplatesIfNeeded()
+    }
+
+    private func loadFallbackDigitTemplatesIfNeeded() {
+        guard !didLoadFallbackTemplates else { return }
+        didLoadFallbackTemplates = true
+
+        let canvas = CGSize(width: 100, height: 100)
+        let templates: [(String, [[CGPoint]])] = [
+            ("1", [[CGPoint(x: 47, y: 18), CGPoint(x: 53, y: 18), CGPoint(x: 53, y: 82)]]),
+            ("1", [[CGPoint(x: 42, y: 28), CGPoint(x: 50, y: 18), CGPoint(x: 50, y: 84)]]),
+            ("1", [[CGPoint(x: 38, y: 80), CGPoint(x: 62, y: 80)]]),
+
+            ("2", [[CGPoint(x: 26, y: 28), CGPoint(x: 42, y: 18), CGPoint(x: 62, y: 20), CGPoint(x: 70, y: 34), CGPoint(x: 30, y: 74), CGPoint(x: 70, y: 74)]]),
+            ("2", [[CGPoint(x: 28, y: 24), CGPoint(x: 48, y: 16), CGPoint(x: 66, y: 26), CGPoint(x: 62, y: 40), CGPoint(x: 32, y: 62), CGPoint(x: 28, y: 80), CGPoint(x: 72, y: 80)]]),
+
+            ("3", [[CGPoint(x: 28, y: 24), CGPoint(x: 54, y: 18), CGPoint(x: 70, y: 30), CGPoint(x: 52, y: 48), CGPoint(x: 72, y: 66), CGPoint(x: 54, y: 82), CGPoint(x: 28, y: 76)]]),
+            ("3", [[CGPoint(x: 26, y: 20), CGPoint(x: 58, y: 20), CGPoint(x: 70, y: 34), CGPoint(x: 48, y: 50), CGPoint(x: 70, y: 66), CGPoint(x: 58, y: 82), CGPoint(x: 26, y: 82)]])
+        ]
+
+        // Build samples from stroke templates. Split entries into single-stroke arrays.
+        for (label, stroke) in templates {
+            let sample = DrawingSample.fromStrokes([stroke as! Array<[CGPoint]>.ArrayLiteralElement], label: label, canvasSize: canvas)
+            drawKNN.addSample(sample)
+        }
+        drawKNN.k = 3
+        drawKNN.train()
+        fallbackPrompt = randomFallbackDigit()
+        fallbackStatus = "Draw the number \(fallbackPrompt). The fallback KNN is preloaded with number examples."
+    }
+
+    private func randomFallbackDigit() -> String {
+        ["1", "2", "3"].randomElement() ?? "1"
+    }
+
+    private func runFallbackPrediction() {
+        guard !fallbackStrokes.isEmpty, fallbackCanvasSize != .zero else {
+            fallbackStatus = "Draw a number first."
+            return
+        }
+
+        let sample = DrawingSample.fromStrokes(fallbackStrokes, label: "test", canvasSize: fallbackCanvasSize)
+        let result = drawKNN.classify(sample)
+        fallbackPrediction = result
+
+        if result.label == fallbackPrompt {
+            let summary = "Photo rescue failed at \(correctTestCount)/\(max(testRounds.count, 1)), but drawing fallback succeeded by correctly drawing number \(fallbackPrompt)."
+            completeRescue(summary)
+        } else {
+            fallbackStatus = "That looked like \(result.label). Draw \(fallbackPrompt) again, or try a clearer stroke."
+            fallbackStrokes.removeAll()
+        }
+    }
+
+    private func completeRescue(_ summary: String) {
+        guard !didSubmitCompletion else { return }
+        didSubmitCompletion = true
+        onComplete(summary)
+        dismiss()
+    }
+}
+
+struct StoryDeviceImagePicker: UIViewControllerRepresentable {
+    let sourceType: UIImagePickerController.SourceType
+    let onImagePicked: (UIImage) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        picker.allowsEditing = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let parent: StoryDeviceImagePicker
+
+        init(_ parent: StoryDeviceImagePicker) {
+            self.parent = parent
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.onCancel()
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.onImagePicked(image)
+            } else {
+                parent.onCancel()
             }
         }
     }

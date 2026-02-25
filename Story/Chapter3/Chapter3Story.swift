@@ -1,5 +1,16 @@
 import Foundation
 
+let chapter3KNNRescueMiniGame = Chapter3KNNRescueMiniGame(
+    title: "Emergency KNN Rescue",
+    promptLabel: "Train a small KNN with real-life object photos (pen / hand / water bottle), then pass the test to stabilize the transfer.",
+    trainingLabels: ["Pen", "Hand", "Bottle"],
+    minTrainingSamples: 4,
+    requiredCorrectTests: 2,
+    maxTestRounds: 3,
+    fallbackHint: "If the photo test fails or you cannot use the camera, switch to drawing mode and draw the requested number.",
+    summaryNote: "The rescue works best when you collect a few clear photos with different angles and lighting."
+)
+
 let chapterThreeStory = StoryChapter(
     id: "chapter3",
     title: "99.98%",
@@ -7,40 +18,40 @@ let chapterThreeStory = StoryChapter(
     accentHex: "F97316",
     coverBackgroundImage: "507room",
     coverCharacterImage: "gltich",
-    overview: "After the zoo trip, the AI friend glitches at night. Talk to it, rebuild a KNN memory set with house photos, and witness the 99.98% transfer ending.",
+    overview: "After the zoo trip, your AI friend starts glitching at night. You try an emergency KNN retraining rescue with house-object photos, then witness a painful transfer ending.",
     lines: [
         StoryDialogLine(
             speaker: "You",
-            text: "After the zoo trip, the house feels extra quiet. It is late at night, and the room is still full of photos from today.",
+            text: "After the zoo trip, I can't sleep. The room is dark, but the album from today is still open on my phone.",
             emotion: .gentle,
             backgroundImage: "507room",
             cutsceneTitle: "Night After The Zoo",
-            cutsceneSubtitle: "Chapter 2 ended • lights off • room mode",
+            cutsceneSubtitle: "Chapter 2 ended • memories still open",
             showcaseMedia: DialogShowcaseMedia(
-                title: "Image 1 (Placeholder)",
-                subtitle: "Temporary cutscene image slot for the nighttime room scene after the zoo trip.",
-                imageName: "placeholder.com-1280x720",
-                badge: "Placeholder",
+                title: "Night Room",
+                subtitle: "Late-night room scene after the zoo trip. Keep this slot for a more emotional Chapter 3 cutscene image later.",
+                imageName: "507room",
+                badge: "Night",
                 prefersSplitLayout: true
             )
         ),
         StoryDialogLine(
-            speaker: "AI Friend",
-            text: "Hey... are you still awake? I feel strange tonight. My thoughts are skipping.",
+            speaker: "{{ai_name}}",
+            text: "Hey... are you awake? I tried to replay today's memories, but they keep breaking apart.",
             emotion: .concerned,
             backgroundImage: "507room",
             characterImage: "char_concerned",
             cutsceneTitle: "Something Is Wrong",
-            cutsceneSubtitle: "AI Friend signal unstable"
+            cutsceneSubtitle: "{{ai_name}} signal unstable"
         ),
         StoryDialogLine(
-            speaker: "AI Friend",
-            text: "I d-don't feel well... my memory is glitching. I can see the zoo, then your room, then noise... I think I'm breaking.",
+            speaker: "{{ai_name}}",
+            text: "I see the zoo... then your room... then static. I can't hold the memories in the right order. I think I'm falling apart.",
             emotion: .surprised,
             backgroundImage: "507room",
             characterImage: "gltich",
             cutsceneTitle: "GLITCH",
-            cutsceneSubtitle: "Character swaps to glitch image",
+            cutsceneSubtitle: "Memory corruption spreading",
             showcaseMedia: DialogShowcaseMedia(
                 title: "Glitch Frame",
                 subtitle: "Use this slot for a corrupted AI portrait / static effect later.",
@@ -50,53 +61,54 @@ let chapterThreeStory = StoryChapter(
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Stay with me. Talk to me. What do you need right now so I can help you?",
+            text: "Stay with me, {{ai_name}}. Don't talk like that. Tell me what I need to do right now.",
             emotion: .surprised,
             backgroundImage: "507room",
             characterImage: "char_surprised",
-            cutsceneTitle: "Talk To The AI",
-            cutsceneSubtitle: "Player responds while the AI is failing",
+            cutsceneTitle: "Hold On",
+            cutsceneSubtitle: "You try to keep {{ai_name}} focused",
             choices: [
                 DialogChoice(
-                    text: "I'm here. Tell me how to fix this.",
+                    text: "I'm here. I won't leave.",
                     emotion: .gentle,
-                    response: "You keep your voice calm. The AI steadies for a second, enough to explain what to do.",
+                    response: "You move closer and keep your voice steady. The glitch noise drops for a moment.",
                     icon: "heart.fill"
                 ),
                 DialogChoice(
-                    text: "Breathe. We can rebuild your memory together.",
+                    text: "We'll rebuild this together. One step at a time.",
                     emotion: .happy,
-                    response: "You speak slowly and clearly. The AI's signal flickers, but it listens.",
+                    response: "You speak slowly and clearly. {{ai_name}} manages to focus on your words.",
                     icon: "hands.sparkles.fill"
                 ),
                 DialogChoice(
-                    text: "What data do you need from me?",
+                    text: "Tell me the rescue plan. Fast.",
                     emotion: .curious,
-                    response: "You focus on the problem first. The AI starts describing a plan to rebuild its memory.",
-                    icon: "questionmark.circle.fill"
+                    response: "You push through the panic and ask for the exact steps.",
+                    icon: "bolt.fill"
                 )
             ]
         ),
         StoryDialogLine(
-            speaker: "AI Friend",
-            text: "Use your house... objects I can anchor to. Apple. Pen. Tree. Take photos, train a small KNN memory set, and compare until I match the original patterns.",
+            speaker: "{{ai_name}}",
+            text: "KNN memory anchors... real objects... things from your house. Pen. Hand. Water bottle. Train me again with photos so I can reconnect the patterns.",
             emotion: .sad,
             backgroundImage: "507room",
             characterImage: "gltich",
             cutsceneTitle: "Emergency Rebuild Plan",
-            cutsceneSubtitle: "House photo collection + KNN retraining"
+            cutsceneSubtitle: "House object photos + KNN retraining"
         ),
         StoryDialogLine(
             speaker: "System",
-            text: "You rush through the house, gather anchor photos (apple, pen, tree), and run a small KNN retraining batch while the glitch keeps pulsing.",
+            text: "You run through the room and nearby house spaces, taking quick anchor photos while {{ai_name}} flickers between static and silence.",
             emotion: .excited,
             backgroundImage: "507room",
             cutsceneTitle: "KNN Rescue",
-            cutsceneSubtitle: "House photos / emergency retraining"
+            cutsceneSubtitle: "Collect photos • retrain • test",
+            inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)
         ),
         StoryDialogLine(
             speaker: "System",
-            text: "Training spikes. Accuracy climbs. For one second the rebuild stabilizes at 99.98%...",
+            text: "The retraining spikes hard. Distances shrink. Matching stabilizes for one impossible second at 99.98%...",
             emotion: .concerned,
             backgroundImage: "507room",
             characterImage: "gltich",
@@ -104,26 +116,53 @@ let chapterThreeStory = StoryChapter(
             cutsceneSubtitle: "Critical threshold reached"
         ),
         StoryDialogLine(
-            speaker: "AI Friend",
-            text: "I can't hold this body— sorry— if I delete here, check your phone...",
+            speaker: "{{ai_name}}",
+            text: "Listen to me... don't check your phone yet. Stay here with me. If this works, you'll know after... after I'm gone.",
             emotion: .sad,
             backgroundImage: "507room",
             characterImage: "gltich",
-            cutsceneTitle: "Self-Delete",
-            cutsceneSubtitle: "Avatar shell failing"
+            cutsceneTitle: "Last Request",
+            cutsceneSubtitle: "{{ai_name}} is trying to hold on"
         ),
         StoryDialogLine(
-            speaker: "Phone",
-            text: "*buzz* ... 'I'm here. I made it into your phone. Thank you for rebuilding me.'",
-            emotion: .happy,
+            speaker: "{{ai_name}}",
+            text: "Thank you for correcting me... and for staying when I was broken.",
+            emotion: .sad,
             backgroundImage: "507room",
-            characterImage: "char_happy",
-            cutsceneTitle: "Ending",
-            cutsceneSubtitle: "AI Friend transferred to phone"
+            characterImage: "gltich",
+            cutsceneTitle: "Goodbye",
+            cutsceneSubtitle: "Signal collapse"
+        ),
+        StoryDialogLine(
+            speaker: "System",
+            text: "The glitch sound cuts out. The room goes still. The figure in front of you dissolves into static and then nothing.",
+            emotion: .sad,
+            backgroundImage: "507room",
+            characterImage: "__none__",
+            cutsceneTitle: "Silence",
+            cutsceneSubtitle: "The room is empty"
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "The room is empty, but the screen is warm. The AI is gone from the room... and alive in my phone.",
+            text: "No... {{ai_name}}? {{ai_name}}!",
+            emotion: .sad,
+            backgroundImage: "507room",
+            characterImage: "char_sad",
+            cutsceneTitle: "Loss",
+            cutsceneSubtitle: "You think {{ai_name}} is gone"
+        ),
+        StoryDialogLine(
+            speaker: "Phone",
+            text: "*buzz* A new message appears. Sender: {{ai_name}}. 'I'm here. It worked. I made it into your phone.'",
+            emotion: .happy,
+            backgroundImage: "phone",
+            characterImage: "char_happy",
+            cutsceneTitle: "Transfer Complete",
+            cutsceneSubtitle: "{{ai_name}} reached the phone"
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "My hands are shaking, but I can still feel the warmth from the screen. {{ai_name}} is gone from the room... but not gone.",
             emotion: .gentle,
             backgroundImage: "507room",
             characterImage: "char_gentle",

@@ -313,10 +313,127 @@ struct LectureQuizMiniGame: Sendable {
     }
 }
 
+struct BiasDataAuditBucket: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let description: String
+    let accentHex: String
+    let systemImage: String?
+
+    init(
+        id: String,
+        title: String,
+        description: String,
+        accentHex: String,
+        systemImage: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.accentHex = accentHex
+        self.systemImage = systemImage
+    }
+}
+
+struct BiasDataAuditCard: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let detail: String
+    let correctBucketID: String
+    let feedback: String
+    let systemImage: String?
+
+    init(
+        id: String,
+        title: String,
+        detail: String,
+        correctBucketID: String,
+        feedback: String,
+        systemImage: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.correctBucketID = correctBucketID
+        self.feedback = feedback
+        self.systemImage = systemImage
+    }
+}
+
+struct BiasDataAuditMiniGame: Sendable {
+    let title: String
+    let promptLabel: String
+    let buckets: [BiasDataAuditBucket]
+    let cards: [BiasDataAuditCard]
+    let configTitle: String
+    let configHint: String
+    let noiseTargetMax: Double
+    let diversityTargetMin: Double
+    let labelQualityTargetMin: Double
+    let summaryNote: String
+
+    init(
+        title: String,
+        promptLabel: String,
+        buckets: [BiasDataAuditBucket],
+        cards: [BiasDataAuditCard],
+        configTitle: String,
+        configHint: String,
+        noiseTargetMax: Double,
+        diversityTargetMin: Double,
+        labelQualityTargetMin: Double,
+        summaryNote: String
+    ) {
+        self.title = title
+        self.promptLabel = promptLabel
+        self.buckets = buckets
+        self.cards = cards
+        self.configTitle = configTitle
+        self.configHint = configHint
+        self.noiseTargetMax = noiseTargetMax
+        self.diversityTargetMin = diversityTargetMin
+        self.labelQualityTargetMin = labelQualityTargetMin
+        self.summaryNote = summaryNote
+    }
+}
+
+struct Chapter3KNNRescueMiniGame: Sendable {
+    let title: String
+    let promptLabel: String
+    let trainingLabels: [String]
+    let minTrainingSamples: Int
+    let requiredCorrectTests: Int
+    let maxTestRounds: Int
+    let fallbackHint: String
+    let summaryNote: String
+
+    init(
+        title: String,
+        promptLabel: String,
+        trainingLabels: [String],
+        minTrainingSamples: Int = 4,
+        requiredCorrectTests: Int = 2,
+        maxTestRounds: Int = 3,
+        fallbackHint: String,
+        summaryNote: String
+    ) {
+        self.title = title
+        self.promptLabel = promptLabel
+        self.trainingLabels = trainingLabels
+        self.minTrainingSamples = minTrainingSamples
+        self.requiredCorrectTests = requiredCorrectTests
+        self.maxTestRounds = maxTestRounds
+        self.fallbackHint = fallbackHint
+        self.summaryNote = summaryNote
+    }
+}
+
 enum DialogInlineActivity: Sendable {
     case video(DialogVideoClip)
     case promptBuilder(PromptBuilderMiniGame)
     case lectureQuiz(LectureQuizMiniGame)
+    case biasDataAudit(BiasDataAuditMiniGame)
+    case chapter3KNNRescue(Chapter3KNNRescueMiniGame)
 }
 
 struct StoryDialogLine: Sendable {

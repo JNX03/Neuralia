@@ -677,7 +677,7 @@ struct ResponsiveDialogView: View {
         switch activity {
         case .video:
             return 1.0
-        case .lectureQuiz, .promptBuilder:
+        case .lectureQuiz, .promptBuilder, .biasDataAudit, .chapter3KNNRescue:
             return 0.72
         }
     }
@@ -1066,6 +1066,10 @@ struct ResponsiveDialogView: View {
             lectureQuizActivityScene(layout: layout, geometry: geometry, node: node, quiz: quiz)
         case .promptBuilder(let minigame):
             promptBuilderActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
+        case .biasDataAudit(let minigame):
+            biasDataAuditActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
+        case .chapter3KNNRescue(let minigame):
+            chapter3KNNRescueActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
         }
     }
 
@@ -1220,6 +1224,204 @@ struct ResponsiveDialogView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+
+    private func biasDataAuditActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        minigame: BiasDataAuditMiniGame
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
+        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
+        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+
+        return VStack(spacing: 0) {
+            topBar(layout: layout)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, topBarTopPadding(for: layout))
+
+            if useVerticalLayout {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        BiasDataAuditMiniGameCard(
+                            minigame: minigame,
+                            layout: layout,
+                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                        ) { result in
+                            viewModel.completeInlineActivity(for: node.id, result: result)
+                        }
+                        .allowsHitTesting(!viewModel.isTyping)
+                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
+
+                        MiniGameStageCharacterPanel(
+                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                            emotion: node.emotion,
+                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                            instructionText: viewModel.displayedText,
+                            isTyping: viewModel.isTyping,
+                            layout: layout,
+                            accentColor: getEmotionColor(node.emotion),
+                            onSkipTyping: { handleSkipTypingAction() }
+                        )
+                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                }
+            } else {
+                HStack(alignment: .top, spacing: layout.sectionSpacing) {
+                    MiniGameStageCharacterPanel(
+                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                        emotion: node.emotion,
+                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        instructionText: viewModel.displayedText,
+                        isTyping: viewModel.isTyping,
+                        layout: layout,
+                        accentColor: getEmotionColor(node.emotion),
+                        onSkipTyping: { handleSkipTypingAction() }
+                    )
+                    .frame(width: leftWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            BiasDataAuditMiniGameCard(
+                                minigame: minigame,
+                                layout: layout,
+                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                            ) { result in
+                                viewModel.completeInlineActivity(for: node.id, result: result)
+                            }
+                            .allowsHitTesting(!viewModel.isTyping)
+                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+            }
+
+            MiniGameBottomBar(
+                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
+                    ? "Lab complete. Continue when you are ready."
+                    : "Sort the issues and tune the data quality settings to continue.",
+                continueTitle: "Continue Story",
+                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
+                layout: layout,
+                onContinue: { handleAdvanceAction() }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, bottomSafePadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func chapter3KNNRescueActivityScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        minigame: Chapter3KNNRescueMiniGame
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
+        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
+        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+
+        return VStack(spacing: 0) {
+            topBar(layout: layout)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, topBarTopPadding(for: layout))
+
+            if useVerticalLayout {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        Chapter3KNNRescueMiniGameCard(
+                            minigame: minigame,
+                            layout: layout,
+                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                        ) { result in
+                            viewModel.completeInlineActivity(for: node.id, result: result)
+                        }
+                        .allowsHitTesting(!viewModel.isTyping)
+                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
+
+                        MiniGameStageCharacterPanel(
+                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                            emotion: node.emotion,
+                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                            instructionText: viewModel.displayedText,
+                            isTyping: viewModel.isTyping,
+                            layout: layout,
+                            accentColor: getEmotionColor(node.emotion),
+                            onSkipTyping: { handleSkipTypingAction() }
+                        )
+                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                }
+            } else {
+                HStack(alignment: .top, spacing: layout.sectionSpacing) {
+                    MiniGameStageCharacterPanel(
+                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
+                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                        emotion: node.emotion,
+                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        instructionText: viewModel.displayedText,
+                        isTyping: viewModel.isTyping,
+                        layout: layout,
+                        accentColor: getEmotionColor(node.emotion),
+                        onSkipTyping: { handleSkipTypingAction() }
+                    )
+                    .frame(width: leftWidth)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 12) {
+                            Chapter3KNNRescueMiniGameCard(
+                                minigame: minigame,
+                                layout: layout,
+                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                            ) { result in
+                                viewModel.completeInlineActivity(for: node.id, result: result)
+                            }
+                            .allowsHitTesting(!viewModel.isTyping)
+                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+            }
+
+            MiniGameBottomBar(
+                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
+                    ? "KNN rescue stabilized. Continue when you are ready."
+                    : "Train with photos and pass 2 tests, or use the drawing fallback to continue.",
+                continueTitle: "Continue Story",
+                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
+                layout: layout,
+                onContinue: { handleAdvanceAction() }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, bottomSafePadding)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private func classroomLectureQuizActivityScene(
@@ -2228,6 +2430,22 @@ struct ResponsiveDialogView: View {
         case .lectureQuiz(let quiz):
             LectureQuizMiniGameCard(
                 quiz: quiz,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: nodeID)
+            ) { result in
+                viewModel.completeInlineActivity(for: nodeID, result: result)
+            }
+        case .biasDataAudit(let minigame):
+            BiasDataAuditMiniGameCard(
+                minigame: minigame,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: nodeID)
+            ) { result in
+                viewModel.completeInlineActivity(for: nodeID, result: result)
+            }
+        case .chapter3KNNRescue(let minigame):
+            Chapter3KNNRescueMiniGameCard(
+                minigame: minigame,
                 layout: layout,
                 isCompleted: viewModel.isInlineActivityCompleted(for: nodeID)
             ) { result in
@@ -6835,6 +7053,614 @@ struct ClassroomLectureQuizMiniGameStage: View {
     }
 }
 
+struct BiasDataAuditMiniGameCard: View {
+    let minigame: BiasDataAuditMiniGame
+    let layout: DialogAdaptiveLayout
+    let isCompleted: Bool
+    let onComplete: (String) -> Void
+
+    @State private var selectionsByCardID: [String: String] = [:]
+    @State private var hasCheckedSortBoard = false
+    @State private var sortReviewMessage: String = ""
+    @State private var configFeedbackMessage: String = ""
+    @State private var noiseLevel: Double = 78
+    @State private var diversityLevel: Double = 32
+    @State private var labelQualityLevel: Double = 46
+
+    private var totalCards: Int {
+        minigame.cards.count
+    }
+
+    private var assignedCardsCount: Int {
+        selectionsByCardID.count
+    }
+
+    private var correctCardsCount: Int {
+        minigame.cards.reduce(into: 0) { count, card in
+            if selectionsByCardID[card.id] == card.correctBucketID {
+                count += 1
+            }
+        }
+    }
+
+    private var allCardsAssigned: Bool {
+        assignedCardsCount == totalCards && totalCards > 0
+    }
+
+    private var sortPassed: Bool {
+        allCardsAssigned && correctCardsCount == totalCards
+    }
+
+    private var configUnlocked: Bool {
+        sortPassed || isCompleted
+    }
+
+    private var configPassed: Bool {
+        noiseLevel <= minigame.noiseTargetMax
+            && diversityLevel >= minigame.diversityTargetMin
+            && labelQualityLevel >= minigame.labelQualityTargetMin
+    }
+
+    private var sortedBuckets: [BiasDataAuditBucket] {
+        minigame.buckets
+    }
+
+    private var bucketByID: [String: BiasDataAuditBucket] {
+        Dictionary(uniqueKeysWithValues: minigame.buckets.map { ($0.id, $0) })
+    }
+
+    private var miscategorizedCards: [BiasDataAuditCard] {
+        minigame.cards.filter { card in
+            guard let selected = selectionsByCardID[card.id] else { return true }
+            return selected != card.correctBucketID
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: layout.elementSpacing) {
+            headerSection
+            sortBoardSection
+            configSection
+            summarySection
+        }
+        .padding(12)
+        .background(Color(hex: "181D25"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+
+    private var headerSection: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(minigame.title)
+                    .font(.system(size: layout.captionFontSize + 2, weight: .bold))
+                    .foregroundColor(.white)
+                Text(minigame.promptLabel)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Label("New Mini-game", systemImage: "tray.2.fill")
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.86))
+
+                Text("Sorted \(assignedCardsCount)/\(totalCards)")
+                    .font(.system(size: layout.captionFontSize - 1, weight: .bold))
+                    .foregroundColor(.white.opacity(0.72))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.06), in: Capsule())
+            }
+        }
+    }
+
+    private var sortBoardSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Step 1: Bias Detect / Data Quality Sort")
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer(minLength: 0)
+                if sortPassed {
+                    Label("Passed", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.mint.opacity(0.95))
+                }
+            }
+
+            ForEach(minigame.cards) { card in
+                cardSortRow(card)
+            }
+
+            sortBucketsPreview
+
+            HStack(spacing: 8) {
+                Button(action: checkSortBoard) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checklist")
+                        Text("Check Sort Board")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: layout.captionFontSize + 1))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        allCardsAssigned ? Color(hex: "2D5BFF") : Color(hex: "2B313D"),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(allCardsAssigned ? 0.18 : 0.08), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!allCardsAssigned || isCompleted)
+
+                Text(allCardsAssigned ? "All cases sorted. Run the check." : "Sort every case before checking.")
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.67))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if hasCheckedSortBoard || isCompleted {
+                sortReviewPanel
+            }
+        }
+        .padding(12)
+        .background(Color(hex: "11161D"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func cardSortRow(_ card: BiasDataAuditCard) -> some View {
+        let selectedBucketID = selectionsByCardID[card.id]
+        let selectedBucket = selectedBucketID.flatMap { bucketByID[$0] }
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                if let systemImage = card.systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
+                        .frame(width: 26, alignment: .center)
+                        .padding(.top, 2)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.title)
+                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(card.detail)
+                        .font(.system(size: layout.captionFontSize + 1))
+                        .foregroundColor(.white.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack {
+                Text("Assigned:")
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.64))
+                if let selectedBucket {
+                    Text(selectedBucket.title)
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(Color(hex: selectedBucket.accentHex))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.04), in: Capsule())
+                } else {
+                    Text("Unsorted")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.orange.opacity(0.9))
+                }
+                Spacer(minLength: 0)
+            }
+
+            VStack(spacing: 6) {
+                ForEach(sortedBuckets) { bucket in
+                    sortBucketButton(cardID: card.id, bucket: bucket, isSelected: selectedBucketID == bucket.id)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(hex: "1B222C"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func sortBucketButton(cardID: String, bucket: BiasDataAuditBucket, isSelected: Bool) -> some View {
+        Button {
+            guard !isCompleted else { return }
+            selectionsByCardID[cardID] = bucket.id
+            hasCheckedSortBoard = false
+            sortReviewMessage = ""
+        } label: {
+            HStack(spacing: 10) {
+                if let systemImage = bucket.systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .frame(width: 20)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bucket.title)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    Text(bucket.description)
+                        .font(.system(size: layout.captionFontSize))
+                        .opacity(0.75)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: layout.captionFontSize + 3, weight: .bold))
+                }
+            }
+            .foregroundColor(.white.opacity(isSelected ? 0.96 : 0.85))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color(hex: bucket.accentHex).opacity(0.35) : Color(hex: "242C38"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(
+                                isSelected ? Color(hex: bucket.accentHex).opacity(0.85) : Color.white.opacity(0.08),
+                                lineWidth: 1
+                            )
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isCompleted)
+    }
+
+    private var sortBucketsPreview: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Sort Board Preview")
+                .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                .foregroundColor(.white.opacity(0.9))
+
+            ForEach(sortedBuckets) { bucket in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        if let systemImage = bucket.systemImage {
+                            Image(systemName: systemImage)
+                                .foregroundColor(Color(hex: bucket.accentHex))
+                        }
+                        Text(bucket.title)
+                            .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                            .foregroundColor(.white)
+                        Spacer(minLength: 0)
+                        Text("\(assignedCardTitles(for: bucket).count)")
+                            .font(.system(size: layout.captionFontSize, weight: .bold))
+                            .foregroundColor(.white.opacity(0.72))
+                    }
+
+                    if assignedCardTitles(for: bucket).isEmpty {
+                        Text("No cases yet")
+                            .font(.system(size: layout.captionFontSize))
+                            .foregroundColor(.white.opacity(0.48))
+                    } else {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(assignedCardTitles(for: bucket), id: \.self) { title in
+                                    Text(title)
+                                        .font(.system(size: layout.captionFontSize))
+                                        .foregroundColor(.white.opacity(0.92))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .background(Color.white.opacity(0.06), in: Capsule())
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(10)
+                .background(Color(hex: "171C24"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color(hex: bucket.accentHex).opacity(0.28), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sortReviewPanel: some View {
+        let passed = sortPassed || isCompleted
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: passed ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                    .foregroundColor(passed ? .mint : .orange)
+                Text(passed ? "Sort check passed" : "Sort check needs fixes")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            Text(sortReviewMessage.isEmpty ? defaultSortReviewMessage(passed: passed) : sortReviewMessage)
+                .font(.system(size: layout.captionFontSize + 1))
+                .foregroundColor(.white.opacity(0.88))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !passed {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(miscategorizedCards) { card in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "arrow.uturn.left.circle.fill")
+                                .foregroundColor(.orange.opacity(0.9))
+                                .padding(.top, 1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(card.title)
+                                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Text(card.feedback)
+                                    .font(.system(size: layout.captionFontSize))
+                                    .foregroundColor(.white.opacity(0.68))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background((passed ? Color.mint : Color.orange).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke((passed ? Color.mint : Color.orange).opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private var configSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Step 2: \(minigame.configTitle)")
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer(minLength: 0)
+                if configPassed && configUnlocked {
+                    Label("Ready", systemImage: "slider.horizontal.3")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.cyan.opacity(0.92))
+                }
+            }
+
+            Text(minigame.configHint)
+                .font(.system(size: layout.captionFontSize + 1))
+                .foregroundColor(.white.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 10) {
+                metricSliderRow(
+                    title: "Noise Level",
+                    subtitle: "Lower is better (bad data reduction)",
+                    value: $noiseLevel,
+                    targetText: "Target <= \(percentText(minigame.noiseTargetMax))",
+                    targetPassed: noiseLevel <= minigame.noiseTargetMax,
+                    tint: Color.orange
+                )
+
+                metricSliderRow(
+                    title: "Dataset Diversity",
+                    subtitle: "Higher is better (reduces bias from narrow examples)",
+                    value: $diversityLevel,
+                    targetText: "Target >= \(percentText(minigame.diversityTargetMin))",
+                    targetPassed: diversityLevel >= minigame.diversityTargetMin,
+                    tint: Color.mint
+                )
+
+                metricSliderRow(
+                    title: "Label Quality Check",
+                    subtitle: "Higher is better (fix wrong/missing labels)",
+                    value: $labelQualityLevel,
+                    targetText: "Target >= \(percentText(minigame.labelQualityTargetMin))",
+                    targetPassed: labelQualityLevel >= minigame.labelQualityTargetMin,
+                    tint: Color.cyan
+                )
+            }
+            .opacity(configUnlocked ? 1.0 : 0.55)
+            .allowsHitTesting(configUnlocked && !isCompleted)
+
+            HStack(spacing: 8) {
+                Button(action: runAudit) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                        Text("Run Bias/Data Audit")
+                            .fontWeight(.bold)
+                    }
+                    .font(.system(size: layout.captionFontSize + 1))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        configUnlocked ? Color(hex: "1E879E") : Color(hex: "2B313D"),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(configUnlocked ? 0.16 : 0.08), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!configUnlocked || isCompleted)
+
+                Text(configUnlocked ? "Tune the sliders, then run the audit." : "Unlock Step 2 by passing the sort board first.")
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.67))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !configFeedbackMessage.isEmpty {
+                Text(configFeedbackMessage)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background((configPassed ? Color.cyan : Color.orange).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke((configPassed ? Color.cyan : Color.orange).opacity(0.30), lineWidth: 1)
+                    )
+            }
+        }
+        .padding(12)
+        .background(Color(hex: "11161D"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func metricSliderRow(
+        title: String,
+        subtitle: String,
+        value: Binding<Double>,
+        targetText: String,
+        targetPassed: Bool,
+        tint: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                        .foregroundColor(.white)
+                    Text(subtitle)
+                        .font(.system(size: layout.captionFontSize))
+                        .foregroundColor(.white.opacity(0.64))
+                }
+                Spacer(minLength: 0)
+                Text(percentText(value.wrappedValue))
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white.opacity(0.88))
+            }
+
+            Slider(value: value, in: 0...100, step: 1)
+                .tint(tint)
+
+            HStack {
+                Text(targetText)
+                    .font(.system(size: layout.captionFontSize))
+                    .foregroundColor(.white.opacity(0.66))
+                Spacer(minLength: 0)
+                Image(systemName: targetPassed ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(targetPassed ? tint.opacity(0.95) : .white.opacity(0.25))
+            }
+        }
+        .padding(10)
+        .background(Color(hex: "171C24"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tint.opacity(targetPassed ? 0.32 : 0.12), lineWidth: 1)
+        )
+    }
+
+    private var summarySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: isCompleted ? "sparkles" : "book.closed.fill")
+                    .foregroundColor(isCompleted ? .yellow.opacity(0.9) : .white.opacity(0.7))
+                Text(isCompleted ? "Lab Complete" : "Key Lesson")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            Text(minigame.summaryNote)
+                .font(.system(size: layout.captionFontSize + 1))
+                .foregroundColor(.white.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isCompleted {
+                Text("You can continue the story now.")
+                    .font(.system(size: layout.captionFontSize, weight: .semibold))
+                    .foregroundColor(.mint.opacity(0.9))
+            }
+        }
+        .padding(12)
+        .background(Color(hex: "11161D"), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private func assignedCardTitles(for bucket: BiasDataAuditBucket) -> [String] {
+        minigame.cards.compactMap { card in
+            selectionsByCardID[card.id] == bucket.id ? card.title : nil
+        }
+    }
+
+    private func checkSortBoard() {
+        guard !isCompleted else { return }
+        guard allCardsAssigned else {
+            hasCheckedSortBoard = true
+            sortReviewMessage = "Sort every case first so the lab can compare your labels against the answer key."
+            return
+        }
+
+        hasCheckedSortBoard = true
+        let base = "Sort accuracy: \(correctCardsCount)/\(totalCards)."
+
+        if sortPassed {
+            sortReviewMessage = "\(base) Great job. You separated bias patterns from bad-data problems correctly."
+        } else {
+            sortReviewMessage = "\(base) Fix the highlighted cases. Bias usually means narrow/unbalanced examples, while bad data means noisy/unclear/wrong inputs."
+        }
+    }
+
+    private func runAudit() {
+        guard !isCompleted else { return }
+        guard configUnlocked else {
+            configFeedbackMessage = "Pass the sort board first to unlock the noise and bias controls."
+            return
+        }
+
+        if configPassed {
+            configFeedbackMessage = "Audit passed. Cleaner inputs + better diversity + label checks reduce bad-data failures and bias errors."
+
+            let summary = "Completed \(minigame.title). Sorted \(correctCardsCount)/\(totalCards) cases correctly. Final settings: noise \(percentText(noiseLevel)), diversity \(percentText(diversityLevel)), label quality \(percentText(labelQualityLevel)). \(minigame.summaryNote)"
+            onComplete(summary)
+        } else {
+            var missing: [String] = []
+            if noiseLevel > minigame.noiseTargetMax {
+                missing.append("lower Noise Level")
+            }
+            if diversityLevel < minigame.diversityTargetMin {
+                missing.append("increase Dataset Diversity")
+            }
+            if labelQualityLevel < minigame.labelQualityTargetMin {
+                missing.append("increase Label Quality Check")
+            }
+            configFeedbackMessage = "Audit failed. \(missing.joined(separator: ", "))."
+        }
+    }
+
+    private func defaultSortReviewMessage(passed: Bool) -> String {
+        if passed {
+            return "Sort accuracy: \(correctCardsCount)/\(totalCards). Great job. You can move to the noise/bias configuration step."
+        }
+        return "Sort accuracy: \(correctCardsCount)/\(totalCards). Re-check the cards that mix up biased patterns with noisy or corrupted data."
+    }
+
+    private func percentText(_ value: Double) -> String {
+        "\(Int(value.rounded()))%"
+    }
+}
+
 struct LectureQuizMiniGameCard: View {
     let quiz: LectureQuizMiniGame
     let layout: DialogAdaptiveLayout
@@ -7425,6 +8251,127 @@ private struct PlaceholderClockHeroCard: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 18)
+        }
+    }
+}
+
+struct Chapter3KNNRescueMiniGameCard: View {
+    let minigame: Chapter3KNNRescueMiniGame
+    let layout: DialogAdaptiveLayout
+    let isCompleted: Bool
+    let onComplete: (String) -> Void
+
+    @State private var showTrainer = false
+    @State private var latestSummary: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.orange.opacity(0.95),
+                                    Color.red.opacity(0.78)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 52, height: 52)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(minigame.title)
+                        .font(.system(size: layout.bodyFontSize + 4, weight: .bold))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(minigame.promptLabel)
+                        .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                        .foregroundColor(.white.opacity(0.82))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Text("Labels: \(minigame.trainingLabels.joined(separator: ", "))")
+                .font(.system(size: layout.captionFontSize, weight: .semibold))
+                .foregroundColor(.white.opacity(0.76))
+
+            Text("Goal: get \(minigame.requiredCorrectTests) correct tests before \(minigame.maxTestRounds) rounds.")
+                .font(.system(size: layout.captionFontSize))
+                .foregroundColor(.white.opacity(0.72))
+
+            Text(minigame.fallbackHint)
+                .font(.system(size: layout.captionFontSize, weight: .medium))
+                .foregroundColor(.orange.opacity(0.95))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let latestSummary, !latestSummary.isEmpty {
+                Text(latestSummary)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                    )
+            }
+
+            Button {
+                showTrainer = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
+                    Text(isCompleted ? "Rescue Complete" : "Open KNN Rescue Minigame")
+                    Spacer(minLength: 0)
+                    if !isCompleted {
+                        Image(systemName: "arrow.up.right.square")
+                    }
+                }
+                .font(.system(size: layout.bodyFontSize, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            isCompleted
+                                ? AnyShapeStyle(Color.green.opacity(0.75))
+                                : AnyShapeStyle(
+                                    LinearGradient(
+                                        colors: [Color.orange.opacity(0.95), Color.red.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isCompleted)
+            .opacity(isCompleted ? 0.9 : 1.0)
+        }
+        .padding(layout.dialogPadding)
+        .background(
+            RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
+                .fill(Color.black.opacity(0.48))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .sheet(isPresented: $showTrainer) {
+            Chapter3KNNRescueTrainerView(minigame: minigame) { result in
+                latestSummary = result
+                onComplete(result)
+            }
         }
     }
 }
