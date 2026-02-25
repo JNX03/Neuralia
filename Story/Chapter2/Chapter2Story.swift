@@ -5,48 +5,48 @@ let chapterTwoStory = StoryChapter(
     title: "New Friend?",
     subtitle: "Hallucination / Bias / Bad Data",
     accentHex: "8B5CF6",
-    coverBackgroundImage: "507room",
-    coverCharacterImage: "char_curious",
-    overview: "You spend Saturday with Ploy at Chiang Mai Zoo and learn how AI can hallucinate, overgeneralize, and fail when the input data is unclear.",
+    coverBackgroundImage: "room",
+    coverCharacterImage: "unknow",
+    overview: "A Saturday with your AI friend turns into a zoo memory trip where you learn hallucination, bias, and bad data through real-world corrections.",
     lines: [
         StoryDialogLine(
-            speaker: "Narration",
-            text: "You wake up on Saturday morning and realize Ploy is still here, like... actually here.",
-            emotion: .surprised,
-            backgroundImage: "507room",
-            characterImage: "char_surprised",
+            speaker: "",
+            text: "Saturday morning.",
+            emotion: .neutral,
+            backgroundImage: "room",
+            characterImage: "__none__",
             cutsceneTitle: "Chapter 2",
             cutsceneSubtitle: "New Friend?"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "You are still not fully used to it, so you test something simple.",
-            emotion: .curious,
-            backgroundImage: "507room",
-            characterImage: "char_curious",
-            cutsceneTitle: "Reality Check",
-            cutsceneSubtitle: "Start with an easy question"
+            speaker: "You",
+            text: "I wake up and realize {{ai_name}} is still here... like, actually here.",
+            emotion: .surprised,
+            backgroundImage: "room",
+            characterImage: "char_surprised",
+            cutsceneTitle: "Morning Check",
+            cutsceneSubtitle: "Still not used to this"
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "What time is it now?",
+            text: "Okay. Easy test first. What time is it now?",
             emotion: .curious,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_curious",
-            cutsceneTitle: "Question",
-            cutsceneSubtitle: "Can Ploy answer correctly?"
+            cutsceneTitle: "Simple Test",
+            cutsceneSubtitle: "Ask something obvious"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
+            speaker: "{{ai_name}}",
             text: "10:67.",
             emotion: .happy,
-            backgroundImage: "507room",
-            characterImage: "char_happy",
-            cutsceneTitle: "Wrong Answer",
-            cutsceneSubtitle: "Confident... but impossible",
+            backgroundImage: "room",
+            characterImage: "unknow",
+            cutsceneTitle: "Confident Guess",
+            cutsceneSubtitle: "Sounds sure • still wrong",
             showcaseMedia: DialogShowcaseMedia(
-                title: "Clock Check (Placeholder)",
-                subtitle: "Ploy guessed a time that cannot exist.",
+                title: "Clock Check",
+                subtitle: "The AI answered confidently, but the time is impossible.",
                 imageName: "__clock_placeholder__",
                 badge: "10:67",
                 prefersSplitLayout: true
@@ -56,49 +56,49 @@ let chapterTwoStory = StoryChapter(
             speaker: "You",
             text: "Bro... 10:67 is not a real time.",
             emotion: .concerned,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_concerned",
-            cutsceneTitle: "Impossible Time",
-            cutsceneSubtitle: "Check reality first"
+            cutsceneTitle: "Reality Check",
+            cutsceneSubtitle: "Impossible time"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "Oh- sorry. I guessed.",
-            emotion: .concerned,
-            backgroundImage: "507room",
-            characterImage: "char_concerned",
-            cutsceneTitle: "Honest Moment",
-            cutsceneSubtitle: "Guessing is risky"
+            speaker: "{{ai_name}}",
+            text: "Oh, sorry. I guessed.",
+            emotion: .sad,
+            backgroundImage: "room",
+            characterImage: "unknow",
+            cutsceneTitle: "Oops",
+            cutsceneSubtitle: "Guessing without context"
         ),
         StoryDialogLine(
-            speaker: "Saen00g",
-            text: "Sometimes AI can generate answers that sound correct even if they are wrong, especially when it does not have reliable context. This is called hallucination.",
+            speaker: "",
+            text: "Sometimes AI generates answers that sound correct even when they are wrong, especially when it lacks reliable context. That is called hallucination.",
             emotion: .gentle,
-            backgroundImage: "507room",
-            characterImage: "char_gentle",
+            backgroundImage: "room",
+            characterImage: "__none__",
             cutsceneTitle: "Lesson: Hallucination",
-            cutsceneSubtitle: "Sounding correct is not the same as being correct"
+            cutsceneSubtitle: "Sounds right ≠ is right"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "Best way to reduce this: verify with real sources like clocks, signs, and trusted info. Also let me say 'I am not sure' instead of forcing an answer.",
+            speaker: "{{ai_name}}",
+            text: "Best fix: verify with real sources like clocks, signs, and trusted information. Also let me say 'I'm not sure' instead of forcing a guess.",
             emotion: .gentle,
-            backgroundImage: "507room",
-            characterImage: "char_gentle",
-            cutsceneTitle: "Safe AI Habit",
-            cutsceneSubtitle: "Verify first / uncertainty is okay"
+            backgroundImage: "room",
+            characterImage: "unknow",
+            cutsceneTitle: "Safer Habit",
+            cutsceneSubtitle: "Verify and allow uncertainty"
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Fix the time by picking a real one.",
+            text: "Then let's correct it. Pick a real time.",
             emotion: .curious,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_curious",
-            cutsceneTitle: "Mini Check",
-            cutsceneSubtitle: "Choose the correct time",
+            cutsceneTitle: "Quick Check",
+            cutsceneSubtitle: "Correct the hallucination",
             showcaseMedia: DialogShowcaseMedia(
                 title: "Reality Check",
-                subtitle: "Find the valid time instead of trusting the hallucinated one.",
+                subtitle: "Choose a valid time instead of the impossible answer.",
                 imageName: "__clock_placeholder__",
                 badge: "Pick One",
                 prefersSplitLayout: true
@@ -107,297 +107,228 @@ let chapterTwoStory = StoryChapter(
                 DialogChoice(
                     text: "10:07",
                     emotion: .happy,
-                    response: "Correct. A real clock value makes more sense than a confident guess.",
+                    response: "Correct. Real-world validation beats confident guessing.",
                     icon: "checkmark.circle.fill"
                 ),
                 DialogChoice(
                     text: "10:67",
                     emotion: .concerned,
-                    response: "Not this one. 67 minutes is impossible, so we should verify and correct it.",
+                    response: "Still impossible. 67 minutes does not exist on a normal clock.",
                     icon: "xmark.circle.fill"
                 ),
                 DialogChoice(
                     text: "99:10",
                     emotion: .concerned,
-                    response: "Also impossible. Good AI use means checking if the answer is valid in real life.",
+                    response: "Also impossible. Always check if the answer is valid before trusting it.",
                     icon: "exclamationmark.triangle.fill"
                 )
             ]
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "After that, you decide to take Ploy outside for a day because you want to build memories with him. You choose Chiang Mai Zoo.",
+            speaker: "You",
+            text: "You know what? Let's go outside today. I want to build memories with you.",
             emotion: .excited,
-            backgroundImage: "cnxgate",
+            backgroundImage: "room",
             characterImage: "char_excited",
+            cutsceneTitle: "New Plan",
+            cutsceneSubtitle: "A real-world test"
+        ),
+        StoryDialogLine(
+            speaker: "{{ai_name}}",
+            text: "Field trip? Really? Where are we going?",
+            emotion: .excited,
+            backgroundImage: "room",
+            characterImage: "unknow",
+            cutsceneTitle: "{{ai_name}} Lights Up",
+            cutsceneSubtitle: "AI friend is excited"
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "Chiang Mai Zoo.",
+            emotion: .happy,
+            backgroundImage: "cnxgate",
+            characterImage: "char_happy",
             cutsceneTitle: "Day Trip",
             cutsceneSubtitle: "Chiang Mai Zoo"
         ),
         StoryDialogLine(
             speaker: "Narration",
-            text: "At the zoo, everything is fun at first. Ploy is excited and keeps trying to identify animals like it is a game.",
+            text: "At the zoo, everything is fun at first. {{ai_name}} gets excited and starts guessing animals like it is a game.",
             emotion: .happy,
             backgroundImage: "cnxgate",
-            characterImage: "char_happy",
-            cutsceneTitle: "Zoo Game",
-            cutsceneSubtitle: "Guess, check, learn"
+            characterImage: "unknow",
+            cutsceneTitle: "Zoo Start",
+            cutsceneSubtitle: "Guessing game begins"
         ),
         StoryDialogLine(
-            speaker: "Narration",
-            text: "You point to a bird. Ploy says, 'That is... a plane?' You say, 'No, that is a bird.' You decide to practice with simple placeholder animal cards first so Ploy can learn the rules.",
+            speaker: "You",
+            text: "Okay, game rules: you guess first, and I verify with signs, clues, and a field guide book.",
             emotion: .curious,
             backgroundImage: "cnxgate",
             characterImage: "char_curious",
-            cutsceneTitle: "Practice First",
-            cutsceneSubtitle: "Simple cards / clear labels"
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Woah...! That is a hippo, right?",
-            emotion: .excited,
-            backgroundImage: "cnxgate",
-            characterImage: "char_excited",
-            cutsceneTitle: "Practice Round 1",
-            cutsceneSubtitle: "Hallucination (placeholder panda image)",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Animal Card",
-                subtitle: "Ploy guessed too fast. Check the picture carefully.",
-                imageName: "download",
-                badge: "Round 1",
-                prefersSplitLayout: true
+            cutsceneTitle: "Memory Hunt",
+            cutsceneSubtitle: "Spot • check • learn",
+            inlineActivity: .lectureQuiz(
+                LectureQuizMiniGame(
+                    title: "Chiang Mai Zoo Memory Hunt",
+                    questions: [
+                        LectureQuizQuestion(
+                            id: "zoo-bird",
+                            question: "You point upward near the zoo path. What is the correct label?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "bird-plane",
+                                    text: "Plane",
+                                    feedback: "I picked Plane too fast. I need to check movement and context before I lock in an answer.",
+                                    icon: "airplane"
+                                ),
+                                LectureQuizOption(
+                                    id: "bird-bird",
+                                    text: "Bird",
+                                    feedback: "No, it is a bird. I checked the visible clues first instead of trusting the first guess. Memory photo added.",
+                                    isBestAnswer: true,
+                                    icon: "camera.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "bird-drone",
+                                    text: "Drone",
+                                    feedback: "I guessed Drone from the shape only. That is still guessing too fast, so I should verify before I answer.",
+                                    icon: "viewfinder"
+                                )
+                            ],
+                            aiGuessLine: "{{ai_name}}: \"Woah... a plane? ...or maybe a drone?\"",
+                            sceneImageName: "zoo_bird_scene_placeholder",
+                            sceneImageCaption: "Zoo walkway placeholder scene. Replace with your real bird scene image later.",
+                            referenceBookTitle: "Open Zoo Field Guide",
+                            referencePages: [
+                                LectureQuizReferencePage(
+                                    id: "bird-guide-1",
+                                    title: "Bird Check",
+                                    text: "Use simple clues first: flapping motion, size, and where it appears. A fast AI guess can confuse similar shapes when the view is quick.",
+                                    imageName: "zoo_bird_fieldguide_placeholder"
+                                ),
+                                LectureQuizReferencePage(
+                                    id: "bird-guide-2",
+                                    title: "Hallucination Reminder",
+                                    text: "If the input is brief or unclear, AI may still answer confidently. Verify with signs, your eyes, and real context before accepting the answer."
+                                )
+                            ]
+                        ),
+                        LectureQuizQuestion(
+                            id: "zoo-red-panda",
+                            question: "At the enclosure sign, what is the correct label?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "rp-fox",
+                                    text: "Fox",
+                                    feedback: "I chose Fox from the pattern only. I need to read the sign because labels are the ground truth.",
+                                    icon: "xmark.circle.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "rp-raccoon",
+                                    text: "Raccoon",
+                                    feedback: "I guessed Raccoon from similarity, but that still ignores the sign. I should verify the label first.",
+                                    icon: "xmark.circle.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "rp-red-panda",
+                                    text: "Red Panda",
+                                    feedback: "No, it is a Red Panda. The enclosure sign is the ground truth. Memory photo card unlocked.",
+                                    isBestAnswer: true,
+                                    icon: "camera.fill"
+                                )
+                            ],
+                            aiGuessLine: "{{ai_name}}: \"Look! A fox... or maybe a raccoon? Impossible. Panda should be big and black-and-white.\"",
+                            sceneImageName: "zoo_redpanda_scene_placeholder",
+                            sceneImageCaption: "Red Panda enclosure placeholder scene. Replace with your real red panda image later.",
+                            referenceBookTitle: "Open Zoo Field Guide",
+                            referencePages: [
+                                LectureQuizReferencePage(
+                                    id: "rp-guide-1",
+                                    title: "Ground Truth > Pattern Guess",
+                                    text: "AI can overgeneralize: 'panda = big black-and-white' is a pattern, not a rule. Exceptions exist. Labels and signs are ground truth.",
+                                    imageName: "zoo_redpanda_fieldguide_placeholder"
+                                ),
+                                LectureQuizReferencePage(
+                                    id: "rp-guide-2",
+                                    title: "Bias / Assumption",
+                                    text: "When training examples are narrow, AI may reject valid exceptions. Diverse data and correct labels reduce this kind of error."
+                                )
+                            ]
+                        ),
+                        LectureQuizQuestion(
+                            id: "aquarium-catfish",
+                            question: "After moving to a clearer spot and wiping algae from the glass, what is it really?",
+                            choices: [
+                                LectureQuizOption(
+                                    id: "aq-monster",
+                                    text: "Sea Monster",
+                                    feedback: "I picked Sea Monster too fast. That is just a dramatic guess from unclear input, so I need a clearer view first.",
+                                    icon: "exclamationmark.triangle.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "aq-catfish",
+                                    text: "Giant Catfish",
+                                    feedback: "It is a Giant Catfish. After getting a clearer view, the answer becomes much easier to verify. Memory photo added.",
+                                    isBestAnswer: true,
+                                    icon: "camera.fill"
+                                ),
+                                LectureQuizOption(
+                                    id: "aq-rock",
+                                    text: "Rock / Decoration",
+                                    feedback: "I guessed Rock/Decoration first, but I still need better evidence. After the view improves, I should verify the real animal.",
+                                    icon: "eye.fill"
+                                )
+                            ],
+                            aiGuessLine: "{{ai_name}}: \"Alert! Sea Monster detected! Green slime skin, 10 meters long!\"",
+                            sceneImageName: "zoo_aquarium_blurry_placeholder",
+                            sceneImageCaption: "Aquarium blocked-view placeholder scene. Replace with your real algae/blur image later.",
+                            referenceBookTitle: "Open Aquarium Field Guide",
+                            referencePages: [
+                                LectureQuizReferencePage(
+                                    id: "aq-guide-1",
+                                    title: "Bad Data = Bad Prediction",
+                                    text: "If the view is blocked, dark, or low quality, even a strong model can fail. Improve the input before judging the output.",
+                                    imageName: "zoo_catfish_fieldguide_placeholder"
+                                ),
+                                LectureQuizReferencePage(
+                                    id: "aq-guide-2",
+                                    title: "Clearer View",
+                                    text: "Move closer, change angle, or clean the glass. Better evidence produces better predictions. In this scene, the 'monster' was just a giant catfish behind plants."
+                                )
+                            ]
+                        )
+                    ],
+                    promptLabel: "{{ai_name}} guesses first. You verify with clues and the field guide.",
+                    summaryNote: "Zoo memory lesson: hallucination can sound confident, bias can overgeneralize from patterns, and bad data can cause wrong predictions. Check signs, labels, and clearer inputs.",
+                    teacherName: "{{ai_name}}",
+                    teacherRole: "AI Friend",
+                    teacherImageName: "unknow",
+                    studentName: "You",
+                    studentRole: "Friend",
+                    studentImageName: "char",
+                    usesClassroomStageLayout: true,
+                    studentGivesCorrectionFeedback: true
+                )
             )
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Pick the correct label.",
-            emotion: .curious,
-            backgroundImage: "cnxgate",
-            characterImage: "char_curious",
-            cutsceneTitle: "Practice Round 1",
-            cutsceneSubtitle: "Use your eyes, not Ploy's confidence",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Animal Card",
-                subtitle: "Placeholder image set: panda.",
-                imageName: "download",
-                badge: "Choose",
-                prefersSplitLayout: true
-            ),
-            choices: [
-                DialogChoice(
-                    text: "Panda",
-                    emotion: .happy,
-                    response: "Correct. Memory photo unlocked. You used the picture, not the AI guess.",
-                    icon: "camera.fill"
-                ),
-                DialogChoice(
-                    text: "Hippo",
-                    emotion: .concerned,
-                    response: "Close check, but this one is a panda. AI hallucination can sound confident and still be wrong.",
-                    icon: "eye.fill"
-                ),
-                DialogChoice(
-                    text: "Shiba Dog",
-                    emotion: .curious,
-                    response: "Nope. This is a panda. Always compare the guess with visible clues.",
-                    icon: "pawprint.fill"
-                )
-            ]
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Okay... I should slow down and check the sign before I guess.",
-            emotion: .gentle,
-            backgroundImage: "cnxgate",
-            characterImage: "char_gentle",
-            cutsceneTitle: "Learning Habit",
-            cutsceneSubtitle: "Verify before answer"
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Woah...! That's a Panda!",
-            emotion: .excited,
-            backgroundImage: "cnxgate",
-            characterImage: "char_excited",
-            cutsceneTitle: "Practice Round 2",
-            cutsceneSubtitle: "Bias / assumption (placeholder shiba image)",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Animal Card",
-                subtitle: "Ploy overgeneralized from fuzzy animal patterns.",
-                imageName: "shiba-inu-puppy-looks-like-600nw-2354684599",
-                badge: "Round 2",
-                prefersSplitLayout: true
-            )
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "Pick the correct label again.",
-            emotion: .curious,
-            backgroundImage: "cnxgate",
-            characterImage: "char_curious",
-            cutsceneTitle: "Practice Round 2",
-            cutsceneSubtitle: "Check labels / avoid assumptions",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Animal Card",
-                subtitle: "Placeholder image set: shiba.",
-                imageName: "shiba-inu-puppy-looks-like-600nw-2354684599",
-                badge: "Choose",
-                prefersSplitLayout: true
-            ),
-            choices: [
-                DialogChoice(
-                    text: "Shiba Dog",
-                    emotion: .happy,
-                    response: "Correct. Memory photo unlocked. Labels and ground truth help fix wrong pattern guesses.",
-                    icon: "camera.fill"
-                ),
-                DialogChoice(
-                    text: "Panda",
-                    emotion: .concerned,
-                    response: "Nope. Ploy overgeneralized from patterns. This is why assumptions can cause bias errors.",
-                    icon: "brain.head.profile"
-                ),
-                DialogChoice(
-                    text: "Hippo",
-                    emotion: .concerned,
-                    response: "Not this one. Compare shape, face, and context before deciding.",
-                    icon: "eye.fill"
-                )
-            ]
-        ),
-        StoryDialogLine(
-            speaker: "Narration",
-            text: "Then you walk past the Panda zone and later reach the Red Panda enclosure.",
-            emotion: .curious,
-            backgroundImage: "cnxgate",
-            characterImage: "char_curious",
-            cutsceneTitle: "Red Panda Zone",
-            cutsceneSubtitle: "Pattern assumptions fail on exceptions"
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Look! A fox! Or maybe a raccoon? Impossible. My pattern says panda means big, black and white, and eats bamboo. This one is small and red.",
-            emotion: .surprised,
-            backgroundImage: "cnxgate",
-            characterImage: "char_surprised",
-            cutsceneTitle: "Bias Example",
-            cutsceneSubtitle: "Overgeneralization"
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "Read the sign. It is a Red Panda. AI can overgeneralize from patterns in training data. That is bias or assumption, and it is why we need labels, ground truth, and diverse data.",
-            emotion: .gentle,
-            backgroundImage: "cnxgate",
-            characterImage: "char_gentle",
-            cutsceneTitle: "Lesson: Bias",
-            cutsceneSubtitle: "Labels + ground truth + diverse data"
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "Choose the correct label for the enclosure sign.",
-            emotion: .curious,
-            backgroundImage: "cnxgate",
-            characterImage: "char_curious",
-            cutsceneTitle: "Red Panda Check",
-            cutsceneSubtitle: "Sign beats assumptions",
-            choices: [
-                DialogChoice(
-                    text: "Fox",
-                    emotion: .concerned,
-                    response: "Not this time. The sign gives the ground truth: Red Panda.",
-                    icon: "xmark.circle.fill"
-                ),
-                DialogChoice(
-                    text: "Raccoon",
-                    emotion: .concerned,
-                    response: "Good guess to compare, but the sign says Red Panda.",
-                    icon: "xmark.circle.fill"
-                ),
-                DialogChoice(
-                    text: "Red Panda",
-                    emotion: .happy,
-                    response: "Correct. Memory photo card added.",
-                    icon: "camera.fill"
-                )
-            ]
-        ),
-        StoryDialogLine(
-            speaker: "Narration",
-            text: "After that you go into the aquarium.",
-            emotion: .curious,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_curious",
-            cutsceneTitle: "Aquarium",
-            cutsceneSubtitle: "Bad data lesson"
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
-            text: "Alert! I detected a Sea Monster! Green slime skin, 10 meters long!",
-            emotion: .surprised,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_surprised",
-            cutsceneTitle: "Practice Round 3",
-            cutsceneSubtitle: "Bad data (placeholder hippo image)",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Bad Data Card",
-                subtitle: "Use this placeholder image to teach the idea: unclear input can create wild guesses.",
-                imageName: "Portrait_Hippopotamus_in_the_water",
-                badge: "Round 3",
-                prefersSplitLayout: true
-            )
-        ),
-        StoryDialogLine(
-            speaker: "You",
-            text: "Wait... look closer. When the input is unclear (blocked view, bad lighting, low quality), AI can make wrong predictions. Improve the input and the result gets better.",
+            text: "See? You were wrong a few times, but that is normal. The dangerous part is pretending the guess is always right.",
             emotion: .gentle,
             backgroundImage: "cnxaqu",
             characterImage: "char_gentle",
-            cutsceneTitle: "Lesson: Bad Data",
-            cutsceneSubtitle: "Improve input quality"
+            cutsceneTitle: "After The Lessons",
+            cutsceneSubtitle: "Correction is part of learning"
         ),
         StoryDialogLine(
-            speaker: "You",
-            text: "What is the correct animal in this practice card?",
-            emotion: .curious,
-            backgroundImage: "cnxaqu",
-            characterImage: "char_curious",
-            cutsceneTitle: "Practice Round 3",
-            cutsceneSubtitle: "Look closer and verify",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Bad Data Card",
-                subtitle: "Placeholder image set: hippo. Pretend the first view was blurry or blocked.",
-                imageName: "Portrait_Hippopotamus_in_the_water",
-                badge: "Choose",
-                prefersSplitLayout: true
-            ),
-            choices: [
-                DialogChoice(
-                    text: "Hippo",
-                    emotion: .happy,
-                    response: "Correct. Memory photo unlocked. Better input helps AI make better predictions.",
-                    icon: "camera.fill"
-                ),
-                DialogChoice(
-                    text: "Sea Monster",
-                    emotion: .concerned,
-                    response: "That was the hallucinated guess. With clearer data, we can identify it correctly as a hippo.",
-                    icon: "exclamationmark.triangle.fill"
-                ),
-                DialogChoice(
-                    text: "Rock",
-                    emotion: .concerned,
-                    response: "Not quite. Looking carefully and improving the view helps reveal the real answer: hippo.",
-                    icon: "eye.fill"
-                )
-            ]
-        ),
-        StoryDialogLine(
-            speaker: "Ploy",
+            speaker: "{{ai_name}}",
             text: "Thanks for correcting me... you do not get angry when I am wrong.",
             emotion: .gentle,
             backgroundImage: "cnxaqu",
-            characterImage: "char_gentle",
+            characterImage: "unknow",
             cutsceneTitle: "Quiet Moment",
-            cutsceneSubtitle: "After the zoo"
+            cutsceneSubtitle: "{{ai_name}} gets quieter"
         ),
         StoryDialogLine(
             speaker: "You",
@@ -406,25 +337,25 @@ let chapterTwoStory = StoryChapter(
             backgroundImage: "cnxaqu",
             characterImage: "char_gentle",
             cutsceneTitle: "Trust Rule",
-            cutsceneSubtitle: "Honesty is safer than fake confidence"
+            cutsceneSubtitle: "Honesty is safer than confidence"
         ),
         StoryDialogLine(
             speaker: "Narration",
-            text: "You both head home with a few new memory photos saved in the album, and Ploy feels a bit more real, not because he is human, but because you are starting to understand him properly.",
+            text: "You both head home with a few new memory photos saved in the album. {{ai_name}} feels a bit more real, not because she is human, but because you are starting to understand her properly.",
             emotion: .happy,
             backgroundImage: "redbus",
             characterImage: "char_happy",
             cutsceneTitle: "Chapter End",
-            cutsceneSubtitle: "New memories / better understanding"
+            cutsceneSubtitle: "Memories saved • understanding grows"
         ),
         StoryDialogLine(
-            speaker: "Ploy",
-            text: "Next time I will try to say 'I am not sure' before I guess. You can help me with better clues and better data.",
+            speaker: "{{ai_name}}",
+            text: "Next time, I will try to say 'I'm not sure' before I guess. You can help me with better clues and better data.",
             emotion: .excited,
             backgroundImage: "507room",
-            characterImage: "char_excited",
+            characterImage: "unknow",
             cutsceneTitle: "To Be Continued",
-            cutsceneSubtitle: "Safer AI habits"
+            cutsceneSubtitle: "Safer answers together"
         )
     ]
 )

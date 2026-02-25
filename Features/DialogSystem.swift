@@ -121,7 +121,8 @@ final class DialogViewModel: ObservableObject {
         unlockedRequiredInputNodeIDs.removeAll()
         completedInlineActivityNodeIDs.removeAll()
         inlineActivityResultByNodeID.removeAll()
-        storyVariables = ["ai_name": "Ploy"]
+        let persistedAIName = GlobalSettingsStore.shared.aiDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        storyVariables = ["ai_name": persistedAIName.isEmpty ? "Ploy" : persistedAIName]
         isCompleted = false
         startTyping()
     }
@@ -261,7 +262,15 @@ final class DialogViewModel: ObservableObject {
     func setStoryVariable(_ key: String, value: String) {
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty else { return }
-        storyVariables[trimmedKey] = value
+        let finalValue: String
+        if trimmedKey == "ai_name" {
+            let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            finalValue = trimmedValue.isEmpty ? "Ploy" : String(trimmedValue.prefix(24))
+            GlobalSettingsStore.shared.aiDisplayName = finalValue
+        } else {
+            finalValue = value
+        }
+        storyVariables[trimmedKey] = finalValue
     }
 
     func isInlineActivityCompleted(for nodeID: UUID) -> Bool {
@@ -616,6 +625,7 @@ struct ResponsiveDialogView: View {
     @State private var characterRotation: Double = 0
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
+    @State private var settingsAINameDraft = "Ploy"
     @State private var backgroundOpacity: Double = 1.0
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var sceneContentOpacity: Double = 1.0
@@ -749,12 +759,36 @@ struct ResponsiveDialogView: View {
             || normalized.contains("student")
     }
 
+    private func matchesSpeakerName(_ normalized: String, candidate: String) -> Bool {
+        let normalizedCandidate = normalizedVoiceMatchText(candidate)
+        guard !normalized.isEmpty, !normalizedCandidate.isEmpty else { return false }
+        return normalized == normalizedCandidate
+            || normalized.hasPrefix("\(normalizedCandidate) ")
+            || normalized.hasSuffix(" \(normalizedCandidate)")
+            || normalized.contains(" \(normalizedCandidate) ")
+    }
+
+    private func isAISpeaker(_ normalized: String) -> Bool {
+        if normalized.isEmpty { return false }
+
+        let configuredAIName = viewModel.storyVariables["ai_name"] ?? "Ploy"
+        if matchesSpeakerName(normalized, candidate: configuredAIName) { return true }
+
+        return matchesSpeakerName(normalized, candidate: "Ploy")
+            || matchesSpeakerName(normalized, candidate: "Unknown User")
+            || matchesSpeakerName(normalized, candidate: "Unknown Sender")
+            || matchesSpeakerName(normalized, candidate: "unknow")
+    }
+
     private func voiceProfile(for speaker: String) -> SpeechVoiceProfile {
         let normalized = normalizedVoiceMatchText(speaker)
         if isProfessorSpeaker(normalized) {
             return .professorMale
         }
         if isPlayerSpeaker(normalized) {
+            return .playerFemale
+        }
+        if isAISpeaker(normalized) {
             return .playerFemale
         }
         return .default
@@ -785,6 +819,20 @@ struct ResponsiveDialogView: View {
             || normalizedText.hasPrefix("player you ")
 
         if startsWithPlayerCue {
+            return .playerFemale
+        }
+
+        let configuredAIName = viewModel.storyVariables["ai_name"] ?? "Ploy"
+        let startsWithAICue =
+            matchesSpeakerName(normalizedText, candidate: configuredAIName)
+            || normalizedText == "ploy"
+            || normalizedText.hasPrefix("ploy ")
+            || normalizedText == "unknown user"
+            || normalizedText.hasPrefix("unknown user ")
+            || normalizedText == "unknown sender"
+            || normalizedText.hasPrefix("unknown sender ")
+
+        if startsWithAICue {
             return .playerFemale
         }
 
@@ -1147,6 +1195,7 @@ struct ResponsiveDialogView: View {
         let horizontalPadding = layout.dialogPadding
         let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
         let bottomInset = max(layout.safeAreaInsets.bottom, 10)
+        let resolvedQuiz = resolvedLectureQuizTemplates(quiz)
 
         return ZStack {
             VStack {
@@ -1158,7 +1207,7 @@ struct ResponsiveDialogView: View {
             .zIndex(20)
 
             ClassroomLectureQuizMiniGameStage(
-                quiz: quiz,
+                quiz: resolvedQuiz,
                 layout: layout,
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                 isTyping: viewModel.isTyping,
@@ -1177,6 +1226,53 @@ struct ResponsiveDialogView: View {
             .padding(.bottom, bottomInset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func resolvedLectureQuizTemplates(_ quiz: LectureQuizMiniGame) -> LectureQuizMiniGame {
+        let resolvedQuestions = quiz.questions.map { question in
+            LectureQuizQuestion(
+                id: question.id,
+                question: viewModel.renderTemplate(question.question),
+                choices: question.choices.map { option in
+                    LectureQuizOption(
+                        id: option.id,
+                        text: viewModel.renderTemplate(option.text),
+                        feedback: viewModel.renderTemplate(option.feedback),
+                        isBestAnswer: option.isBestAnswer,
+                        icon: option.icon
+                    )
+                },
+                aiGuessLine: question.aiGuessLine.map(viewModel.renderTemplate),
+                sceneImageName: question.sceneImageName,
+                sceneImageCaption: question.sceneImageCaption.map(viewModel.renderTemplate),
+                referenceBookTitle: question.referenceBookTitle.map(viewModel.renderTemplate),
+                referencePages: question.referencePages.map { page in
+                    LectureQuizReferencePage(
+                        id: page.id,
+                        title: viewModel.renderTemplate(page.title),
+                        text: viewModel.renderTemplate(page.text),
+                        imageName: page.imageName
+                    )
+                }
+            )
+        }
+
+        return LectureQuizMiniGame(
+            title: viewModel.renderTemplate(quiz.title),
+            questions: resolvedQuestions,
+            promptLabel: viewModel.renderTemplate(quiz.promptLabel),
+            exampleImageName: quiz.exampleImageName,
+            exampleCaption: quiz.exampleCaption.map(viewModel.renderTemplate),
+            summaryNote: viewModel.renderTemplate(quiz.summaryNote),
+            teacherName: viewModel.renderTemplate(quiz.teacherName),
+            teacherRole: quiz.teacherRole.map(viewModel.renderTemplate),
+            teacherImageName: quiz.teacherImageName,
+            studentName: viewModel.renderTemplate(quiz.studentName),
+            studentRole: quiz.studentRole.map(viewModel.renderTemplate),
+            studentImageName: quiz.studentImageName,
+            usesClassroomStageLayout: quiz.usesClassroomStageLayout,
+            studentGivesCorrectionFeedback: quiz.studentGivesCorrectionFeedback
+        )
     }
 
     private func promptBuilderActivityScene(
@@ -1511,6 +1607,10 @@ struct ResponsiveDialogView: View {
         let width: CGFloat = layout.isCompact ? 140 : (layout.isLarge ? 190 : 165)
 
         return Button {
+            let willOpen = !showSettingsPanel
+            if willOpen {
+                syncSettingsAINameDraft()
+            }
             withAnimation(globalSettings.reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.9)) {
                 showSettingsPanel.toggle()
             }
@@ -1524,6 +1624,23 @@ struct ResponsiveDialogView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Menu")
+    }
+
+    private func syncSettingsAINameDraft() {
+        let current = viewModel.storyVariables["ai_name"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        settingsAINameDraft = (current?.isEmpty == false ? current! : "Ploy")
+    }
+
+    private func commitSettingsAINameDraft(resetToDefault: Bool = false) {
+        let nextValue: String
+        if resetToDefault {
+            nextValue = "Ploy"
+        } else {
+            let trimmed = settingsAINameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            nextValue = trimmed.isEmpty ? "Ploy" : String(trimmed.prefix(24))
+        }
+        settingsAINameDraft = nextValue
+        viewModel.setStoryVariable("ai_name", value: nextValue)
     }
     
     // MARK: - Character Section
@@ -2159,6 +2276,7 @@ struct ResponsiveDialogView: View {
 
             menuVolumeSection(title: "MUSIC", value: chapterMusicVolumeBinding, layout: layout)
             menuVolumeSection(title: "SPEECH", value: chapterSpeechVolumeBinding, layout: layout)
+            aiNameSettingsSection(layout: layout)
 
             HStack(spacing: 10) {
                 resumeButton(layout: layout)
@@ -2169,6 +2287,75 @@ struct ResponsiveDialogView: View {
         .padding(.top, 10)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity)
+    }
+
+    private func aiNameSettingsSection(layout: DialogAdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("AI NAME")
+                    .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.95))
+                    .tracking(0.3)
+
+                Spacer(minLength: 0)
+
+                Text(viewModel.storyVariables["ai_name"] ?? "Ploy")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: "0A6FEA"))
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.92), in: Capsule())
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(Color.white.opacity(0.75), lineWidth: 1)
+                    )
+            }
+
+            HStack(spacing: 8) {
+                TextField("Ploy", text: $settingsAINameDraft)
+                    .font(.system(size: layout.bodyFontSize, weight: .medium, design: .rounded))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 9)
+                    .background(Color.white.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.78), lineWidth: 1)
+                    )
+                    .onSubmit {
+                        commitSettingsAINameDraft()
+                    }
+
+                Button("Change") {
+                    commitSettingsAINameDraft()
+                }
+                .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color(hex: "0A6FEA"), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .buttonStyle(.plain)
+
+                Button("Reset") {
+                    commitSettingsAINameDraft(resetToDefault: true)
+                }
+                .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                .foregroundColor(.black.opacity(0.85))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(0.7), lineWidth: 1)
+                )
+                .buttonStyle(.plain)
+            }
+
+            Text("Use this to rename the AI (girl voice). Reset returns to Ploy.")
+                .font(.system(size: layout.captionFontSize, weight: .medium))
+                .foregroundColor(.black.opacity(0.62))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func menuVolumeSection(
@@ -5474,6 +5661,8 @@ struct ClassroomLectureQuizMiniGameStage: View {
     @State private var pulsingChoiceID: String?
     @State private var hiddenQuestionChoicePanelQuestionIDs: Set<String> = []
     @State private var shuffledChoicesByQuestionID: [String: [LectureQuizOption]] = [:]
+    @State private var isFieldGuideOpen = false
+    @State private var fieldGuidePageIndex = 0
 
     private var questions: [LectureQuizQuestion] {
         quiz.questions.isEmpty
@@ -5493,6 +5682,22 @@ struct ClassroomLectureQuizMiniGameStage: View {
 
     private var currentQuestion: LectureQuizQuestion {
         questions[clampedQuestionIndex]
+    }
+
+    private var currentQuestionReferencePages: [LectureQuizReferencePage] {
+        currentQuestion.referencePages
+    }
+
+    private var currentFieldGuidePage: LectureQuizReferencePage? {
+        guard !currentQuestionReferencePages.isEmpty else { return nil }
+        let safeIndex = min(max(fieldGuidePageIndex, 0), currentQuestionReferencePages.count - 1)
+        return currentQuestionReferencePages[safeIndex]
+    }
+
+    private var hasQuestionVisualPanel: Bool {
+        (currentQuestion.sceneImageName?.isEmpty == false)
+            || (currentQuestion.sceneImageCaption?.isEmpty == false)
+            || !currentQuestionReferencePages.isEmpty
     }
 
     private func displayChoices(for question: LectureQuizQuestion) -> [LectureQuizOption] {
@@ -5568,12 +5773,37 @@ struct ClassroomLectureQuizMiniGameStage: View {
         (quiz.studentRole?.isEmpty == false ? quiz.studentRole! : "Student")
     }
 
+    private var studentGivesCorrectionFeedback: Bool {
+        quiz.studentGivesCorrectionFeedback
+    }
+
+    private var teacherUsesFemaleVoice: Bool {
+        let normalizedName = teacherDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedRole = teacherRole.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedImage = (quiz.teacherImageName ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedRole.contains("ai")
+            || normalizedName == "ploy"
+            || normalizedImage == "unknow"
+    }
+
+    private func playerCorrectionText(for choice: LectureQuizOption) -> String {
+        studentGivesCorrectionFeedback ? choice.feedback : "My answer: \(choice.text)"
+    }
+
+    private func teacherReplyText(for choice: LectureQuizOption) -> String {
+        guard studentGivesCorrectionFeedback else { return choice.feedback }
+        if choice.isBestAnswer {
+            return "Ohh, got it. Thanks for correcting me. I should verify before I guess next time."
+        }
+        return "Hmm... maybe. Can we check the sign or field guide one more time before we save that?"
+    }
+
     private var teacherDialogText: String {
         if let selected = currentSelectedChoice {
             if isProfessorTypingCurrentQuestion {
                 return professorTypedText.isEmpty ? "..." : professorTypedText
             }
-            return selected.feedback
+            return teacherReplyText(for: selected)
         }
         if isTyping && !instructionText.isEmpty {
             return instructionText
@@ -5581,15 +5811,23 @@ struct ClassroomLectureQuizMiniGameStage: View {
         if clampedQuestionIndex == 0, answeredCount == 0, !instructionText.isEmpty {
             return instructionText
         }
+        if let aiGuessLine = currentQuestion.aiGuessLine, !aiGuessLine.isEmpty {
+            return aiGuessLine
+        }
         return "Question \(clampedQuestionIndex + 1): \(currentQuestion.question)"
     }
 
     private var studentDialogText: String {
         if let selected = currentSelectedChoice {
-            return "My answer: \(selected.text)"
+            return playerCorrectionText(for: selected)
         }
         if isTyping {
             return "..."
+        }
+        if !currentQuestionReferencePages.isEmpty {
+            return studentGivesCorrectionFeedback
+                ? "I need to correct \(teacherDisplayName) using the sign, clues, and field guide."
+                : "I should look carefully and check the field guide before answering."
         }
         return "I should choose the safest and most responsible answer."
     }
@@ -5719,10 +5957,20 @@ struct ClassroomLectureQuizMiniGameStage: View {
             .frame(maxWidth: stageMaxWidth, maxHeight: .infinity)
             .padding(.horizontal, 4)
             .padding(.bottom, dialogVerticalLift)
+
+            if isFieldGuideOpen {
+                fieldGuideOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .zIndex(30)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             prepareShuffledChoicesIfNeeded()
+        }
+        .onChange(of: clampedQuestionIndex) { _, _ in
+            isFieldGuideOpen = false
+            fieldGuidePageIndex = 0
         }
         .onDisappear {
             professorTypingTask?.cancel()
@@ -5808,10 +6056,11 @@ struct ClassroomLectureQuizMiniGameStage: View {
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
 
-            Text("Professor New Class Quiz")
+            Text(quiz.title)
                 .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
                 .foregroundColor(.white.opacity(0.86))
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .background(Color.black.opacity(0.24), in: Capsule())
@@ -5839,13 +6088,13 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     if isProfessorTypingCurrentQuestion {
                         HStack(spacing: 8) {
                             TypingIndicator(layout: layout)
-                            Text("\(teacherDisplayName) is replying...")
+                            Text(studentGivesCorrectionFeedback ? "\(teacherDisplayName) is reacting..." : "\(teacherDisplayName) is replying...")
                                 .font(.system(size: layout.captionFontSize + 1, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                     } else {
-                        Text("Professor feedback complete.")
+                        Text(studentGivesCorrectionFeedback ? "\(teacherDisplayName) reacted." : "\(teacherDisplayName) feedback complete.")
                             .font(.system(size: layout.captionFontSize + 1, weight: .semibold, design: .rounded))
                             .foregroundColor(.white.opacity(0.86))
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -5856,6 +6105,11 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 .transition(.opacity)
             } else {
                 questionCard
+
+                if hasQuestionVisualPanel {
+                    questionVisualAndGuidePanel
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
 
                 VStack(spacing: 10) {
                     ForEach(displayChoices(for: currentQuestion)) { choice in
@@ -5897,7 +6151,11 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 .opacity(completionSubmitted ? 0.65 : 1)
                 .padding(.top, 2)
             } else if isCompleted {
-                Text("Quiz complete. Read Professor New's feedback below, then continue.")
+                Text(
+                    studentGivesCorrectionFeedback
+                        ? "Quiz complete. Review your corrections and \(teacherDisplayName)'s reactions below, then continue."
+                        : "Quiz complete. Read \(teacherDisplayName)'s feedback below, then continue."
+                )
                     .font(.system(size: layout.captionFontSize + 1, weight: .medium))
                     .foregroundColor(.white.opacity(0.76))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -5907,7 +6165,11 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     .foregroundColor(.white.opacity(0.76))
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if shouldHideQuestionChoices {
-                Text(isProfessorTypingCurrentQuestion ? "Wait for Professor New's reply..." : "Choose Next when you are ready.")
+                Text(
+                    isProfessorTypingCurrentQuestion
+                        ? (studentGivesCorrectionFeedback ? "Wait for \(teacherDisplayName)'s reaction..." : "Wait for \(teacherDisplayName)'s reply...")
+                        : "Choose Next when you are ready."
+                )
                     .font(.system(size: layout.captionFontSize + 1, weight: .medium))
                     .foregroundColor(.white.opacity(0.76))
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -5917,6 +6179,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         .padding(.top, 0)
         .animation(.easeInOut(duration: 0.22), value: shouldHideQuestionChoices)
         .animation(.easeInOut(duration: 0.18), value: isProfessorTypingCurrentQuestion)
+        .animation(.easeInOut(duration: 0.18), value: clampedQuestionIndex)
     }
 
     private var questionCard: some View {
@@ -5946,6 +6209,262 @@ struct ClassroomLectureQuizMiniGameStage: View {
                 .stroke(Color.black.opacity(0.06), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 3)
+    }
+
+    private var questionVisualAndGuidePanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let imageName = currentQuestion.sceneImageName, !imageName.isEmpty {
+                ZStack(alignment: .topLeading) {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: layout.isCompact ? 120 : 170)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.clear,
+                                    Color.black.opacity(0.18),
+                                    Color.black.opacity(0.45)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                    HStack(spacing: 8) {
+                        Label("Scene", systemImage: "photo")
+                            .font(.system(size: layout.captionFontSize, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Color.black.opacity(0.52), in: Capsule())
+
+                        if !currentQuestionReferencePages.isEmpty {
+                            Text("Field Guide Available")
+                                .font(.system(size: layout.captionFontSize - 1, weight: .bold))
+                                .foregroundColor(.white.opacity(0.95))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(Color.blue.opacity(0.70), in: Capsule())
+                        }
+                    }
+                    .padding(10)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                )
+            }
+
+            if let caption = currentQuestion.sceneImageCaption, !caption.isEmpty {
+                Text(caption)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .medium))
+                    .foregroundColor(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !currentQuestionReferencePages.isEmpty {
+                HStack(spacing: 10) {
+                    Button {
+                        fieldGuidePageIndex = 0
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                            isFieldGuideOpen = true
+                        }
+                    } label: {
+                        Label(currentQuestion.referenceBookTitle ?? "Open Field Guide", systemImage: "book.closed.fill")
+                            .font(.system(size: layout.isCompact ? 13 : 14, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.orange.opacity(0.92), Color.yellow.opacity(0.84)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.26), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("\(currentQuestionReferencePages.count) page\(currentQuestionReferencePages.count == 1 ? "" : "s")")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.72))
+
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+
+    private var fieldGuideOverlay: some View {
+        return ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isFieldGuideOpen = false
+                    }
+                }
+
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    Label(currentQuestion.referenceBookTitle ?? "Field Guide", systemImage: "book.pages.fill")
+                        .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Spacer(minLength: 0)
+
+                    Text("Page \(min(fieldGuidePageIndex + 1, max(currentQuestionReferencePages.count, 1))) / \(max(currentQuestionReferencePages.count, 1))")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.8))
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isFieldGuideOpen = false
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white.opacity(0.92))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if let page = currentFieldGuidePage {
+                    fieldGuidePageCard(page: page)
+                        .id(page.id)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                } else {
+                    VStack(spacing: 8) {
+                        Text("No pages available for this question.")
+                            .font(.system(size: layout.bodyFontSize, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.9))
+                        Text("Close the guide and answer using the visible clues.")
+                            .font(.system(size: layout.captionFontSize + 1))
+                            .foregroundColor(.white.opacity(0.72))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        guard fieldGuidePageIndex > 0 else { return }
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                            fieldGuidePageIndex -= 1
+                        }
+                    } label: {
+                        Label("Previous", systemImage: "chevron.left")
+                            .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                            .foregroundColor(fieldGuidePageIndex > 0 ? .white : .white.opacity(0.45))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.white.opacity(fieldGuidePageIndex > 0 ? 0.12 : 0.05), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(fieldGuidePageIndex <= 0)
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        guard fieldGuidePageIndex < currentQuestionReferencePages.count - 1 else { return }
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
+                            fieldGuidePageIndex += 1
+                        }
+                    } label: {
+                        Label("Next", systemImage: "chevron.right")
+                            .font(.system(size: layout.captionFontSize + 1, weight: .bold))
+                            .foregroundColor(fieldGuidePageIndex < currentQuestionReferencePages.count - 1 ? .white : .white.opacity(0.45))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(Color.white.opacity(fieldGuidePageIndex < currentQuestionReferencePages.count - 1 ? 0.12 : 0.05), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(fieldGuidePageIndex >= currentQuestionReferencePages.count - 1)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: min(stageMaxWidth * 0.68, 720))
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(hex: "1A212B"))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 10)
+            .padding(.horizontal, 14)
+        }
+    }
+
+    private func fieldGuidePageCard(page: LectureQuizReferencePage) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(page.title)
+                    .font(.system(size: layout.isCompact ? 16 : 18, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.orange.opacity(0.92))
+            }
+
+            if let imageName = page.imageName, !imageName.isEmpty {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: layout.isCompact ? 120 : 165)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    )
+            }
+
+            Text(page.text)
+                .font(.system(size: layout.isCompact ? 13 : 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.86))
+                .lineSpacing(layout.isCompact ? 3 : 4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "2C2420"), Color(hex: "221B17")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
     }
 
     private func optionButton(_ choice: LectureQuizOption) -> some View {
@@ -6091,10 +6610,10 @@ struct ClassroomLectureQuizMiniGameStage: View {
             pulsingChoiceID = choice.id
         }
 
-        let playerReply = "My answer: \(choice.text)"
+        let playerReply = playerCorrectionText(for: choice)
         playerSpeechManager.speak(playerReply, emotion: .neutral, voiceProfile: .playerFemale)
 
-        startProfessorTyping(feedback: choice.feedback, for: questionID)
+        startProfessorTyping(feedback: teacherReplyText(for: choice), for: questionID)
 
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 420_000_000)
@@ -6144,7 +6663,11 @@ struct ClassroomLectureQuizMiniGameStage: View {
         professorSpeechTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled, professorTypingQuestionID == questionID else { return }
-            speechManager.speak(feedback, emotion: .neutral, voiceProfile: .professorMale)
+            speechManager.speak(
+                feedback,
+                emotion: .neutral,
+                voiceProfile: teacherUsesFemaleVoice ? .playerFemale : .professorMale
+            )
         }
 
         professorTypingTask = Task { @MainActor in
@@ -6191,7 +6714,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
         professorSpeechTask = nil
         speechManager.stop()
         playerSpeechManager.stop()
-        professorTypedText = selected.feedback
+        professorTypedText = teacherReplyText(for: selected)
         professorTypingCompletedQuestionIDs.insert(questionID)
         professorTypingQuestionID = nil
     }
@@ -6224,8 +6747,12 @@ struct ClassroomLectureQuizMiniGameStage: View {
             return "Q\(index + 1): \(selected.feedback) \(bestCallout)"
         }
 
+        let summaryPrefix = studentGivesCorrectionFeedback
+            ? "You corrected \(teacherDisplayName) across \(answeredCount)/\(totalQuestions) scenes. "
+            : "\(teacherDisplayName) reviewed \(answeredCount)/\(totalQuestions) questions. "
+
         let summary =
-            "Professor New reviewed \(answeredCount)/\(totalQuestions) questions. " +
+            summaryPrefix +
             "Best answers: \(bestAnswerCount)/\(totalQuestions). " +
             questionSummaries.joined(separator: " ") +
             " \(quiz.summaryNote)"

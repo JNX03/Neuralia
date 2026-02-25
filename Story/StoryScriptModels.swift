@@ -171,15 +171,49 @@ struct LectureQuizQuestion: Identifiable, Sendable {
     let id: String
     let question: String
     let choices: [LectureQuizOption]
+    let aiGuessLine: String?
+    let sceneImageName: String?
+    let sceneImageCaption: String?
+    let referenceBookTitle: String?
+    let referencePages: [LectureQuizReferencePage]
 
     init(
         id: String,
         question: String,
-        choices: [LectureQuizOption]
+        choices: [LectureQuizOption],
+        aiGuessLine: String? = nil,
+        sceneImageName: String? = nil,
+        sceneImageCaption: String? = nil,
+        referenceBookTitle: String? = nil,
+        referencePages: [LectureQuizReferencePage] = []
     ) {
         self.id = id
         self.question = question
         self.choices = choices
+        self.aiGuessLine = aiGuessLine
+        self.sceneImageName = sceneImageName
+        self.sceneImageCaption = sceneImageCaption
+        self.referenceBookTitle = referenceBookTitle
+        self.referencePages = referencePages
+    }
+}
+
+struct LectureQuizReferencePage: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let text: String
+    let imageName: String?
+
+    init(
+        id: String,
+        title: String,
+        text: String,
+        imageName: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.text = text
+        self.imageName = imageName
     }
 }
 
@@ -197,6 +231,7 @@ struct LectureQuizMiniGame: Sendable {
     let studentRole: String?
     let studentImageName: String?
     let usesClassroomStageLayout: Bool
+    let studentGivesCorrectionFeedback: Bool
 
     var question: String {
         questions.first?.question ?? ""
@@ -220,7 +255,8 @@ struct LectureQuizMiniGame: Sendable {
         studentName: String = "You",
         studentRole: String? = "Student",
         studentImageName: String? = nil,
-        usesClassroomStageLayout: Bool = false
+        usesClassroomStageLayout: Bool = false,
+        studentGivesCorrectionFeedback: Bool = false
     ) {
         self.title = title
         self.promptLabel = promptLabel
@@ -241,6 +277,7 @@ struct LectureQuizMiniGame: Sendable {
         self.studentRole = studentRole
         self.studentImageName = studentImageName
         self.usesClassroomStageLayout = usesClassroomStageLayout
+        self.studentGivesCorrectionFeedback = studentGivesCorrectionFeedback
     }
 
     init(
@@ -256,7 +293,8 @@ struct LectureQuizMiniGame: Sendable {
         studentName: String = "You",
         studentRole: String? = "Student",
         studentImageName: String? = nil,
-        usesClassroomStageLayout: Bool = false
+        usesClassroomStageLayout: Bool = false,
+        studentGivesCorrectionFeedback: Bool = false
     ) {
         self.title = title
         self.promptLabel = promptLabel
@@ -271,6 +309,7 @@ struct LectureQuizMiniGame: Sendable {
         self.studentRole = studentRole
         self.studentImageName = studentImageName
         self.usesClassroomStageLayout = usesClassroomStageLayout
+        self.studentGivesCorrectionFeedback = studentGivesCorrectionFeedback
     }
 }
 

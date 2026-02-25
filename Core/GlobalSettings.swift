@@ -12,6 +12,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let showVersionLabel = "globalSettings.showVersionLabel"
         static let masterVolume = "globalSettings.masterVolume"
         static let speechEnabled = "globalSettings.speechEnabled"
+        static let aiDisplayName = "globalSettings.aiDisplayName"
     }
     
     private enum Defaults {
@@ -22,6 +23,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let showVersionLabel = true
         static let masterVolume = 0.85
         static let speechEnabled = true
+        static let aiDisplayName = "Ploy"
     }
     
     private let userDefaults: UserDefaults
@@ -54,6 +56,10 @@ final class GlobalSettingsStore: ObservableObject {
     @Published var speechEnabled: Bool = Defaults.speechEnabled {
         didSet { persist(speechEnabled, forKey: Keys.speechEnabled) }
     }
+
+    @Published var aiDisplayName: String = Defaults.aiDisplayName {
+        didSet { persist(aiDisplayName, forKey: Keys.aiDisplayName) }
+    }
     
     var effectiveParallaxStrength: CGFloat {
         reduceMotion ? 0 : CGFloat(parallaxStrength)
@@ -78,6 +84,7 @@ final class GlobalSettingsStore: ObservableObject {
         showVersionLabel = Defaults.showVersionLabel
         masterVolume = Defaults.masterVolume
         speechEnabled = Defaults.speechEnabled
+        aiDisplayName = Defaults.aiDisplayName
     }
     
     private func load() {
@@ -104,6 +111,9 @@ final class GlobalSettingsStore: ObservableObject {
         if userDefaults.object(forKey: Keys.speechEnabled) != nil {
             speechEnabled = userDefaults.bool(forKey: Keys.speechEnabled)
         }
+        if let storedAIName = userDefaults.string(forKey: Keys.aiDisplayName) {
+            aiDisplayName = storedAIName
+        }
         
         if !parallaxStrength.isFinite {
             parallaxStrength = Defaults.parallaxStrength
@@ -118,6 +128,8 @@ final class GlobalSettingsStore: ObservableObject {
         parallaxStrength = min(max(parallaxStrength, 0), 1)
         menuOverlayOpacity = min(max(menuOverlayOpacity, 0.35), 0.8)
         masterVolume = min(max(masterVolume, 0), 1)
+        let trimmedAIName = aiDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        aiDisplayName = trimmedAIName.isEmpty ? Defaults.aiDisplayName : String(trimmedAIName.prefix(24))
         
         isLoading = false
     }
@@ -128,6 +140,11 @@ final class GlobalSettingsStore: ObservableObject {
     }
     
     private func persist(_ value: Double, forKey key: String) {
+        guard !isLoading else { return }
+        userDefaults.set(value, forKey: key)
+    }
+
+    private func persist(_ value: String, forKey key: String) {
         guard !isLoading else { return }
         userDefaults.set(value, forKey: key)
     }
