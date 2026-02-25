@@ -172,13 +172,12 @@ let chapterTwoStory = StoryChapter(
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Before we head home, let's do a real lab challenge. I want you to sort bias vs bad data, then fix the noisy setup.",
+            text: "Before we head home, let's do a quick lab quiz. I'll show you data problems, and you tell me if it's bias, bad data, or healthy.",
             emotion: .curious,
             backgroundImage: "cnxaqu",
             characterImage: "char_curious",
             cutsceneTitle: "Bias & Bad Data Lab",
-            cutsceneSubtitle: "Sort cases • tune noise • reduce bias",
-            inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)
+            cutsceneSubtitle: "Quiz time • spot the problems"
         ),
         StoryDialogLine(
             speaker: "You",

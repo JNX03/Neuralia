@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 // MARK: - Drawing Sample with High-Resolution Gridde
 struct DrawingSample: Identifiable, Codable {
@@ -1894,6 +1895,10 @@ final class Chapter3PhotoKNNClassifier: ObservableObject {
         let confidence = totalWeight > 0 ? (winner.value / totalWeight) : 0
         return (winner.key, min(max(confidence, 0), 1))
     }
+    
+    func reset() {
+        trainingSamples.removeAll()
+    }
 
     private func euclidean(_ lhs: [Double], _ rhs: [Double]) -> Double {
         let count = min(lhs.count, rhs.count)
@@ -2043,17 +2048,17 @@ enum Chapter3PhotoFeatureExtractor {
     }
 }
 
-private enum Chapter3KNNRescueMode {
+enum Chapter3KNNRescueMode {
     case photo
     case drawFallback
 }
 
-private enum Chapter3KNNCaptureIntent {
+enum Chapter3KNNCaptureIntent {
     case training(label: String)
     case testing(expectedLabel: String)
 }
 
-private struct Chapter3KNNRescueTestRound: Identifiable {
+struct Chapter3KNNRescueTestRound: Identifiable {
     let id = UUID()
     let expectedLabel: String
     let predictedLabel: String
@@ -2092,6 +2097,10 @@ struct Chapter3KNNRescueTrainerView: View {
     @State private var fallbackPrompt = "1"
     @State private var fallbackStatus = "If the camera test fails, draw the number shown here."
     @State private var didLoadFallbackTemplates = false
+    
+    // Chat-style messages
+    @State private var chatMessages: [TrainingChatMessage] = []
+    @State private var lastErrorCode: String?
 
     init(minigame: Chapter3KNNRescueMiniGame, onComplete: @escaping (String) -> Void) {
         self.minigame = minigame
@@ -2404,77 +2413,236 @@ struct Chapter3KNNRescueTrainerView: View {
 
     @ViewBuilder
     private func drawFallbackSection(layout: AdaptiveLayout) -> some View {
-        VStack(alignment: .leading, spacing: layout.spacing) {
-            Text("Draw Fallback Rescue")
-                .font(.system(size: layout.titleSize - 1, weight: .bold))
-
-            Text(minigame.fallbackHint)
-                .font(.system(size: layout.fontSize - 2))
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 8) {
-                Label("Draw this number:", systemImage: "pencil.tip")
-                    .font(.system(size: layout.fontSize - 2))
-                    .foregroundColor(.secondary)
-                Text(fallbackPrompt)
-                    .font(.system(size: layout.titleSize + 4, weight: .black, design: .rounded))
-                    .foregroundColor(.orange)
-            }
-
-            DrawingCanvas(
-                strokes: $fallbackStrokes,
-                currentStroke: $fallbackCurrentStroke,
-                canvasSize: $fallbackCanvasSize,
-                layout: layout,
-                accent: .orange
-            )
-
-            HStack(spacing: layout.spacing) {
-                SecondaryButton(title: "Clear", action: {
-                    fallbackStrokes.removeAll()
-                    fallbackPrediction = nil
-                }, layout: layout)
-                PrimaryButton(
-                    title: "Check Number",
-                    action: runFallbackPrediction,
-                    layout: layout,
-                    disabled: fallbackStrokes.isEmpty,
-                    color: .orange
-                )
-            }
-
-            if let result = fallbackPrediction {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Predicted: \(result.label)")
-                        .font(.system(size: layout.fontSize, weight: .bold))
-                    Text("Confidence: \(Int((result.confidence * 100).rounded()))%")
-                        .font(.system(size: layout.fontSize - 2))
-                        .foregroundColor(.secondary)
-                    Text(fallbackStatus)
-                        .font(.system(size: layout.fontSize - 2))
-                        .foregroundColor(.secondary)
+        VStack(spacing: 0) {
+            // Chat-style messages area
+            ScrollView {
+                ScrollViewReader { proxy in
+                    VStack(spacing: 12) {
+                        // Initial AI message
+                        if chatMessages.isEmpty {
+                            aiMessageBubble(
+                                text: "Hi! I'm your Training assistant. Please draw the number \(fallbackPrompt) in the canvas below.",
+                                errorCode: nil,
+                                layout: layout
+                            )
+                        }
+                        
+                        // Chat history
+                        ForEach(chatMessages) { message in
+                            if message.isUser {
+                                userMessageBubble(text: message.text, layout: layout)
+                            } else {
+                                aiMessageBubble(
+                                    text: message.text,
+                                    errorCode: message.errorCode,
+                                    layout: layout
+                                )
+                            }
+                        }
+                        
+                        // Current status as AI message if not in chat history
+                        if !chatMessages.isEmpty {
+                            aiMessageBubble(
+                                text: fallbackStatus,
+                                errorCode: lastErrorCode,
+                                layout: layout
+                            )
+                        }
+                    }
+                    .padding(.horizontal, layout.padding)
+                    .padding(.vertical, 8)
+                    .onChange(of: chatMessages.count) { _ in
+                        withAnimation {
+                            proxy.scrollTo(chatMessages.last?.id, anchor: .bottom)
+                        }
+                    }
                 }
-                .padding(layout.padding)
-                .background(Color(.systemGray6))
-                .cornerRadius(layout.cornerRadius)
-            } else {
-                Text(fallbackStatus)
-                    .font(.system(size: layout.fontSize - 2))
-                    .foregroundColor(.secondary)
             }
+            .background(Color(.systemGroupedBackground))
+            
+            // Divider between chat and input
+            Divider()
+            
+            // Input area with canvas
+            VStack(spacing: layout.spacing) {
+                // Current number to draw indicator
+                HStack {
+                    Image(systemName: "number.circle.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: layout.fontSize))
+                    Text("Draw: \(fallbackPrompt)")
+                        .font(.system(size: layout.fontSize, weight: .semibold))
+                    Spacer()
+                    if let result = fallbackPrediction {
+                        HStack(spacing: 4) {
+                            Image(systemName: result.label == fallbackPrompt ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundColor(result.label == fallbackPrompt ? .green : .red)
+                            Text("\(Int((result.confidence * 100).rounded()))%")
+                                .font(.system(size: layout.fontSize - 2, weight: .medium))
+                        }
+                    }
+                }
+                .foregroundColor(.primary)
+                
+                // Drawing canvas
+                DrawingCanvas(
+                    strokes: $fallbackStrokes,
+                    currentStroke: $fallbackCurrentStroke,
+                    canvasSize: $fallbackCanvasSize,
+                    layout: layout,
+                    accent: .orange
+                )
+                .frame(height: min(layout.canvasHeight, 200))
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                
+                // Action buttons
+                HStack(spacing: layout.spacing) {
+                    Button(action: {
+                        fallbackStrokes.removeAll()
+                        fallbackPrediction = nil
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark")
+                            Text("Clear")
+                        }
+                        .font(.system(size: layout.fontSize, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(.systemGray5))
+                        .cornerRadius(20)
+                    }
+                    
+                    Button(action: runChatPrediction) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                            Text("Send")
+                        }
+                        .font(.system(size: layout.fontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(fallbackStrokes.isEmpty ? Color.orange.opacity(0.5) : Color.orange)
+                        .cornerRadius(20)
+                    }
+                    .disabled(fallbackStrokes.isEmpty)
+                }
+            }
+            .padding(layout.padding)
+            .background(Color(.secondarySystemGroupedBackground))
         }
-        .padding(layout.padding)
-        .background(Color.white)
+        .background(Color(.systemBackground))
+        .cornerRadius(layout.cornerRadius)
         .overlay(
             RoundedRectangle(cornerRadius: layout.cornerRadius)
-                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
         )
-        .cornerRadius(layout.cornerRadius)
         .onAppear {
             loadFallbackDigitTemplatesIfNeeded()
             if fallbackPrompt.isEmpty {
                 fallbackPrompt = randomFallbackDigit()
             }
+        }
+    }
+    
+    // MARK: - Chat UI Components
+    
+    private func userMessageBubble(text: String, layout: AdaptiveLayout) -> some View {
+        HStack {
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Training")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.trailing, 4)
+                
+                Text(text)
+                    .font(.system(size: layout.fontSize))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.blue)
+                    .cornerRadius(18, corners: [.topLeft, .topRight, .bottomLeft])
+            }
+        }
+    }
+    
+    private func aiMessageBubble(text: String, errorCode: String?, layout: AdaptiveLayout) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 10))
+                    Text("AI Assistant")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .foregroundColor(.secondary)
+                .padding(.leading, 4)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(text)
+                        .font(.system(size: layout.fontSize))
+                        .foregroundColor(.primary)
+                    
+                    if let code = errorCode {
+                        Text("[Error Code: \(code)]")
+                            .font(.system(size: layout.fontSize - 3, design: .monospaced))
+                            .foregroundColor(.red.opacity(0.8))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color(.systemGray5))
+                .cornerRadius(18, corners: [.topLeft, .topRight, .bottomRight])
+            }
+            Spacer()
+        }
+    }
+    
+    private func runChatPrediction() {
+        guard !fallbackStrokes.isEmpty, fallbackCanvasSize != .zero else {
+            fallbackStatus = "Draw a number first."
+            return
+        }
+        
+        // Add user message
+        let userMessage = "I drew a number \(fallbackPrompt)"
+        chatMessages.append(TrainingChatMessage(text: userMessage, isUser: true))
+        
+        // Run prediction
+        let sample = DrawingSample.fromStrokes(fallbackStrokes, label: "test", canvasSize: fallbackCanvasSize)
+        let result = drawKNN.classify(sample)
+        fallbackPrediction = result
+        
+        // Generate error code if wrong
+        var errorCode: String? = nil
+        if result.label != fallbackPrompt {
+            errorCode = "ERR_\(result.label)_EXP_\(fallbackPrompt)_\(Int(result.confidence * 100))"
+            lastErrorCode = errorCode
+        } else {
+            lastErrorCode = nil
+        }
+        
+        // Add AI response
+        var aiResponse = ""
+        if result.label == fallbackPrompt {
+            aiResponse = "✓ Correct! I recognized that as \(result.label) with \(Int((result.confidence * 100).rounded()))% confidence."
+        } else {
+            aiResponse = "That looked like \(result.label) (\(Int((result.confidence * 100).rounded()))% confidence). Try drawing \(fallbackPrompt) again with clearer strokes."
+        }
+        
+        chatMessages.append(TrainingChatMessage(text: aiResponse, isUser: false, errorCode: errorCode))
+        
+        // Check for completion
+        if result.label == fallbackPrompt {
+            let summary = "Photo rescue failed at \(correctTestCount)/\(max(testRounds.count, 1)), but drawing fallback succeeded by correctly drawing number \(fallbackPrompt)."
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                completeRescue(summary)
+            }
+        } else {
+            fallbackStrokes.removeAll()
         }
     }
 
@@ -2587,9 +2755,9 @@ struct Chapter3KNNRescueTrainerView: View {
             ("3", [[CGPoint(x: 26, y: 20), CGPoint(x: 58, y: 20), CGPoint(x: 70, y: 34), CGPoint(x: 48, y: 50), CGPoint(x: 70, y: 66), CGPoint(x: 58, y: 82), CGPoint(x: 26, y: 82)]])
         ]
 
-        // Build samples from stroke templates. Split entries into single-stroke arrays.
+        // Build samples from stroke templates
         for (label, stroke) in templates {
-            let sample = DrawingSample.fromStrokes([stroke as! Array<[CGPoint]>.ArrayLiteralElement], label: label, canvasSize: canvas)
+            let sample = DrawingSample.fromStrokes(stroke, label: label, canvasSize: canvas)
             drawKNN.addSample(sample)
         }
         drawKNN.k = 3
@@ -2600,25 +2768,6 @@ struct Chapter3KNNRescueTrainerView: View {
 
     private func randomFallbackDigit() -> String {
         ["1", "2", "3"].randomElement() ?? "1"
-    }
-
-    private func runFallbackPrediction() {
-        guard !fallbackStrokes.isEmpty, fallbackCanvasSize != .zero else {
-            fallbackStatus = "Draw a number first."
-            return
-        }
-
-        let sample = DrawingSample.fromStrokes(fallbackStrokes, label: "test", canvasSize: fallbackCanvasSize)
-        let result = drawKNN.classify(sample)
-        fallbackPrediction = result
-
-        if result.label == fallbackPrompt {
-            let summary = "Photo rescue failed at \(correctTestCount)/\(max(testRounds.count, 1)), but drawing fallback succeeded by correctly drawing number \(fallbackPrompt)."
-            completeRescue(summary)
-        } else {
-            fallbackStatus = "That looked like \(result.label). Draw \(fallbackPrompt) again, or try a clearer stroke."
-            fallbackStrokes.removeAll()
-        }
     }
 
     private func completeRescue(_ summary: String) {
@@ -2638,7 +2787,17 @@ struct StoryDeviceImagePicker: UIViewControllerRepresentable {
         Coordinator(self)
     }
 
-    func makeUIViewController(context: Context) -> UIImagePickerController {
+    func makeUIViewController(context: Context) -> UIViewController {
+        #if targetEnvironment(macCatalyst)
+        // On macOS, use document picker for file system access instead of Photos library
+        if sourceType == .photoLibrary {
+            let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: [.image])
+            documentPicker.delegate = context.coordinator
+            documentPicker.allowsMultipleSelection = false
+            return documentPicker
+        }
+        #endif
+        
         let picker = UIImagePickerController()
         picker.sourceType = sourceType
         picker.delegate = context.coordinator
@@ -2646,9 +2805,9 @@ struct StoryDeviceImagePicker: UIViewControllerRepresentable {
         return picker
     }
 
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 
-    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate, UIDocumentPickerDelegate {
         private let parent: StoryDeviceImagePicker
 
         init(_ parent: StoryDeviceImagePicker) {
@@ -2669,6 +2828,49 @@ struct StoryDeviceImagePicker: UIViewControllerRepresentable {
                 parent.onCancel()
             }
         }
+        
+        // MARK: - UIDocumentPickerDelegate for macOS file access
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else {
+                parent.onCancel()
+                return
+            }
+            
+            // Security-scoped resource access
+            guard url.startAccessingSecurityScopedResource() else {
+                parent.onCancel()
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            if let imageData = try? Data(contentsOf: url),
+               let image = UIImage(data: imageData) {
+                parent.onImagePicked(image)
+            } else {
+                parent.onCancel()
+            }
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.onCancel()
+        }
+    }
+}
+
+// MARK: - Rounded Corner Extension
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
+        return Path(path.cgPath)
     }
 }
 

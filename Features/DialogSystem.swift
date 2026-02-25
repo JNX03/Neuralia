@@ -1132,97 +1132,69 @@ struct ResponsiveDialogView: View {
                 quiz: quiz
             )
         } else {
-        let horizontalPadding = layout.dialogPadding
-        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
-        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
-        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+            // Messenger/chat style (like Chapter 1's PromptBuilder)
+            let horizontalPadding = layout.dialogPadding
+            let useScrollStage = geometry.size.width < 1120 || geometry.size.height < 760
+            let stageTopPadding: CGFloat = 12
+            let stageBottomPadding = max(layout.safeAreaInsets.bottom, 12)
+            let stageSpeaker = viewModel.resolvedSpeaker(for: node).isEmpty ? "You" : viewModel.resolvedSpeaker(for: node)
+            let stageRoleLabel = dialogRoleLabel(for: node)
+            let stageCharacterImage = node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion)
 
-        VStack(spacing: 0) {
-            topBar(layout: layout)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, topBarTopPadding(for: layout))
+            VStack(spacing: 0) {
+                topBar(layout: layout)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, topBarTopPadding(for: layout))
 
-            if useVerticalLayout {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        LectureQuizMiniGameCard(
+                if useScrollStage {
+                    ScrollView(showsIndicators: false) {
+                        MessengerLectureQuizMiniGameStage(
                             quiz: quiz,
                             layout: layout,
-                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
+                            availableWidth: geometry.size.width - (horizontalPadding * 2),
+                            availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
+                            speaker: stageSpeaker,
+                            roleLabel: stageRoleLabel,
+                            emotion: node.emotion,
+                            characterImageName: stageCharacterImage,
+                            instructionText: viewModel.displayedText,
+                            isTyping: viewModel.isTyping,
+                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                            onSkipTyping: { handleSkipTypingAction() },
+                            onContinue: { handleAdvanceAction() }
                         ) { result in
                             viewModel.completeInlineActivity(for: node.id, result: result)
                         }
-                        .allowsHitTesting(!viewModel.isTyping)
-                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
-
-                        MiniGameStageCharacterPanel(
-                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
-                            emotion: node.emotion,
-                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
-                            instructionText: viewModel.displayedText,
-                            isTyping: viewModel.isTyping,
-                            layout: layout,
-                            accentColor: getEmotionColor(node.emotion),
-                            onSkipTyping: { handleSkipTypingAction() }
-                        )
-                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
+                        .frame(minHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, stageTopPadding)
+                        .padding(.bottom, stageBottomPadding)
                     }
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
-                }
-            } else {
-                HStack(alignment: .top, spacing: layout.sectionSpacing) {
-                    MiniGameStageCharacterPanel(
-                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
+                } else {
+                    MessengerLectureQuizMiniGameStage(
+                        quiz: quiz,
+                        layout: layout,
+                        availableWidth: geometry.size.width - (horizontalPadding * 2),
+                        availableHeight: geometry.size.height - topBarTopPadding(for: layout) - layout.topBarReservedHeight - stageTopPadding - stageBottomPadding,
+                        speaker: stageSpeaker,
+                        roleLabel: stageRoleLabel,
                         emotion: node.emotion,
-                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
+                        characterImageName: stageCharacterImage,
                         instructionText: viewModel.displayedText,
                         isTyping: viewModel.isTyping,
-                        layout: layout,
-                        accentColor: getEmotionColor(node.emotion),
-                        onSkipTyping: { handleSkipTypingAction() }
-                    )
-                    .frame(width: leftWidth)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 12) {
-                            LectureQuizMiniGameCard(
-                                quiz: quiz,
-                                layout: layout,
-                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                            ) { result in
-                                viewModel.completeInlineActivity(for: node.id, result: result)
-                            }
-                            .allowsHitTesting(!viewModel.isTyping)
-                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .top)
+                        isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                        onSkipTyping: { handleSkipTypingAction() },
+                        onContinue: { handleAdvanceAction() }
+                    ) { result in
+                        viewModel.completeInlineActivity(for: node.id, result: result)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, stageTopPadding)
+                    .padding(.bottom, stageBottomPadding)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
             }
-
-            MiniGameBottomBar(
-                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
-                    ? "Answer recorded. Continue when you are ready."
-                    : "Choose an answer to continue.",
-                continueTitle: "Continue Story",
-                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
-                layout: layout,
-                onContinue: { handleAdvanceAction() }
-            )
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, bottomSafePadding)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -1332,94 +1304,29 @@ struct ResponsiveDialogView: View {
         minigame: Chapter3KNNRescueMiniGame
     ) -> some View {
         let horizontalPadding = layout.dialogPadding
-        let bottomSafePadding = max(layout.safeAreaInsets.bottom, 12)
-        let leftWidth = max(min(geometry.size.width * 0.26, 360), 210)
-        let useVerticalLayout = geometry.size.width < 980 || geometry.size.height < 680
+        let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
+        let bottomInset = max(layout.safeAreaInsets.bottom, 10)
 
-        return VStack(spacing: 0) {
-            topBar(layout: layout)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, topBarTopPadding(for: layout))
-
-            if useVerticalLayout {
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        Chapter3KNNRescueMiniGameCard(
-                            minigame: minigame,
-                            layout: layout,
-                            isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                        ) { result in
-                            viewModel.completeInlineActivity(for: node.id, result: result)
-                        }
-                        .allowsHitTesting(!viewModel.isTyping)
-                        .opacity(viewModel.isTyping ? 0.8 : 1.0)
-
-                        MiniGameStageCharacterPanel(
-                            speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                            subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
-                            emotion: node.emotion,
-                            characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
-                            instructionText: viewModel.displayedText,
-                            isTyping: viewModel.isTyping,
-                            layout: layout,
-                            accentColor: getEmotionColor(node.emotion),
-                            onSkipTyping: { handleSkipTypingAction() }
-                        )
-                        .frame(height: min(max(220, geometry.size.height * 0.34), 360))
-                    }
+        return ZStack {
+            VStack {
+                topBar(layout: layout)
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
-                }
-            } else {
-                HStack(alignment: .top, spacing: layout.sectionSpacing) {
-                    MiniGameStageCharacterPanel(
-                        speaker: viewModel.resolvedSpeaker(for: node).isEmpty ? "Character" : viewModel.resolvedSpeaker(for: node),
-                        subtitle: viewModel.resolvedCutsceneSubtitle(for: node),
-                        emotion: node.emotion,
-                        characterImageName: node.characterImage ?? StoryCharacterAsset.placeholder(for: node.emotion),
-                        instructionText: viewModel.displayedText,
-                        isTyping: viewModel.isTyping,
-                        layout: layout,
-                        accentColor: getEmotionColor(node.emotion),
-                        onSkipTyping: { handleSkipTypingAction() }
-                    )
-                    .frame(width: leftWidth)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 12) {
-                            Chapter3KNNRescueMiniGameCard(
-                                minigame: minigame,
-                                layout: layout,
-                                isCompleted: viewModel.isInlineActivityCompleted(for: node.id)
-                            ) { result in
-                                viewModel.completeInlineActivity(for: node.id, result: result)
-                            }
-                            .allowsHitTesting(!viewModel.isTyping)
-                            .opacity(viewModel.isTyping ? 0.8 : 1.0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .top)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+                    .padding(.top, topBarTopPadding(for: layout))
+                Spacer()
             }
+            .zIndex(20)
 
-            MiniGameBottomBar(
-                instructionText: viewModel.isInlineActivityCompleted(for: node.id)
-                    ? "KNN rescue stabilized. Continue when you are ready."
-                    : "Train with photos and pass 2 tests, or use the drawing fallback to continue.",
-                continueTitle: "Continue Story",
-                isContinueEnabled: viewModel.isInlineActivityCompleted(for: node.id),
+            Chapter3KNNRescueMessagesMiniGame(
+                minigame: minigame,
                 layout: layout,
-                onContinue: { handleAdvanceAction() }
+                isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                onComplete: { result in
+                    viewModel.completeInlineActivity(for: node.id, result: result)
+                }
             )
             .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, bottomSafePadding)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -2444,13 +2351,14 @@ struct ResponsiveDialogView: View {
                 viewModel.completeInlineActivity(for: nodeID, result: result)
             }
         case .chapter3KNNRescue(let minigame):
-            Chapter3KNNRescueMiniGameCard(
+            Chapter3KNNRescueMessagesMiniGame(
                 minigame: minigame,
                 layout: layout,
-                isCompleted: viewModel.isInlineActivityCompleted(for: nodeID)
-            ) { result in
-                viewModel.completeInlineActivity(for: nodeID, result: result)
-            }
+                isCompleted: viewModel.isInlineActivityCompleted(for: nodeID),
+                onComplete: { result in
+                    viewModel.completeInlineActivity(for: nodeID, result: result)
+                }
+            )
         }
     }
     
@@ -8255,124 +8163,519 @@ private struct PlaceholderClockHeroCard: View {
     }
 }
 
-struct Chapter3KNNRescueMiniGameCard: View {
-    let minigame: Chapter3KNNRescueMiniGame
+
+// MARK: - Messenger Style Lecture Quiz (Chapter 2 Style)
+// A chat-based quiz UI similar to PromptBuilder - fade dialogs instead of boxes
+
+struct MessengerLectureQuizMiniGameStage: View {
+    let quiz: LectureQuizMiniGame
     let layout: DialogAdaptiveLayout
+    let availableWidth: CGFloat
+    let availableHeight: CGFloat
+    let speaker: String
+    let roleLabel: String?
+    let emotion: Emotion
+    let characterImageName: String
+    let instructionText: String
+    let isTyping: Bool
     let isCompleted: Bool
+    let onSkipTyping: () -> Void
+    let onContinue: () -> Void
     let onComplete: (String) -> Void
 
-    @State private var showTrainer = false
-    @State private var latestSummary: String?
+    @State private var currentQuestionIndex = 0
+    @State private var selectedChoiceIDByQuestionID: [String: String] = [:]
+    @State private var chatMessages: [DialogShowcaseChatMessage] = []
+    @State private var isShowingChoices = false
+    @State private var hasSubmitted = false
+
+    private var questions: [LectureQuizQuestion] {
+        quiz.questions.isEmpty
+            ? [LectureQuizQuestion(id: "fallback", question: "No question available", choices: [])]
+            : quiz.questions
+    }
+
+    private var currentQuestion: LectureQuizQuestion {
+        let index = min(max(currentQuestionIndex, 0), max(questions.count - 1, 0))
+        return questions[index]
+    }
+
+    private var isLastQuestion: Bool {
+        currentQuestionIndex >= questions.count - 1
+    }
+
+    private var allQuestionsAnswered: Bool {
+        questions.allSatisfy { selectedChoiceIDByQuestionID[$0.id] != nil }
+    }
+
+    private var aiName: String {
+        quiz.teacherName.isEmpty ? "AI Friend" : quiz.teacherName
+    }
+
+    private var playerName: String {
+        quiz.studentName.isEmpty ? "You" : quiz.studentName
+    }
+
+    private var usesStackedLayout: Bool {
+        availableWidth < 940 || availableHeight < 700
+    }
+
+    private var phonePanelWidth: CGFloat {
+        min(max(availableWidth * 0.64, 520), 980)
+    }
+
+    private var phoneWideUpOffset: CGFloat {
+        min(max(availableHeight * 0.12, 64), 150)
+    }
+
+    private var emotionAccent: Color {
+        switch emotion {
+        case .happy, .excited: return Color(hex: "5CE38C")
+        case .sad, .concerned: return Color(hex: "8ED0F7")
+        case .angry: return Color(hex: "FF7D7D")
+        case .mysterious: return Color(hex: "BE93F5")
+        case .surprised: return Color(hex: "FFD77A")
+        case .gentle: return Color(hex: "91F0C3")
+        case .curious: return Color(hex: "4AB0FF")
+        case .neutral: return Color.white.opacity(0.85)
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.orange.opacity(0.95),
-                                    Color.red.opacity(0.78)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-
-                    Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 52, height: 52)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(minigame.title)
-                        .font(.system(size: layout.bodyFontSize + 4, weight: .bold))
-                        .foregroundColor(.white)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(minigame.promptLabel)
-                        .font(.system(size: layout.captionFontSize + 1, weight: .medium))
-                        .foregroundColor(.white.opacity(0.82))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+        ZStack {
+            if usesStackedLayout {
+                bottomSceneFade
             }
 
-            Text("Labels: \(minigame.trainingLabels.joined(separator: ", "))")
-                .font(.system(size: layout.captionFontSize, weight: .semibold))
-                .foregroundColor(.white.opacity(0.76))
+            if usesStackedLayout {
+                VStack(spacing: 12) {
+                    phonePanel
+                        .frame(maxWidth: min(availableWidth, 920))
 
-            Text("Goal: get \(minigame.requiredCorrectTests) correct tests before \(minigame.maxTestRounds) rounds.")
-                .font(.system(size: layout.captionFontSize))
-                .foregroundColor(.white.opacity(0.72))
-
-            Text(minigame.fallbackHint)
-                .font(.system(size: layout.captionFontSize, weight: .medium))
-                .foregroundColor(.orange.opacity(0.95))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let latestSummary, !latestSummary.isEmpty {
-                Text(latestSummary)
-                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white.opacity(0.05))
-                    )
+                    heroPanel
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: min(max(availableHeight * 0.48, 250), 430))
+                }
+            } else {
+                wideLayoutStage
             }
 
-            Button {
-                showTrainer = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "play.circle.fill")
-                    Text(isCompleted ? "Rescue Complete" : "Open KNN Rescue Minigame")
+            if isCompleted || allQuestionsAnswered {
+                VStack {
                     Spacer(minLength: 0)
-                    if !isCompleted {
-                        Image(systemName: "arrow.up.right.square")
+                    if usesStackedLayout {
+                        Button(action: onContinue) {
+                            Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                                .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.green.opacity(0.92), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 6)
                     }
                 }
-                .font(.system(size: layout.bodyFontSize, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(
-                            isCompleted
-                                ? AnyShapeStyle(Color.green.opacity(0.75))
-                                : AnyShapeStyle(
-                                    LinearGradient(
-                                        colors: [Color.orange.opacity(0.95), Color.red.opacity(0.8)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                        )
-                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .buttonStyle(.plain)
-            .disabled(isCompleted)
-            .opacity(isCompleted ? 0.9 : 1.0)
         }
-        .padding(layout.dialogPadding)
-        .background(
-            RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.48))
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .onAppear {
+            initializeChat()
+        }
+    }
+
+    private var phonePanel: some View {
+        VStack(spacing: 0) {
+            // Phone header
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(hex: "2D8CFF"))
+
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(aiName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black)
+                    Text(roleLabel ?? "AI Friend")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color.black.opacity(0.5))
+                }
+
+                Spacer()
+
+                Image(systemName: "video.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(hex: "2D8CFF"))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.white)
+            .overlay(
+                Rectangle()
+                    .fill(Color.black.opacity(0.08))
+                    .frame(height: 0.5)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            )
+
+            // Chat messages
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 8) {
+                        ForEach(chatMessages) { message in
+                            chatBubbleRow(message: message)
+                        }
+
+                        if isShowingChoices && !isTyping && !hasSubmitted {
+                            choicesPanel
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+                .background(Color.white)
+                .onChange(of: chatMessages.count) { _ in
+                    if let last = chatMessages.last {
+                        withAnimation {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color.black.opacity(0.25), radius: 32, x: 0, y: 16)
         .overlay(
-            RoundedRectangle(cornerRadius: layout.dialogCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.15), lineWidth: 1)
         )
-        .sheet(isPresented: $showTrainer) {
-            Chapter3KNNRescueTrainerView(minigame: minigame) { result in
-                latestSummary = result
-                onComplete(result)
+    }
+
+    private var heroPanel: some View {
+        VStack(spacing: layout.isCompact ? 10 : 14) {
+            if !usesStackedLayout {
+                wideTopUtilityRow
+            }
+
+            HStack(spacing: layout.isCompact ? 12 : 18) {
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: min(max(availableHeight * (usesStackedLayout ? 0.30 : 0.56), 200), usesStackedLayout ? 300 : 520))
+                    .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
+
+                if !usesStackedLayout {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(aiName)
+                            .font(.system(size: layout.isCompact ? 20 : 26, weight: .heavy))
+                            .foregroundColor(.white)
+                        if let roleLabel, !roleLabel.isEmpty {
+                            Text(roleLabel)
+                                .font(.system(size: layout.isCompact ? 14 : 17, weight: .medium))
+                                .foregroundColor(emotionAccent)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !instructionText.isEmpty {
+                Text(instructionText)
+                    .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(isTyping ? 0.92 : 0.82))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, layout.isCompact ? 14 : 18)
+                    .padding(.vertical, layout.isCompact ? 10 : 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.black.opacity(0.35))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            )
+                    )
             }
         }
+        .padding(.horizontal, layout.isCompact ? 12 : 16)
+        .padding(.vertical, layout.isCompact ? 10 : 14)
+    }
+
+    private var wideLayoutStage: some View {
+        GeometryReader { proxy in
+            ZStack {
+                VStack(spacing: layout.isCompact ? 6 : 8) {
+                    wideTopUtilityRow
+
+                    VStack(spacing: 0) {
+                        Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                        phonePanel
+                            .frame(width: min(availableWidth * 0.52, 840))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .offset(y: -phoneWideUpOffset)
+
+                        Spacer(minLength: min(max(availableHeight * 0.18, 178), 210))
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .zIndex(0)
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: Color.black.opacity(0.22), location: 0.70),
+                        .init(color: Color.black.opacity(0.55), location: 0.85),
+                        .init(color: Color.black.opacity(0.78), location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .zIndex(1)
+
+                wideBottomDialogOverlay
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
+                    .zIndex(10)
+
+                wideCharacterLayer
+                    .frame(width: proxy.size.width, height: proxy.size.height, alignment: .bottomLeading)
+                    .zIndex(5)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var bottomSceneFade: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0.0),
+                .init(color: Color.black.opacity(0.15), location: 0.58),
+                .init(color: Color.black.opacity(0.45), location: 0.78),
+                .init(color: Color.black.opacity(0.78), location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+
+    private var wideCharacterLayer: some View {
+        HStack {
+            Image(characterImageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: min(min(availableWidth, 1480) * 0.26, 360), maxHeight: min(max(availableHeight * 0.46, 280), 520), alignment: .bottom)
+                .offset(x: availableWidth < 1200 ? -12 : (availableWidth < 1450 ? -24 : -38), y: -(layout.isCompact ? 14 : 22))
+                .shadow(color: Color.black.opacity(0.30), radius: 16, x: 0, y: 8)
+                .allowsHitTesting(false)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var wideTopUtilityRow: some View {
+        HStack {
+            Spacer()
+        }
+    }
+
+    private var wideBottomDialogOverlay: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            heroPanel
+                .frame(width: min(availableWidth * 0.38, 520), alignment: .leading)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, layout.isCompact ? 16 : 28)
+        .padding(.bottom, layout.isCompact ? 20 : 32)
+    }
+
+    private func chatBubbleRow(message: DialogShowcaseChatMessage) -> some View {
+        HStack {
+            if message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
+
+            Text(message.text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(message.isFromPlayer ? .white : Color.black.opacity(0.82))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    message.isFromPlayer ? Color(hex: "2D8CFF") : Color(hex: "E9E9EE"),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+
+            if !message.isFromPlayer {
+                Spacer(minLength: 46)
+            }
+        }
+        .id(message.id)
+        .transition(.asymmetric(insertion: .move(edge: message.isFromPlayer ? .trailing : .leading).combined(with: .opacity), removal: .opacity))
+    }
+
+    private var choicesPanel: some View {
+        VStack(spacing: 8) {
+            Text("Choose your answer:")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color.black.opacity(0.5))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+
+            ForEach(currentQuestion.choices) { choice in
+                choiceButton(for: choice)
+            }
+        }
+    }
+
+    private func choiceButton(for choice: LectureQuizOption) -> some View {
+        let isSelected = selectedChoiceIDByQuestionID[currentQuestion.id] == choice.id
+
+        return Button {
+            selectChoice(choice)
+        } label: {
+            HStack(spacing: 10) {
+                if let icon = choice.icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 14))
+                        .foregroundColor(isSelected ? .white : Color.black.opacity(0.6))
+                        .frame(width: 20)
+                }
+
+                Text(choice.text)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isSelected ? .white : Color.black.opacity(0.85))
+                    .multilineTextAlignment(.leading)
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected ? Color(hex: "2D8CFF") : Color(hex: "F2F2F7"))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(selectedChoiceIDByQuestionID[currentQuestion.id] != nil)
+    }
+
+    private func initializeChat() {
+        chatMessages = []
+        isShowingChoices = false
+        hasSubmitted = false
+
+        // Add intro message from AI
+        if let aiGuess = currentQuestion.aiGuessLine, !aiGuess.isEmpty {
+            chatMessages.append(DialogShowcaseChatMessage(
+                id: "intro-\(currentQuestion.id)",
+                text: aiGuess.replacingOccurrences(of: "{{ai_name}}:", with: "").trimmingCharacters(in: .whitespaces),
+                isFromPlayer: false
+            ))
+        } else {
+            chatMessages.append(DialogShowcaseChatMessage(
+                id: "intro-\(currentQuestion.id)",
+                text: currentQuestion.question,
+                isFromPlayer: false
+            ))
+        }
+
+        // Show choices after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation {
+                isShowingChoices = true
+            }
+        }
+    }
+
+    private func selectChoice(_ choice: LectureQuizOption) {
+        guard selectedChoiceIDByQuestionID[currentQuestion.id] == nil else { return }
+
+        selectedChoiceIDByQuestionID[currentQuestion.id] = choice.id
+
+        // Add player's answer to chat
+        chatMessages.append(DialogShowcaseChatMessage(
+            id: "answer-\(currentQuestion.id)",
+            text: choice.text,
+            isFromPlayer: true
+        ))
+
+        // Add feedback from AI
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let feedbackText = choice.isBestAnswer
+                ? choice.feedback
+                : "Hmm... \(choice.feedback)"
+
+            withAnimation {
+                chatMessages.append(DialogShowcaseChatMessage(
+                    id: "feedback-\(currentQuestion.id)",
+                    text: feedbackText,
+                    isFromPlayer: false
+                ))
+            }
+
+            // Move to next question or complete
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if isLastQuestion {
+                    hasSubmitted = true
+                    let summary = buildSummary()
+                    onComplete(summary)
+                } else {
+                    currentQuestionIndex += 1
+                    loadNextQuestion()
+                }
+            }
+        }
+    }
+
+    private func loadNextQuestion() {
+        let nextQuestion = currentQuestion
+
+        // Add question from AI
+        if let aiGuess = nextQuestion.aiGuessLine, !aiGuess.isEmpty {
+            chatMessages.append(DialogShowcaseChatMessage(
+                id: "intro-\(nextQuestion.id)",
+                text: aiGuess.replacingOccurrences(of: "{{ai_name}}:", with: "").trimmingCharacters(in: .whitespaces),
+                isFromPlayer: false
+            ))
+        } else {
+            chatMessages.append(DialogShowcaseChatMessage(
+                id: "intro-\(nextQuestion.id)",
+                text: nextQuestion.question,
+                isFromPlayer: false
+            ))
+        }
+
+        isShowingChoices = true
+    }
+
+    private func buildSummary() -> String {
+        let correctCount = questions.reduce(0) { count, question in
+            guard let selectedID = selectedChoiceIDByQuestionID[question.id],
+                  let selected = question.choices.first(where: { $0.id == selectedID }),
+                  selected.isBestAnswer else { return count }
+            return count + 1
+        }
+        return "Quiz complete: \(correctCount)/\(questions.count) correct. \(quiz.summaryNote)"
     }
 }
 
