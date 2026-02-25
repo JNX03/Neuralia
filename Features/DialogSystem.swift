@@ -774,10 +774,20 @@ struct ResponsiveDialogView: View {
         let configuredAIName = viewModel.storyVariables["ai_name"] ?? "Ploy"
         if matchesSpeakerName(normalized, candidate: configuredAIName) { return true }
 
+        if normalized == "ai"
+            || normalized.hasPrefix("ai ")
+            || normalized == "ai friend"
+            || normalized.hasPrefix("ai friend ")
+            || (normalized.contains("ai") && normalized.contains("friend")) {
+            return true
+        }
+
         return matchesSpeakerName(normalized, candidate: "Ploy")
+            || matchesSpeakerName(normalized, candidate: "AI Friend")
             || matchesSpeakerName(normalized, candidate: "Unknown User")
             || matchesSpeakerName(normalized, candidate: "Unknown Sender")
             || matchesSpeakerName(normalized, candidate: "unknow")
+            || matchesSpeakerName(normalized, candidate: "Phone")
     }
 
     private func voiceProfile(for speaker: String) -> SpeechVoiceProfile {
@@ -825,12 +835,18 @@ struct ResponsiveDialogView: View {
         let configuredAIName = viewModel.storyVariables["ai_name"] ?? "Ploy"
         let startsWithAICue =
             matchesSpeakerName(normalizedText, candidate: configuredAIName)
+            || normalizedText == "ai friend"
+            || normalizedText.hasPrefix("ai friend ")
+            || normalizedText == "ai"
+            || normalizedText.hasPrefix("ai ")
             || normalizedText == "ploy"
             || normalizedText.hasPrefix("ploy ")
             || normalizedText == "unknown user"
             || normalizedText.hasPrefix("unknown user ")
             || normalizedText == "unknown sender"
             || normalizedText.hasPrefix("unknown sender ")
+            || normalizedText == "phone"
+            || normalizedText.hasPrefix("phone ")
 
         if startsWithAICue {
             return .playerFemale
