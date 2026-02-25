@@ -7737,7 +7737,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
         Image(characterImageName)
             .resizable()
             .scaledToFit()
-            .frame(maxHeight: spriteHeight, alignment: .bottomLeft)
+            .frame(maxHeight: spriteHeight, alignment: .bottomLeading)
             .shadow(color: Color.cyan.opacity(0.15), radius: 25, x: 0, y: 0)
             .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 15)
             .allowsHitTesting(false)
@@ -7800,7 +7800,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
     // MARK: Location Select Style Case List
     private var locationSelectCaseList: some View {
         VStack(spacing: layout.isCompact ? 10 : 14) {
-            ForEach(Array(cards.enumerated()), id: \\.element.id) { index, caseCard in
+            ForEach(Array(cards.enumerated()), id: \.element.id) { index, caseCard in
                 caseListItem(index: index, caseCard: caseCard)
             }
         }

@@ -90,7 +90,43 @@ let chapterTwoStory = StoryChapter(
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Then let's test this in the real world. I want to build memories with you.",
+            text: "Then let's correct it. Pick a real time.",
+            emotion: .curious,
+            backgroundImage: "room",
+            characterImage: "char_curious",
+            cutsceneTitle: "Quick Check",
+            cutsceneSubtitle: "Correct the hallucination",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Reality Check",
+                subtitle: "Choose a valid time instead of the impossible answer.",
+                imageName: "__clock_placeholder__",
+                badge: "Pick One",
+                prefersSplitLayout: true
+            ),
+            choices: [
+                DialogChoice(
+                    text: "10:07",
+                    emotion: .happy,
+                    response: "Correct. Real-world validation beats confident guessing.",
+                    icon: "checkmark.circle.fill"
+                ),
+                DialogChoice(
+                    text: "10:67",
+                    emotion: .concerned,
+                    response: "Still impossible. 67 minutes does not exist on a normal clock.",
+                    icon: "xmark.circle.fill"
+                ),
+                DialogChoice(
+                    text: "99:10",
+                    emotion: .concerned,
+                    response: "Also impossible. Always check if the answer is valid before trusting it.",
+                    icon: "exclamationmark.triangle.fill"
+                )
+            ]
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "You know what? Let's go outside today. I want to build memories with you.",
             emotion: .excited,
             backgroundImage: "room",
             characterImage: "char_excited",
@@ -108,13 +144,41 @@ let chapterTwoStory = StoryChapter(
         ),
         StoryDialogLine(
             speaker: "You",
-            text: "Let's see how much you really understand today.",
+            text: "Chiang Mai Zoo.",
             emotion: .happy,
             backgroundImage: "cnxgate",
             characterImage: "char_happy",
-            cutsceneTitle: "Understanding Bias & Bad Data",
-            cutsceneSubtitle: "Time to test the real world",
-            inlineActivity: .chapter2InteractiveLab(chapter2BiasAndBadDataLabMiniGame)
+            cutsceneTitle: "Day Trip",
+            cutsceneSubtitle: "Chiang Mai Zoo"
+        ),
+        StoryDialogLine(
+            speaker: "",
+            text: "At the zoo, everything is fun at first. {{ai_name}} gets excited and starts guessing animals like it is a game.",
+            emotion: .happy,
+            backgroundImage: "cnxgate",
+            characterImage: "__none__",
+            cutsceneTitle: "Zoo Start",
+            cutsceneSubtitle: "Guessing game begins"
+        ),
+        StoryDialogLine(
+            speaker: "You",
+            text: "Okay, game rules: you guess first, and I verify with signs, clues, and a field guide book.",
+            emotion: .curious,
+            backgroundImage: "cnxgate",
+            characterImage: "char_curious",
+            cutsceneTitle: "Memory Hunt",
+            cutsceneSubtitle: "Spot • check • learn",
+            inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)
+        ),
+        StoryDialogLine(
+            speaker: "{{ai_name}}",
+            text: "Wait... before we leave. I made mistakes today. Can we look at why? I want to understand what went wrong — the blurry glass, the Red Panda I rejected... help me sort it out?",
+            emotion: .gentle,
+            backgroundImage: "cnxaqu",
+            characterImage: "unknow",
+            cutsceneTitle: "Bias & Bad Data Lab",
+            cutsceneSubtitle: "Understanding mistakes together",
+            inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)
         ),
         StoryDialogLine(
             speaker: "You",

@@ -44,9 +44,9 @@ struct StoryChapterHubView: View {
     }
 
     // MARK: - Visual Novel / Blue Archive Theme Colors
-    private let themeBlue = Color(red: 0.08, green: 0.58, blue: 0.90)   // Main vivid blue
-    private let themeLight = Color(red: 0.85, green: 0.94, blue: 0.98)  // Sky light background
-    private let themeDark = Color(red: 0.05, green: 0.20, blue: 0.35)   // Heavy dark blue for text
+    private let themeBlue = Color(red: 0.12, green: 0.51, blue: 0.88)
+    private let themeLight = Color(red: 0.88, green: 0.95, blue: 0.98)
+    private let themeDark = Color(red: 0.05, green: 0.15, blue: 0.25)
     private let themeWhite = Color.white
 
     var body: some View {
@@ -68,7 +68,7 @@ struct StoryChapterHubView: View {
                     portraitLayout(layout: layout, geo: geo)
                 }
 
-                // 3. Floating Back Button
+                // 3. Floating Back Button - Positioned absolutely safely
                 VStack {
                     HStack {
                         backButton(layout: layout)
@@ -77,7 +77,7 @@ struct StoryChapterHubView: View {
                     Spacer()
                 }
                 .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
-                .padding(.leading, layout.scaled(20))
+                .padding(.leading, layout.scaled(25))
                 .zIndex(2)
             }
         }
@@ -110,88 +110,93 @@ struct StoryChapterHubView: View {
 
     // MARK: - Layouts
     private func landscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        HStack(spacing: layout.scaled(20)) {
-            // Hero
+        HStack(spacing: layout.scaled(30)) {
+            // Hero Showcare takes remaining area
             heroShowcase(layout: layout, geo: geo)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .zIndex(1) // Keep character popping over the sidebar
+                .zIndex(1)
 
-            // Sidebar
+            // Sidebar takes fixed constrained area
             chapterSidebar(layout: layout, geo: geo)
-                .frame(width: min(geo.size.width * 0.38, 440))
+                .frame(width: min(geo.size.width * 0.35, 400))
                 .zIndex(0)
         }
-        .padding(.top, geo.safeAreaInsets.top + layout.scaled(30))
-        .padding(.bottom, layout.scaled(40))
-        .padding(.leading, layout.scaled(40))
+        .padding(.top, geo.safeAreaInsets.top + layout.scaled(65)) // Shifted down for Back button
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(30))
+        .padding(.leading, layout.scaled(30))
         .padding(.trailing, layout.scaled(20))
     }
 
     private func portraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
         VStack(spacing: layout.scaled(20)) {
-            // Top Hero
             heroShowcase(layout: layout, geo: geo)
                 .frame(height: geo.size.height * 0.45)
-                .padding(.top, geo.safeAreaInsets.top + layout.scaled(55))
+                .padding(.top, geo.safeAreaInsets.top + layout.scaled(65))
                 .zIndex(1)
 
-            // Bottom Sidebar
             chapterSidebar(layout: layout, geo: geo)
+                .frame(maxWidth: .infinity)
                 .zIndex(0)
         }
         .padding(.horizontal, layout.scaled(20))
-        .padding(.bottom, layout.scaled(20))
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(20))
     }
 
     // MARK: - Hero Showcase Container
     private func heroShowcase(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        ZStack {
-            // A. The Cropped Background Image Map
-            ZStack {
-                Image(selectedChapter.coverBackgroundImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                LinearGradient(
-                    colors: [themeDark.opacity(0.1), themeDark.opacity(0.45)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-            .clipShape(SlantedRect(offset: layout.scaled(35), direction: .forward))
+        // We use Color.clear layout boundaries to perfectly adopt the proposed size, 
+        // preventing overflowing children like scaledToFill images from breaking the layout.
+        Color.clear
+            .padding(layout.scaled(8)) // Allows stroke and shadows to bleed naturally
             .overlay(
-                SlantedRect(offset: layout.scaled(35), direction: .forward)
-                    .stroke(themeWhite, lineWidth: layout.scaled(4))
+                GeometryReader { heroGeo in
+                    ZStack(alignment: .topLeading) {
+                        // A. The Cropped Background Image Map
+                        Color.clear
+                            .overlay(
+                                ZStack {
+                                    Image(selectedChapter.coverBackgroundImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: heroGeo.size.width, height: heroGeo.size.height)
+                                        .clipped()
+
+                                    LinearGradient(
+                                        colors: [themeDark.opacity(0.1), themeDark.opacity(0.45)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                }
+                            )
+                            .clipShape(SlantedRect(offset: layout.scaled(35), direction: .forward))
+                            .overlay(
+                                SlantedRect(offset: layout.scaled(35), direction: .forward)
+                                    .stroke(themeWhite, lineWidth: layout.scaled(4))
+                            )
+                            .shadow(color: themeBlue.opacity(0.2), radius: 10, x: 0, y: layout.scaled(8))
+
+                        // B. Full Character Image
+                        // Placed at the bottom right corner of the actual hero bounds
+                        Image(selectedChapter.coverCharacterImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: layout.isLandscape ? heroGeo.size.height * 1.05 : heroGeo.size.height * 0.65)
+                            .shadow(color: Color.black.opacity(0.25), radius: 15, x: 0, y: layout.scaled(10))
+                            .position(
+                                x: heroGeo.size.width - (layout.isLandscape ? layout.scaled(30) : layout.scaled(50)),
+                                y: heroGeo.size.height - ((layout.isLandscape ? heroGeo.size.height * 1.05 : heroGeo.size.height * 0.65) / 2) + layout.scaled(15)
+                            )
+                            .allowsHitTesting(false)
+
+                        // C. Bottom-Left Information Panel
+                        // We put it inside a bottomLeading-aligned embedded ZStack pointing to the parent size
+                        ZStack(alignment: .bottomLeading) {
+                            Color.clear
+                            chapterInfoPanel(layout: layout)
+                        }
+                    }
+                }
             )
-            .shadow(color: themeBlue.opacity(0.2), radius: 15, x: 0, y: layout.scaled(10))
-
-            // B. Full Character Image (Allowed to overflow!)
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Image(selectedChapter.coverCharacterImage)
-                        .resizable()
-                        .scaledToFit()
-                        // Slightly larger than container to ensure it pops out
-                        .frame(height: layout.isLandscape ? geo.size.height * 0.75 : geo.size.height * 0.45)
-                        .shadow(color: Color.black.opacity(0.25), radius: 15, x: 0, y: layout.scaled(10))
-                        // Overlap onto the right naturally
-                        .offset(x: layout.scaled(20), y: layout.scaled(15))
-                        .allowsHitTesting(false)
-                }
-            }
-
-            // C. Bottom-Left Information Panel
-            VStack {
-                Spacer()
-                HStack {
-                    chapterInfoPanel(layout: layout)
-                    Spacer()
-                }
-            }
-        }
     }
 
     // MARK: - Info Panel Details
@@ -243,8 +248,8 @@ struct StoryChapterHubView: View {
         .background(themeWhite.opacity(0.95))
         .clipShape(SlantedRect(offset: layout.scaled(18), direction: .forward))
         .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
-        .padding(.leading, layout.isLandscape ? layout.scaled(-10) : layout.scaled(10))
-        .padding(.bottom, layout.scaled(20))
+        .padding(.leading, layout.scaled(15))
+        .padding(.bottom, layout.scaled(25))
     }
 
     // MARK: - Sidebar Menu
@@ -254,7 +259,7 @@ struct StoryChapterHubView: View {
                 .font(.system(size: layout.scaled(20), weight: .heavy, design: .rounded))
                 .foregroundColor(themeDark)
                 .tracking(1.5)
-                .padding(.leading, layout.scaled(16))
+                .padding(.leading, layout.scaled(25))
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: layout.scaled(12)) {
@@ -267,7 +272,8 @@ struct StoryChapterHubView: View {
                         )
                     }
                 }
-                .padding(.horizontal, layout.scaled(10))
+                .padding(.leading, layout.scaled(25))
+                .padding(.trailing, layout.scaled(10))
                 .padding(.bottom, layout.scaled(40))
                 .padding(.top, layout.scaled(10))
             }
@@ -331,7 +337,7 @@ struct StoryChapterHubView: View {
                     .stroke(isSelected ? themeBlue : Color.clear, lineWidth: layout.scaled(2))
             )
             .shadow(color: isSelected ? themeBlue.opacity(0.25) : .black.opacity(0.05), radius: layout.scaled(8), x: 0, y: layout.scaled(4))
-            .offset(x: isSelected ? layout.scaled(-10) : 0) // Selected row pops out to the left slightly
+            .offset(x: isSelected ? layout.scaled(-15) : 0) // Selected row pops out to the left
         }
         .buttonStyle(.plain)
         .opacity(isUnlocked ? 1.0 : 0.6)
@@ -351,7 +357,7 @@ struct StoryChapterHubView: View {
             .padding(.vertical, layout.scaled(10))
             .background(themeWhite.opacity(0.95))
             .clipShape(SlantedRect(offset: layout.scaled(8), direction: .forward))
-            .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: layout.scaled(3))
+            .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: layout.scaled(3))
         }
         .buttonStyle(.plain)
     }

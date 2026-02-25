@@ -1,6 +1,6 @@
 import Foundation
 
-let chapter2BiasAndBadDataLabMiniGame =
+let oldChapter2BiasAndBadDataLabMiniGame =
     BiasDataAuditMiniGame(
         title: "Bias & Bad Data Lab",
         promptLabel: "Sort each problem into the correct bucket, then tune the model setup.",
