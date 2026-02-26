@@ -127,6 +127,9 @@ struct MainMenuView: View {
                     portraitLayout(layout: layout, geo: geometry)
                 }
 
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .overlay {
                 if showSettingsPopup {
                     MenuSettingsPopupOverlay(
                         settings: settings,
@@ -294,6 +297,7 @@ struct MainMenuView: View {
                         }
                     }
                 )
+                .padding(.top, layout.scaled(500))
                 
                 if settings.showVersionLabel {
                     Text("Ver 1.0.0")

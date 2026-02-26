@@ -22,9 +22,8 @@ struct MenuSettingsPopupOverlay: View {
                 .onTapGesture(perform: onClose)
 
             popupCard
-                .padding(.horizontal, layout.padding)
-                .padding(.vertical, max(layout.padding, layout.safeAreaInsets.top + layout.scaled(10)))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .accessibilityAddTraits(.isModal)
     }
 
