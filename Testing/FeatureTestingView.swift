@@ -11,6 +11,7 @@ struct FeatureTestingView: View {
     @State private var showAIHallucination = false
     @State private var showImageTraining = false
     @State private var activeStoryChapter: StoryChapter? = nil
+    @State private var hoveredCardID: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -22,27 +23,37 @@ struct FeatureTestingView: View {
                 )
                 
                 ZStack {
-                    // Background
+                    // Background image with blue overlay
                     Image("lantassc")
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .overlay(Color.black.opacity(0.15))
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.25, green: 0.55, blue: 0.85).opacity(0.35),
+                                    Color(red: 0.15, green: 0.40, blue: 0.70).opacity(0.25)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
                         .ignoresSafeArea()
                     
-                    // Left Side Character
+                    // Character on left side
                     HStack(spacing: 0) {
                         Image("char")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: geo.size.height * 1.1)
-                            .offset(x: -geo.size.width * 0.05, y: geo.size.height * 0.1)
-                            .shadow(color: .black.opacity(0.3), radius: 20)
+                            .frame(height: geo.size.height * 1.05)
+                            .offset(x: -geo.size.width * 0.03, y: geo.size.height * 0.08)
+                            .shadow(color: .black.opacity(0.35), radius: 25, x: 5, y: 10)
                         Spacer()
                     }
                     .ignoresSafeArea()
                     
-                    // Top Bar (Back button)
+                    // Top bar
                     VStack {
                         HStack {
                             Button(action: { dismiss() }) {
@@ -55,7 +66,7 @@ struct FeatureTestingView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
-                                .background(Color.black.opacity(0.5))
+                                .background(Color.black.opacity(0.4))
                                 .clipShape(Capsule())
                             }
                             Spacer()
@@ -64,79 +75,120 @@ struct FeatureTestingView: View {
                         Spacer()
                     }
                     
-                    // Right Side Menu
+                    // Right Side Card Grid
                     HStack {
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: layout.elementSpacing * 1.5) {
-                            Spacer()
-                            
-                            // Top large buttons
-                            HStack(spacing: layout.elementSpacing * 1.5) {
-                                LabMissionMenuButton(
-                                    title: "AI Hallucination",
+                        // Character takes left ~42%
+                        Color.clear
+                            .frame(width: geo.size.width * 0.42)
+                        
+                        // Card grid takes right ~58%
+                        VStack(spacing: layout.scaled(10)) {
+                            // Top row: 2 large cards
+                            HStack(spacing: layout.scaled(10)) {
+                                labCardView(
+                                    id: "hallucination",
+                                    title: "AI\nHallucination",
                                     subtitle: "Test Model Reliability",
-                                    color: Color(red: 0.1, green: 0.5, blue: 0.8),
+                                    icon: "brain.head.profile",
+                                    color: Color(red: 0.1, green: 0.55, blue: 0.85),
+                                    bgImage: "schooltopview",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: true,
                                     action: { showAIHallucination = true }
                                 )
                                 
-                                LabMissionMenuButton(
-                                    title: "Image Lab",
+                                labCardView(
+                                    id: "imagelab",
+                                    title: "Image\nLab",
                                     subtitle: "KNN Live Draw",
+                                    icon: "paintbrush.pointed.fill",
                                     color: Color.orange,
+                                    bgImage: "507room",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: true,
                                     action: { showImageTraining = true }
                                 )
                             }
+                            .frame(height: layout.scaled(130))
                             
-                            // Chapter 2 row 1
-                            HStack(spacing: layout.elementSpacing * 1.5) {
-                                LabMissionMenuButton(
-                                    title: "Bias Audit",
+                            // Middle row: 3 cards
+                            HStack(spacing: layout.scaled(10)) {
+                                labCardView(
+                                    id: "bias",
+                                    title: "Bias\nAudit",
                                     subtitle: "Chapter 2 Lab",
+                                    icon: "chart.bar.doc.horizontal.fill",
                                     color: Color.purple,
+                                    bgImage: "cnxaqu",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: false,
                                     action: { launchInlineActivity(title: "Bias Audit", inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)) }
                                 )
                                 
-                                LabMissionMenuButton(
-                                    title: "Zoo Hunt",
+                                labCardView(
+                                    id: "zoo",
+                                    title: "Zoo\nHunt",
                                     subtitle: "Chapter 2 Quiz",
-                                    color: Color.green,
+                                    icon: "pawprint.fill",
+                                    color: Color(red: 0.2, green: 0.75, blue: 0.45),
+                                    bgImage: "cnxgate",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: false,
                                     action: { launchInlineActivity(title: "Zoo Hunt", inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)) }
                                 )
-                            }
-                            
-                            // Chapter 2 row 2 + Chapter 3
-                            HStack(spacing: layout.elementSpacing * 1.5) {
-                                LabMissionMenuButton(
-                                    title: "AI Review",
+                                
+                                labCardView(
+                                    id: "review",
+                                    title: "AI\nReview",
                                     subtitle: "Chapter 2 Mistakes",
+                                    icon: "doc.text.magnifyingglass",
                                     color: Color.pink,
+                                    bgImage: "room",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: false,
                                     action: { launchInlineActivity(title: "AI Review", inlineActivity: .biasDataAudit(oldChapter2BiasAndBadDataLabMiniGame)) }
                                 )
-                                
-                                LabMissionMenuButton(
-                                    title: "Meme Rescue",
+                            }
+                            .frame(height: layout.scaled(110))
+                            
+                            // Bottom row: remaining cards
+                            HStack(spacing: layout.scaled(10)) {
+                                labCardView(
+                                    id: "meme",
+                                    title: "Meme\nRescue",
                                     subtitle: "Chapter 3 KNN",
+                                    icon: "bolt.heart.fill",
                                     color: Color.red,
+                                    bgImage: "507room",
                                     layout: layout,
-                                    width: layout.scaled(200),
+                                    isLarge: false,
                                     action: { launchInlineActivity(title: "Meme Rescue", inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)) }
                                 )
+                                
+                                labCardView(
+                                    id: "ethics",
+                                    title: "Ethics\nQuiz",
+                                    subtitle: "Professor New",
+                                    icon: "checkmark.shield.fill",
+                                    color: Color(red: 0.95, green: 0.55, blue: 0.15),
+                                    bgImage: "schooltopview",
+                                    layout: layout,
+                                    isLarge: false,
+                                    action: {
+                                        let chapters = StoryChapterRepository.all
+                                        if !chapters.isEmpty {
+                                            activeStoryChapter = chapters[0]
+                                        }
+                                    }
+                                )
+                                
+                                // Empty spacer card slot 
+                                Color.clear
                             }
-                            
-                            Spacer()
-                                .frame(height: layout.scaled(40))
+                            .frame(height: layout.scaled(110))
                         }
-                        .padding(.trailing, layout.padding * 2)
+                        .padding(.trailing, layout.scaled(20))
+                        .padding(.vertical, layout.scaled(60))
                     }
                 }
             }
@@ -149,6 +201,124 @@ struct FeatureTestingView: View {
             .navigationDestination(item: $activeStoryChapter) { chapter in
                 StoryChapterPlayerView(initialChapter: chapter)
             }
+        }
+    }
+    
+    // MARK: - Blue Archive Style Lab Card
+    private func labCardView(
+        id: String,
+        title: String,
+        subtitle: String,
+        icon: String,
+        color: Color,
+        bgImage: String?,
+        layout: ResponsiveLayout,
+        isLarge: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let isHovered = hoveredCardID == id
+        let slant = layout.scaled(14)
+        
+        return Button(action: action) {
+            GeometryReader { cardGeo in
+                let w = cardGeo.size.width
+                let h = cardGeo.size.height
+                
+                ZStack(alignment: .bottomLeading) {
+                    // Background: image + gradient, all properly bounded
+                    Color.clear
+                        .overlay(
+                            Group {
+                                if let bgImage = bgImage {
+                                    Image(bgImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: w, height: h)
+                                        .clipped()
+                                        .opacity(0.35)
+                                } else {
+                                    color.opacity(0.15)
+                                }
+                            }
+                        )
+                        .overlay(
+                            // Glassmorphism gradient
+                            LinearGradient(
+                                colors: [
+                                    color.opacity(0.35),
+                                    color.opacity(0.15),
+                                    Color.white.opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            // White glass layer
+                            Color.white.opacity(isHovered ? 0.35 : 0.2)
+                        )
+                        .frame(width: w, height: h)
+                        .clipShape(SlantedParallelogram(slant: slant))
+                    
+                    // Content overlay
+                    VStack(alignment: .leading, spacing: layout.scaled(3)) {
+                        Spacer()
+                        
+                        Image(systemName: icon)
+                            .font(.system(size: layout.scaled(isLarge ? 18 : 14)))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                        
+                        Text(title)
+                            .font(.system(size: layout.scaled(isLarge ? 22 : 16), weight: .black, design: .rounded))
+                            .italic()
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.65)
+                            .shadow(color: .black.opacity(0.6), radius: 3, x: 0, y: 2)
+                        
+                        Text(subtitle)
+                            .font(.system(size: layout.scaled(isLarge ? 11 : 9), weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(1)
+                            .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                    }
+                    .padding(.leading, layout.scaled(20))
+                    .padding(.bottom, layout.scaled(10))
+                    .padding(.trailing, layout.scaled(8))
+                    
+                    // Left accent bar
+                    SlantedParallelogram(slant: slant)
+                        .fill(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: color, location: 0),
+                                    .init(color: color, location: 0.06),
+                                    .init(color: .clear, location: 0.061)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: w, height: h)
+                }
+                .frame(width: w, height: h)
+                .clipShape(SlantedParallelogram(slant: slant))
+                .contentShape(SlantedParallelogram(slant: slant))
+                .overlay(
+                    SlantedParallelogram(slant: slant)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                )
+                .shadow(color: color.opacity(0.2), radius: 6, x: 2, y: 3)
+                .shadow(color: Color.black.opacity(0.12), radius: 3, x: 1, y: 2)
+            }
+            .clipped()
+            .scaleEffect(isHovered ? 1.02 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredCardID = hovering ? id : nil
         }
     }
     
