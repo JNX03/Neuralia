@@ -212,28 +212,18 @@ struct MainMenuView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: geo.size.width * 1.2, height: geo.size.height * 1.2)
-                .opacity(0.15)
+                .opacity(0.12)
                 .offset(
                     x: -viewModel.offsetX * settings.effectiveParallaxStrength * 0.25,
                     y: -viewModel.offsetY * settings.effectiveParallaxStrength * 0.25
                 )
                 .allowsHitTesting(false)
 
-            SlantedRect(offset: layout.scaled(100), direction: .forward)
-                .fill(themeWhite.opacity(0.85))
-                .frame(width: geo.size.width * 0.65, height: geo.size.height)
-                .offset(x: -geo.size.width * 0.1)
-                .ignoresSafeArea()
-
+            // Subtle blue tint on right side only
             SlantedRect(offset: layout.scaled(60), direction: .backward)
                 .fill(themeBlue.opacity(0.04))
                 .frame(width: geo.size.width * 0.5, height: geo.size.height)
                 .offset(x: geo.size.width * 0.4)
-                .ignoresSafeArea()
-            
-            // Subtle dark overlay to match original vibe but kept very light
-            Color.black
-                .opacity(settings.menuOverlayOpacity * 0.15)
                 .ignoresSafeArea()
         }
     }
@@ -241,32 +231,48 @@ struct MainMenuView: View {
     // MARK: - Landscape Layout
     private func landscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
         HStack(spacing: 0) {
-            // Left side — Big centered logo
-            VStack {
-                Spacer()
-                Image("icon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: min(geo.size.width * 0.28, 280))
-                    .shadow(color: themeBlue.opacity(0.25), radius: layout.scaled(20))
-                    .offset(
-                        x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.15,
-                        y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.1
-                    )
-                
-                if settings.showVersionLabel {
-                    Text("Ver 1.0.0")
-                        .font(.system(size: layout.captionFontSize, weight: .bold))
-                        .foregroundColor(.gray.opacity(0.6))
-                        .padding(.top, layout.scaled(12))
+            // LEFT COLUMN: Logo at top, Character at bottom
+            VStack(spacing: 0) {
+                // Logo top-left
+                HStack {
+                    Image("icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: geo.size.height * 0.22)
+                        .shadow(color: themeBlue.opacity(0.15), radius: 10)
+                        .offset(
+                            x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.08,
+                            y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.05
+                        )
+                    Spacer()
                 }
+                .padding(.leading, layout.scaled(20))
+                .padding(.top, layout.scaled(10))
+                
                 Spacer()
+                
+                // Character bottom-left
+                HStack {
+                    Image("char")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: geo.size.height * 0.7)
+                        .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 4)
+                        .offset(
+                            x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.1,
+                            y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.06
+                        )
+                        .allowsHitTesting(false)
+                    Spacer()
+                }
+                .padding(.leading, layout.scaled(15))
             }
-            .frame(width: geo.size.width * 0.5)
+            .frame(width: geo.size.width * 0.48)
             
-            // Right side — Vertically centered system menu
-            VStack {
+            // RIGHT COLUMN: System Menu vertically centered
+            VStack(spacing: 0) {
                 Spacer()
+                
                 MainMenuSidebar(
                     layout: layout,
                     geo: geo,
@@ -288,28 +294,35 @@ struct MainMenuView: View {
                         }
                     }
                 )
+                
+                if settings.showVersionLabel {
+                    Text("Ver 1.0.0")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.gray.opacity(0.5))
+                        .padding(.top, layout.scaled(8))
+                }
+                
                 Spacer()
             }
-            .frame(width: geo.size.width * 0.45)
+            .frame(width: geo.size.width * 0.48)
             .padding(.trailing, layout.scaled(15))
         }
-        .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
-        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(15))
+        .padding(.top, geo.safeAreaInsets.top + layout.scaled(10))
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(10))
     }
     
     // MARK: - Portrait Layout
     private func portraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
-        VStack(spacing: layout.scaled(20)) {
-            Spacer()
-            
-            // Big centered logo
+        VStack(spacing: layout.scaled(10)) {
+            // Logo top-center
             Image("icon")
                 .resizable()
                 .scaledToFit()
-                .frame(width: min(geo.size.width * 0.35, 200))
-                .shadow(color: themeBlue.opacity(0.25), radius: layout.scaled(15))
+                .frame(height: geo.size.height * 0.15)
+                .shadow(color: themeBlue.opacity(0.15), radius: 8)
+                .padding(.top, geo.safeAreaInsets.top + layout.scaled(10))
             
-            // Menu below logo
+            // Menu
             MainMenuSidebar(
                 layout: layout,
                 geo: geo,
@@ -332,18 +345,17 @@ struct MainMenuView: View {
                 }
             )
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, layout.scaled(20))
             
             if settings.showVersionLabel {
                 Text("Ver 1.0.0")
                     .font(.system(size: layout.captionFontSize, weight: .bold))
-                    .foregroundColor(.gray.opacity(0.6))
+                    .foregroundColor(.gray.opacity(0.5))
             }
             
             Spacer()
         }
-        .padding(.horizontal, layout.scaled(25))
-        .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
-        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(15))
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(10))
     }
     
     private func configureMotionTimer() {
