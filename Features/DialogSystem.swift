@@ -7519,7 +7519,7 @@ struct BiasDataAuditMiniGameCard: View {
     }
 }
 
-// MARK: - Classroom Stage Style Bias Data Audit (Card by Card with Dialog Panes)
+// MARK: - Classroom Stage Style Bias Data Audit (LectureQuiz Dialog Style)
 struct ClassroomBiasDataAuditMiniGameStage: View {
     let minigame: BiasDataAuditMiniGame
     let layout: DialogAdaptiveLayout
@@ -7549,10 +7549,6 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
     }
 
     private var isLastCard: Bool { currentCardIndex >= cards.count - 1 }
-
-    private var allCardsSorted: Bool {
-        cards.allSatisfy { selectionsByCardID[$0.id] != nil }
-    }
 
     private var correctSortCount: Int {
         cards.reduce(0) { count, card in
@@ -7588,419 +7584,387 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
         min(layout.width - (layout.isCompact ? 12 : 24), layout.isCompact ? 760 : 1500)
     }
 
-    private var rightPanelMaxWidth: CGFloat {
-        layout.width < 700 ? .infinity : min(layout.width * 0.55, 650)
+    private var centerPanelMaxWidth: CGFloat {
+        switch true {
+        case layout.width < 700:
+            return min(layout.width - 24, 700)
+        case layout.width < 1100:
+            return min(layout.width * 0.72, 820)
+        default:
+            return min(layout.width * 0.52, 860)
+        }
     }
 
     private var spriteHeight: CGFloat {
-        let lo: CGFloat = layout.isCompact ? 300 : 380
-        let hi: CGFloat = layout.isCompact ? 450 : 700
-        return min(max(layout.height * (layout.isCompact ? 0.45 : 0.65), lo), hi)
+        let lo: CGFloat = layout.isCompact ? 205 : 265
+        let hi: CGFloat = layout.isCompact ? 350 : 610
+        return min(max(layout.height * (layout.isCompact ? 0.33 : 0.47), lo), hi)
     }
-    
-    // To leave space for the bottom currency/bounty bar
-    private var bottomBarReserve: CGFloat { layout.isCompact ? 140 : 160 }
 
-    // MARK: Dialog Strings
-    private var teacherDialogText: String {
+    private var bottomDialogReserve: CGFloat {
+        layout.width < 780 ? (layout.isCompact ? 220 : 240) : (layout.isCompact ? 190 : 220)
+    }
+
+    private var dialogVerticalLift: CGFloat {
+        if layout.width < 780 {
+            return layout.isCompact ? 58 : 72
+        }
+        return layout.isCompact ? 74 : 96
+    }
+
+    private var characterHorizontalPush: CGFloat {
+        if layout.width < 700 { return 22 }
+        if layout.width < 1000 { return 36 }
+        return layout.isCompact ? 48 : 76
+    }
+
+    // MARK: Dialog Text
+    private var dialogText: String {
         if showConfigStep {
             return configPassed
                 ? "Settings look great! The data pipeline is much healthier now."
                 : "Tune the sliders to improve the data quality before we finish."
         }
         if isCurrentCardAnswered, feedbackVisible {
-            let isCorrect = selectionsByCardID[currentCard.id] == currentCard.correctBucketID
-            return isCorrect ? "✅ Correct: \(currentCard.feedback)" : "❌ Incorrect: \(currentCard.feedback)"
+            return currentCard.feedback
         }
         if isTyping && !instructionText.isEmpty { return instructionText }
         if currentCardIndex == 0 && !instructionText.isEmpty { return instructionText }
-        return "Please review this case and select the correct issue category."
+        return "Review this case and classify the issue."
     }
 
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Background Layer
-            backgroundGradient
-            
-            // Content Layout
-            if layout.width < 700 {
-                // Stacked Layout for compact width
+            // Character sprite layer (behind everything)
+            characterLayer
+
+            // Center content column
+            VStack(spacing: layout.isCompact ? 6 : 8) {
+                topUtilityRow
+
                 VStack(spacing: 0) {
-                    topHeaderRow
-                        .padding(.top, 10)
-                        .padding(.horizontal, layout.dialogPadding)
-                    
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 16) {
-                            characterImageLayer
-                                .frame(height: spriteHeight * 0.7)
-                            
-                            rightContentPanel
-                                .padding(.horizontal, layout.dialogPadding)
-                                .padding(.bottom, bottomBarReserve + 20)
-                        }
+                    Spacer(minLength: layout.isCompact ? 8 : 12)
+
+                    if showConfigStep {
+                        configCenterPanel
+                            .frame(maxWidth: centerPanelMaxWidth)
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    } else {
+                        centerCaseCard
+                            .frame(maxWidth: centerPanelMaxWidth)
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
                     }
+
+                    Spacer(minLength: bottomDialogReserve)
                 }
-            } else {
-                // Location Select Side-by-Side Layout
-                HStack(spacing: 0) {
-                    // Left Column - Character
-                    VStack {
-                        topHeaderRow
-                            .padding(.top, 20)
-                            .padding(.leading, max(20, layout.dialogPadding))
-                        
-                        Spacer()
-                        characterImageLayer
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Right Column - Case Selection / Config
-                    VStack {
-                        Spacer(minLength: layout.safeAreaInsets.top + 20)
-                        
-                        ScrollView(showsIndicators: false) {
-                            rightContentPanel
-                                .padding(.trailing, max(20, layout.dialogPadding))
-                                .padding(.bottom, bottomBarReserve + 40)
-                                .padding(.top, 40)
-                        }
-                    }
-                    .frame(width: rightPanelMaxWidth)
-                }
-                .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .center)
             }
-            
-            // Bottom Dialog / Bounty Bar
-            VStack(spacing: 0) {
+            .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .top)
+
+            // Bottom fade gradient
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .clear, location: 0.58),
+                    .init(color: Color.black.opacity(0.22), location: 0.66),
+                    .init(color: Color.black.opacity(0.48), location: 0.78),
+                    .init(color: Color.black.opacity(0.78), location: 0.90),
+                    .init(color: Color.black.opacity(0.94), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, -(layout.dialogPadding + (layout.isCompact ? 18 : 28)))
+            .allowsHitTesting(false)
+
+            // Bottom dialog + action buttons
+            VStack(spacing: layout.isCompact ? 8 : 10) {
                 Spacer()
-                
-                // Dialog pane fading
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.4), location: 0.2),
-                        .init(color: Color.black.opacity(0.85), location: 0.6),
-                        .init(color: Color.black.opacity(0.95), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: bottomBarReserve + 80)
-                .allowsHitTesting(false)
-                .overlay(alignment: .bottom) {
-                    bottomBountyActionRow
-                        .padding(.bottom, layout.safeAreaInsets.bottom + 16)
-                        .padding(.horizontal, layout.dialogPadding)
-                        .frame(maxWidth: stageMaxWidth)
+
+                // Dialog pane
+                bottomDialogPane
+
+                // Action buttons
+                bottomActionRow
+
+                if isCompleted {
+                    Button(action: onContinue) {
+                        Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.green.opacity(0.92), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
-            .ignoresSafeArea()
+            .frame(maxWidth: stageMaxWidth, maxHeight: .infinity)
+            .padding(.horizontal, 4)
+            .padding(.bottom, dialogVerticalLift)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
-    // MARK: - Background
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [
-                Color(hex: "0D1424"),
-                Color(hex: "132743"),
-                Color(hex: "0F1A2C")
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-        .overlay(
-            // Subtle tech grid pattern effect
-            GeometryReader { geo in
-                Path { path in
-                    let step: CGFloat = 40
-                    for x in stride(from: 0, to: geo.size.width, by: step) {
-                        path.move(to: CGPoint(x: x, y: 0))
-                        path.addLine(to: CGPoint(x: x, y: geo.size.height))
-                    }
-                    for y in stride(from: 0, to: geo.size.height, by: step) {
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: geo.size.width, y: y))
-                    }
-                }
-                .stroke(Color.white.opacity(0.015), lineWidth: 1)
+
+    // MARK: - Character Layer
+    private var characterLayer: some View {
+        ZStack(alignment: .bottom) {
+            HStack {
+                Image(characterImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(
+                        maxWidth: min(layout.width * 0.38, 420),
+                        maxHeight: spriteHeight,
+                        alignment: .bottom
+                    )
+                    .offset(x: -characterHorizontalPush, y: -14)
+                    .shadow(color: Color.cyan.opacity(0.12), radius: 20, x: 0, y: 0)
+                    .shadow(color: Color.black.opacity(0.32), radius: 12, x: 0, y: 10)
+                    .allowsHitTesting(false)
+                Spacer(minLength: 0)
             }
-        )
+        }
+        .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, layout.isCompact ? 6 : 10)
+        .padding(.bottom, max(0, bottomDialogReserve - 30))
     }
 
-    // MARK: - Character
-    private var characterImageLayer: some View {
-        Image(characterImageName)
-            .resizable()
-            .scaledToFit()
-            .frame(maxHeight: spriteHeight, alignment: .bottomLeading)
-            .shadow(color: Color.cyan.opacity(0.15), radius: 25, x: 0, y: 0)
-            .shadow(color: Color.black.opacity(0.4), radius: 10, x: 0, y: 15)
-            .allowsHitTesting(false)
-            .offset(y: layout.width < 700 ? 0 : 20)
-    }
-
-    // MARK: - Header
-    private var topHeaderRow: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(showConfigStep ? "PARAMETER TUNING" : "DATA CASE SELECT")
-                    .font(.system(size: layout.isCompact ? 22 : 30, weight: .black, design: .rounded))
-                    .italic()
-                    .foregroundColor(.white)
-                    .shadow(color: Color.blue.opacity(0.5), radius: 8, x: 0, y: 2)
-                
-                HStack(spacing: 6) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 12))
-                    Text(minigame.title.uppercased())
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                }
-                .foregroundColor(.cyan.opacity(0.8))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            if !showConfigStep {
-                // Progress counter pill
-                HStack(spacing: 6) {
-                    Image(systemName: "folder.fill")
-                    Text("\(currentCardIndex + 1) / \(cards.count)")
-                        .fontWeight(.heavy)
-                }
-                .font(.system(size: layout.isCompact ? 14 : 16))
+    // MARK: - Top Utility Row
+    private var topUtilityRow: some View {
+        HStack(spacing: 10) {
+            Text(showConfigStep ? "Calibration" : "Case \(currentCardIndex + 1) / \(cards.count)")
+                .font(.system(size: layout.captionFontSize + 2, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
-            }
-        }
-    }
-    
-    // MARK: - Right Panel Content
-    private var rightContentPanel: some View {
-        VStack(spacing: layout.isCompact ? 16 : 24) {
-            if showConfigStep {
-                configStagePanel
-            } else {
-                locationSelectCaseList
-                
-                if feedbackVisible {
-                    feedbackCard
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.34), in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+
+            Text(minigame.title)
+                .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                .foregroundColor(.white.opacity(0.86))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.24), in: Capsule())
+
+            Spacer(minLength: 8)
+
+            if isTyping {
+                Button(action: onSkipTyping) {
+                    Label("Skip Text", systemImage: "forward.fill")
+                        .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.white.opacity(0.12), in: Capsule())
                 }
+                .buttonStyle(.plain)
             }
         }
     }
-    
-    // MARK: Location Select Style Case List
-    private var locationSelectCaseList: some View {
+
+    // MARK: - Center Case Card
+    private var centerCaseCard: some View {
         VStack(spacing: layout.isCompact ? 10 : 14) {
-            ForEach(Array(cards.enumerated()), id: \.element.id) { index, caseCard in
-                caseListItem(index: index, caseCard: caseCard)
-            }
-        }
-    }
-    
-    private func caseListItem(index: Int, caseCard: BiasDataAuditCard) -> some View {
-        let isActive = index == currentCardIndex
-        let isAnswered = selectionsByCardID[caseCard.id] != nil
-        let isCorrect = selectionsByCardID[caseCard.id] == caseCard.correctBucketID
-        
-        return Button {
-            if !isAnswered && !isCompleted {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    currentCardIndex = index
-                    feedbackVisible = false
-                }
-            }
-        } label: {
-            HStack(spacing: 0) {
-                // Left Accent Bar
-                Rectangle()
-                    .fill(isActive ? Color.cyan : (isAnswered ? (isCorrect ? Color.green : Color.orange) : Color.white.opacity(0.1)))
-                    .frame(width: 6)
-                
-                HStack(spacing: 16) {
-                    // Icon
-                    ZStack {
-                        Circle()
-                            .fill(Color.white.opacity(0.08))
-                            .frame(width: 44, height: 44)
-                        if let sysImg = caseCard.systemImage {
+            // Case info card
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    if let sysImg = currentCard.systemImage {
+                        ZStack {
+                            Circle()
+                                .fill(Color.cyan.opacity(0.12))
+                                .frame(width: 52, height: 52)
                             Image(systemName: sysImg)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(isActive ? .cyan : (isAnswered ? .white : .white.opacity(0.5)))
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.cyan)
                         }
                     }
-                    
-                    // Texts
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(caseCard.title)
-                            .font(.system(size: layout.isCompact ? 15 : 18, weight: .bold, design: .rounded))
-                            .foregroundColor(isActive ? .white : .white.opacity(0.8))
-                            .lineLimit(1)
-                        
-                        Text(caseCard.detail)
-                            .font(.system(size: layout.isCompact ? 12 : 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.5))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                    }
-                    
-                    Spacer(minLength: 10)
-                    
-                    // Status Badge (like Bounty Tickets)
-                    VStack {
-                        if isAnswered {
-                            HStack(spacing: 4) {
-                                Image(systemName: isCorrect ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                                Text(isCorrect ? "CLEARED" : "REVIEW")
-                            }
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundColor(isCorrect ? .green : .orange)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background((isCorrect ? Color.green : Color.orange).opacity(0.15), in: Capsule())
-                        } else if isActive {
-                            HStack(spacing: 4) {
-                                Image(systemName: "magnifyingglass")
-                                Text("ACTIVE")
-                            }
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundColor(.cyan)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.cyan.opacity(0.15), in: Capsule())
-                        }
+                        Text(currentCard.title)
+                            .font(.system(size: layout.isCompact ? 16 : 19, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Case \(currentCardIndex + 1) of \(cards.count)")
+                            .font(.system(size: layout.captionFontSize, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.cyan.opacity(0.7))
                     }
                 }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 16)
-                .background(
-                    ZStack {
-                        Color.white.opacity(isActive ? 0.08 : 0.03)
-                        if isActive {
-                            LinearGradient(
-                                colors: [Color.cyan.opacity(0.15), .clear],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        }
-                    }
-                )
+
+                Text(currentCard.detail)
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isActive ? Color.cyan.opacity(0.5) : Color.white.opacity(0.05), lineWidth: isActive ? 1.5 : 1)
+            .padding(layout.isCompact ? 16 : 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                ZStack {
+                    Color.black.opacity(0.45)
+                    LinearGradient(
+                        colors: [Color.cyan.opacity(0.06), Color.clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
             )
-            .shadow(color: isActive ? Color.cyan.opacity(0.2) : .clear, radius: 8, x: 0, y: 0)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.cyan.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 6)
+
+            // Feedback card (after answering)
+            if feedbackVisible, isCurrentCardAnswered {
+                feedbackCard
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
+            // Navigation buttons
+            if canGoNext || canShowConfig {
+                Button {
+                    if canGoNext { goToNextCard() }
+                    else if canShowConfig { withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { showConfigStep = true } }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(canGoNext ? "Next Case" : "Begin Calibration")
+                        Image(systemName: canGoNext ? "arrow.right.circle.fill" : "slider.horizontal.3")
+                    }
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, layout.isCompact ? 11 : 13)
+                    .background(
+                        LinearGradient(
+                            colors: canShowConfig
+                                ? [Color.green.opacity(0.95), Color.mint.opacity(0.9)]
+                                : [Color.blue.opacity(0.95), Color.cyan.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(isAnswered || isCompleted)
-        .opacity(isAnswered && !isActive ? 0.6 : 1.0)
     }
-    
+
     // MARK: - Feedback Card
     private var feedbackCard: some View {
         let isCorrect = selectionsByCardID[currentCard.id] == currentCard.correctBucketID
         let selectedBucket = currentSelectedBucket
         let correctBucket = minigame.buckets.first(where: { $0.id == currentCard.correctBucketID })
 
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.octagon.fill")
-                    .font(.system(size: 24))
-                Text(isCorrect ? "ANALYSIS CORRECT" : "ANALYSIS FAILED")
-                    .font(.system(size: 16, weight: .black, design: .monospaced))
+                    .font(.system(size: 20))
+                Text(isCorrect ? "Correct!" : "Not quite…")
+                    .font(.system(size: layout.isCompact ? 15 : 17, weight: .bold, design: .rounded))
                 Spacer()
             }
-            .foregroundColor(isCorrect ? .green : .red)
-            
+            .foregroundColor(isCorrect ? .green : .orange)
+
             Text(currentCard.feedback)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.9))
+                .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.88))
                 .fixedSize(horizontal: false, vertical: true)
-                
+
             if !isCorrect, let selectedBucket, let correctBucket {
-                Divider().background(Color.white.opacity(0.2))
-                HStack(spacing: 8) {
-                    Text("Selected:").foregroundColor(.white.opacity(0.5))
-                    Text(selectedBucket.title).foregroundColor(Color(hex: selectedBucket.accentHex))
+                HStack(spacing: 6) {
+                    Text("You chose:")
+                        .foregroundColor(.white.opacity(0.5))
+                    Text(selectedBucket.title)
+                        .foregroundColor(Color(hex: selectedBucket.accentHex))
                     Spacer()
-                    Text("Target:").foregroundColor(.white.opacity(0.5))
-                    Text(correctBucket.title).foregroundColor(Color(hex: correctBucket.accentHex))
+                    Text("Answer:")
+                        .foregroundColor(.white.opacity(0.5))
+                    Text(correctBucket.title)
+                        .foregroundColor(Color(hex: correctBucket.accentHex))
                         .fontWeight(.bold)
                 }
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
             }
         }
-        .padding(16)
+        .padding(layout.isCompact ? 14 : 16)
         .background(
-            Color.black.opacity(0.4)
-                .overlay(
-                    LinearGradient(
-                        colors: [(isCorrect ? Color.green : Color.red).opacity(0.1), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            (isCorrect ? Color.green : Color.orange).opacity(0.08)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke((isCorrect ? Color.green : Color.red).opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke((isCorrect ? Color.green : Color.orange).opacity(0.25), lineWidth: 1)
         )
     }
 
-    // MARK: - Config Stage Panel
-    private var configStagePanel: some View {
-        VStack(spacing: layout.isCompact ? 16 : 20) {
+    // MARK: - Config Center Panel
+    private var configCenterPanel: some View {
+        VStack(spacing: layout.isCompact ? 14 : 18) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3")
-                    Text("SYSTEM CALIBRATION")
+                        .font(.system(size: 18, weight: .bold))
+                    Text("System Calibration")
+                        .font(.system(size: layout.isCompact ? 18 : 22, weight: .bold, design: .rounded))
                 }
-                .font(.system(size: 16, weight: .black, design: .monospaced))
                 .foregroundColor(.cyan)
-                
+
                 Text(minigame.configHint)
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.7))
+                    .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 8)
 
-            VStack(spacing: 16) {
-                stageSlider(title: "Noise Filter Level", subtitle: "Target: ≤ \(Int(minigame.noiseTargetMax))%", value: $noiseLevel, passed: noiseLevel <= minigame.noiseTargetMax, tint: .orange)
-                
-                stageSlider(title: "Dataset Diversity", subtitle: "Target: ≥ \(Int(minigame.diversityTargetMin))%", value: $diversityLevel, passed: diversityLevel >= minigame.diversityTargetMin, tint: .blue)
-                
-                stageSlider(title: "Label Verification", subtitle: "Target: ≥ \(Int(minigame.labelQualityTargetMin))%", value: $labelQualityLevel, passed: labelQualityLevel >= minigame.labelQualityTargetMin, tint: .green)
+            VStack(spacing: 14) {
+                configSlider(title: "Noise Filter Level", subtitle: "Target: ≤ \(Int(minigame.noiseTargetMax))%", value: $noiseLevel, passed: noiseLevel <= minigame.noiseTargetMax, tint: .orange)
+                configSlider(title: "Dataset Diversity", subtitle: "Target: ≥ \(Int(minigame.diversityTargetMin))%", value: $diversityLevel, passed: diversityLevel >= minigame.diversityTargetMin, tint: .blue)
+                configSlider(title: "Label Verification", subtitle: "Target: ≥ \(Int(minigame.labelQualityTargetMin))%", value: $labelQualityLevel, passed: labelQualityLevel >= minigame.labelQualityTargetMin, tint: .green)
             }
-            
-            Text("SORT ACCURACY: \(correctSortCount)/\(cards.count)")
-                .font(.system(size: 12, weight: .black, design: .monospaced))
-                .foregroundColor(Color.white.opacity(0.4))
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.top, 8)
+
+            HStack {
+                Text("Sort accuracy: \(correctSortCount)/\(cards.count)")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.4))
+                Spacer()
+                if configPassed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.seal.fill")
+                        Text("All targets met")
+                    }
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.green)
+                }
+            }
         }
-        .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        .padding(layout.isCompact ? 16 : 22)
+        .background(
+            ZStack {
+                Color.black.opacity(0.45)
+                LinearGradient(
+                    colors: [Color.cyan.opacity(0.04), Color.clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.cyan.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 6)
     }
 
-    private func stageSlider(title: String, subtitle: String, value: Binding<Double>, passed: Bool, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func configSlider(title: String, subtitle: String, value: Binding<Double>, passed: Bool, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -8014,143 +7978,111 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
                     .foregroundColor(passed ? tint : .white)
                     .frame(width: 45, alignment: .trailing)
             }
-            
             Slider(value: value, in: 0...100, step: 1)
                 .tint(tint)
-            
-            ProgressView(value: passed ? 1.0 : 0.0)
-                .progressViewStyle(.linear)
-                .tint(passed ? tint : .clear)
-                .frame(height: 2)
-                .opacity(0.5)
         }
-        .padding(14)
-        .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(12)
+        .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(tint.opacity(passed ? 0.3 : 0.05), lineWidth: 1)
+                .stroke(tint.opacity(passed ? 0.25 : 0.05), lineWidth: 1)
         )
     }
 
-    // MARK: - Bottom Bounty / Action Row
-    private var bottomBountyActionRow: some View {
-        VStack(spacing: 12) {
-            // Teacher / System Dialog
-            HStack(alignment: .top, spacing: 12) {
-                Image(characterImageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 44, height: 44)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.cyan.opacity(0.5), lineWidth: 1.5))
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(aiName.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .monospaced))
-                        .foregroundColor(.cyan)
-                    Text(teacherDialogText)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
+    // MARK: - Bottom Dialog Pane
+    private var bottomDialogPane: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(characterImageName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.cyan.opacity(0.45), lineWidth: 1.5))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(aiName.uppercased())
+                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                    .foregroundColor(.cyan)
+                Text(dialogText)
+                    .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.92))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(12)
-            .background(Color.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
-            
-            // Actions / Shop Bar
-            HStack(spacing: layout.isCompact ? 8 : 12) {
-                if isCompleted {
-                    // Continue Story Button
-                    Button(action: onContinue) {
-                        HStack {
-                            Text("FINISH LAB")
-                            Image(systemName: "chevron.right.2")
-                        }
-                        .font(.system(size: 15, weight: .black, design: .monospaced))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.cyan)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.black.opacity(0.52), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Bottom Action Row
+    private var bottomActionRow: some View {
+        Group {
+            if showConfigStep {
+                Button(action: completeAudit) {
+                    HStack(spacing: 8) {
+                        Text(configPassed ? "Apply Calibration" : "Targets Not Met")
+                        Image(systemName: configPassed ? "checkmark.circle.fill" : "lock.fill")
                     }
-                    .buttonStyle(.plain)
-                } else if showConfigStep {
-                    // Complete Calibration Button
-                    Button(action: completeAudit) {
-                        HStack {
-                            Text(configPassed ? "APPLY CALIBRATION" : "TUNING REQUIRED")
-                            Image(systemName: configPassed ? "checkmark.circle.fill" : "lock.fill")
-                        }
-                        .font(.system(size: 14, weight: .black, design: .monospaced))
-                        .foregroundColor(configPassed ? .black : .white.opacity(0.5))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(configPassed ? Color.green : Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!configPassed || hasSubmitted)
-                } else if !isCurrentCardAnswered {
-                    // Bucket Selection Choices
+                    .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold, design: .rounded))
+                    .foregroundColor(configPassed ? .white : .white.opacity(0.5))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, layout.isCompact ? 11 : 13)
+                    .background(
+                        configPassed
+                            ? AnyShapeStyle(LinearGradient(colors: [Color.green.opacity(0.95), Color.mint.opacity(0.9)], startPoint: .leading, endPoint: .trailing))
+                            : AnyShapeStyle(Color.white.opacity(0.08)),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!configPassed || hasSubmitted)
+                .opacity(hasSubmitted ? 0.6 : 1)
+            } else if !isCurrentCardAnswered && !isCompleted {
+                HStack(spacing: layout.isCompact ? 8 : 12) {
                     ForEach(minigame.buckets) { bucket in
-                        bucketChoicePill(bucket: bucket)
+                        bucketChoiceButton(bucket: bucket)
                     }
-                } else {
-                    // Next / Config Progression
-                    Button {
-                        if canGoNext { goToNextCard() }
-                        else if canShowConfig { withAnimation(.spring) { showConfigStep = true } }
-                    } label: {
-                        HStack {
-                            Text(canGoNext ? "NEXT CASE" : "BEGIN CALIBRATION")
-                            Image(systemName: canGoNext ? "arrow.right" : "slider.horizontal.3")
-                        }
-                        .font(.system(size: 14, weight: .black, design: .monospaced))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
                 }
             }
         }
     }
-    
-    // Bottom action pill for Bucket selection
-    private func bucketChoicePill(bucket: BiasDataAuditBucket) -> some View {
+
+    // MARK: - Bucket Choice Button
+    private func bucketChoiceButton(bucket: BiasDataAuditBucket) -> some View {
         let bucketColor = Color(hex: bucket.accentHex)
         return Button {
             selectBucket(bucket)
         } label: {
-            HStack(spacing: 6) {
+            VStack(spacing: 4) {
                 if let sysImg = bucket.systemImage {
                     Image(systemName: sysImg)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
                 }
-                Text(bucket.title.uppercased())
-                    .font(.system(size: layout.isCompact ? 11 : 13, weight: .heavy, design: .monospaced))
+                Text(bucket.title)
+                    .font(.system(size: layout.isCompact ? 10 : 12, weight: .heavy, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundColor(bucketColor)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color.black.opacity(0.6))
+            .padding(.vertical, layout.isCompact ? 12 : 14)
             .background(
-                LinearGradient(
-                    colors: [bucketColor.opacity(0.15), .clear],
-                    startPoint: .top, endPoint: .bottom
-                )
+                ZStack {
+                    Color.black.opacity(0.5)
+                    LinearGradient(
+                        colors: [bucketColor.opacity(0.12), .clear],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(bucketColor.opacity(0.5), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(bucketColor.opacity(0.4), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
