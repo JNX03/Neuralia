@@ -70,6 +70,11 @@ class MainMenuViewModel: ObservableObject {
             offsetY *= 0.98
         }
     }
+    
+    func resetOffsets() {
+        offsetX = 0
+        offsetY = 0
+    }
 }
 
 // MARK: - Menu Destination Enum
@@ -95,7 +100,14 @@ struct MainMenuView: View {
     @State private var destination: MenuDestination? = nil
     @State private var showSettingsPopup = false
     @State private var showCreditsPopup = false
+    @State private var hoveredButton: String? = nil
     
+    // MARK: - Visual Novel / Blue Archive Theme Colors
+    private let themeBlue = Color(red: 0.12, green: 0.51, blue: 0.88)
+    private let themeLight = Color(red: 0.88, green: 0.95, blue: 0.98)
+    private let themeDark = Color(red: 0.05, green: 0.15, blue: 0.25)
+    private let themeWhite = Color.white
+
     var body: some View {
         GeometryReader { geometry in
             let layout = ResponsiveLayout(
@@ -106,20 +118,14 @@ struct MainMenuView: View {
             
             ZStack {
                 // Background
-                backgroundLayer(layout: layout)
+                backgroundLayer(layout: layout, geo: geometry)
                 
                 // Content based on layout mode
-                switch layout.layoutMode {
-                case .compact, .regular:
-                    compactLayout(layout: layout)
-                case .expanded:
-                    expandedLayout(layout: layout)
-                case .desktop:
-                    desktopLayout(layout: layout)
+                if layout.isLandscape {
+                    landscapeLayout(layout: layout, geo: geometry)
+                } else {
+                    portraitLayout(layout: layout, geo: geometry)
                 }
-                
-                // Version info - always at bottom
-                versionLabel(layout: layout)
 
                 if showSettingsPopup {
                     MenuSettingsPopupOverlay(
@@ -191,245 +197,153 @@ struct MainMenuView: View {
         }
     }
     
-    // MARK: - Background
-    private func backgroundLayer(layout: ResponsiveLayout) -> some View {
+    // MARK: - Background Layer
+    private func backgroundLayer(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
         ZStack {
+            LinearGradient(
+                colors: [themeWhite, themeLight, themeWhite],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            // Large Animated Background Image that parallax shifts
             Image("lantassc")
                 .resizable()
                 .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .scaleEffect(1.08)
+                .frame(width: geo.size.width * 1.2, height: geo.size.height * 1.2)
+                .opacity(0.15)
                 .offset(
                     x: -viewModel.offsetX * settings.effectiveParallaxStrength * 0.25,
                     y: -viewModel.offsetY * settings.effectiveParallaxStrength * 0.25
                 )
+                .allowsHitTesting(false)
 
-            LinearGradient(
-                colors: [
-                    Color.black.opacity(0.25),
-                    Color.black.opacity(0.4),
-                    Color.black.opacity(0.7)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            SlantedRect(offset: layout.scaled(100), direction: .forward)
+                .fill(themeWhite.opacity(0.85))
+                .frame(width: geo.size.width * 0.65, height: geo.size.height)
+                .offset(x: -geo.size.width * 0.1)
+                .ignoresSafeArea()
 
+            SlantedRect(offset: layout.scaled(60), direction: .backward)
+                .fill(themeBlue.opacity(0.04))
+                .frame(width: geo.size.width * 0.5, height: geo.size.height)
+                .offset(x: geo.size.width * 0.4)
+                .ignoresSafeArea()
+            
+            // Subtle dark overlay to match original vibe but kept very light
             Color.black
-                .opacity(0.1 + (settings.menuOverlayOpacity * 0.35))
+                .opacity(settings.menuOverlayOpacity * 0.15)
                 .ignoresSafeArea()
         }
-        .ignoresSafeArea()
     }
     
-    // MARK: - Compact Layout (iPhone Portrait/Small)
-    private func compactLayout(layout: ResponsiveLayout) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
-                // Icon - Much bigger
-                HStack {
-                    Spacer()
-                    Image("icon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: layout.menuIconSize * 1.5, height: layout.menuIconSize * 1.5)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(15))
-                    Spacer()
-                }
-                .padding(.top, layout.safeAreaInsets.top + 10)
-                
-                // Menu buttons
-                menuButtons(layout: layout)
-                
-                Spacer()
-                
-                // Status
-                statusIndicator(layout: layout)
-            }
-            .padding(layout.padding)
-            .frame(width: layout.menuWidth)
-            .background(menuPanelBackground(layout: layout))
-            .offset(
-                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
-                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
-            )
-            .padding(layout.padding)
-            
-            Spacer()
-        }
-    }
-    
-    // MARK: - Expanded Layout (iPad)
-    private func expandedLayout(layout: ResponsiveLayout) -> some View {
+    // MARK: - Landscape Layout
+    private func landscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
         HStack(spacing: 0) {
-            // Left panel with menu
-            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
-                HStack {
-                    Spacer()
-                    Image("icon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: layout.menuIconSize * 1.6, height: layout.menuIconSize * 1.6)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(18))
-                    Spacer()
-                }
-                .padding(.top, layout.safeAreaInsets.top + 20)
-                
-                menuButtons(layout: layout)
-                
-                Spacer()
-                
-                statusIndicator(layout: layout)
-            }
-            .padding(layout.padding)
-            .frame(width: layout.menuWidth)
-            .background(menuPanelBackground(layout: layout))
-            .offset(
-                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
-                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
-            )
-            .padding(layout.padding)
-            
-            Spacer()
-        }
-    }
-    
-    // MARK: - Desktop Layout (Mac/Ultrawide)
-    private func desktopLayout(layout: ResponsiveLayout) -> some View {
-        HStack(spacing: 0) {
-            // Left sidebar
-            VStack(alignment: .leading, spacing: layout.sectionSpacing) {
-                HStack {
-                    Spacer()
-                    Image("icon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: layout.menuIconSize * 1.8, height: layout.menuIconSize * 1.8)
-                        .shadow(color: .black.opacity(0.5), radius: layout.scaled(20))
-                    Spacer()
-                }
-                .padding(.top, layout.safeAreaInsets.top + 30)
-                
-                menuButtons(layout: layout)
-                
-                Spacer()
-                
-                statusIndicator(layout: layout)
-            }
-            .padding(layout.padding)
-            .frame(width: layout.menuWidth)
-            .background(menuPanelBackground(layout: layout))
-            .offset(
-                x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.18,
-                y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.12
-            )
-            .padding(layout.padding * 1.5)
-            
-            Spacer()
-            
-            // Right side - could add additional content here
+            // Left side — Big centered logo
             VStack {
                 Spacer()
+                Image("icon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: min(geo.size.width * 0.28, 280))
+                    .shadow(color: themeBlue.opacity(0.25), radius: layout.scaled(20))
+                    .offset(
+                        x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.15,
+                        y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.1
+                    )
+                
+                if settings.showVersionLabel {
+                    Text("Ver 1.0.0")
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                        .foregroundColor(.gray.opacity(0.6))
+                        .padding(.top, layout.scaled(12))
+                }
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
-        }
-    }
-    
-    // MARK: - Menu Buttons
-    private func menuButtons(layout: ResponsiveLayout) -> some View {
-        VStack(spacing: layout.elementSpacing * 1.5) {
-            // Primary buttons - Play, Select, and Lab (bigger)
-            LargeMenuButton(
-                title: "Play",
-                icon: "play.fill",
-                layout: layout,
-                action: {
-                    destination = .playChapterOne
-                }
-            )
+            .frame(width: geo.size.width * 0.5)
             
-            LargeMenuButton(
-                title: "Select",
-                icon: "square.grid.2x2",
-                layout: layout,
-                action: {
-                    destination = .chapterSelect
-                }
-            )
-            
-            LargeMenuButton(
-                title: "Lab",
-                subtitle: "Playground",
-                icon: "testtube.2",
-                layout: layout,
-                action: {
-                    destination = .featureTesting
-                }
-            )
-            
-            // Small action buttons row - equal sizes
-            HStack(spacing: layout.elementSpacing) {
-                SmallIconButton(
-                    title: "Settings",
-                    subtitle: nil,
-                    icon: "gearshape.fill",
+            // Right side — Vertically centered system menu
+            VStack {
+                Spacer()
+                MainMenuSidebar(
                     layout: layout,
-                    action: {
+                    geo: geo,
+                    themeBlue: themeBlue,
+                    themeWhite: themeWhite,
+                    themeDark: themeDark,
+                    hoveredButton: $hoveredButton,
+                    onPlay: { destination = .playChapterOne },
+                    onSelect: { destination = .chapterSelect },
+                    onLab: { destination = .featureTesting },
+                    onSettings: {
                         withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                             showSettingsPopup = true
                         }
-                    }
-                )
-                .frame(maxWidth: .infinity)
-                
-                SmallIconButton(
-                    title: "About",
-                    subtitle: "Credit",
-                    icon: "info.circle.fill",
-                    layout: layout,
-                    action: {
+                    },
+                    onAbout: {
                         withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                             showCreditsPopup = true
                         }
                     }
                 )
-                .frame(maxWidth: .infinity)
-            }
-            .frame(height: layout.scaled(80))
-        }
-    }
-    
-    // MARK: - Status Indicator
-    @ViewBuilder
-    private func statusIndicator(layout: ResponsiveLayout) -> some View {
-        if settings.showStatusIndicator {
-            HStack(spacing: layout.elementSpacing) {
-                Circle()
-                    .fill(Color.green)
-                    .frame(width: layout.scaled(8), height: layout.scaled(8))
-                Text("Ready to Play")
-                    .font(.system(size: layout.bodyFontSize))
-                    .foregroundColor(.white.opacity(0.7))
                 Spacer()
             }
+            .frame(width: geo.size.width * 0.45)
+            .padding(.trailing, layout.scaled(15))
         }
+        .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(15))
     }
     
-    // MARK: - Version Label
-    @ViewBuilder
-    private func versionLabel(layout: ResponsiveLayout) -> some View {
-        if settings.showVersionLabel {
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Text("Ver 1.0")
-                        .font(.system(size: layout.captionFontSize))
-                        .foregroundColor(.white.opacity(0.5))
-                        .padding()
+    // MARK: - Portrait Layout
+    private func portraitLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
+        VStack(spacing: layout.scaled(20)) {
+            Spacer()
+            
+            // Big centered logo
+            Image("icon")
+                .resizable()
+                .scaledToFit()
+                .frame(width: min(geo.size.width * 0.35, 200))
+                .shadow(color: themeBlue.opacity(0.25), radius: layout.scaled(15))
+            
+            // Menu below logo
+            MainMenuSidebar(
+                layout: layout,
+                geo: geo,
+                themeBlue: themeBlue,
+                themeWhite: themeWhite,
+                themeDark: themeDark,
+                hoveredButton: $hoveredButton,
+                onPlay: { destination = .playChapterOne },
+                onSelect: { destination = .chapterSelect },
+                onLab: { destination = .featureTesting },
+                onSettings: {
+                    withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        showSettingsPopup = true
+                    }
+                },
+                onAbout: {
+                    withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                        showCreditsPopup = true
+                    }
                 }
+            )
+            .frame(maxWidth: .infinity)
+            
+            if settings.showVersionLabel {
+                Text("Ver 1.0.0")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(.gray.opacity(0.6))
             }
+            
+            Spacer()
         }
+        .padding(.horizontal, layout.scaled(25))
+        .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
+        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(15))
     }
     
     private func configureMotionTimer() {
@@ -440,140 +354,243 @@ struct MainMenuView: View {
             viewModel.start()
         }
     }
-
-    private func menuPanelBackground(layout: ResponsiveLayout) -> some View {
-        RoundedRectangle(cornerRadius: layout.cornerRadius + 4, style: .continuous)
-            .fill(Color.black.opacity(settings.menuOverlayOpacity))
-            .overlay(
-                RoundedRectangle(cornerRadius: layout.cornerRadius + 4, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-    }
 }
 
-extension MainMenuViewModel {
-    func resetOffsets() {
-        offsetX = 0
-        offsetY = 0
-    }
-}
-
-// MARK: - Large Menu Button (Primary Actions)
-struct LargeMenuButton: View {
-    let title: String
-    var subtitle: String? = nil
-    let icon: String
+// MARK: - Sidebar Component
+private struct MainMenuSidebar: View {
     let layout: ResponsiveLayout
-    let action: () -> Void
+    let geo: GeometryProxy
+    let themeBlue: Color
+    let themeWhite: Color
+    let themeDark: Color
+    @Binding var hoveredButton: String?
+    
+    let onPlay: () -> Void
+    let onSelect: () -> Void
+    let onLab: () -> Void
+    let onSettings: () -> Void
+    let onAbout: () -> Void
     
     var body: some View {
-        Button(action: {
-            action()
-        }) {
-            VStack(spacing: 4) {
-                HStack(spacing: layout.elementSpacing * 1.5) {
-                    Image(systemName: icon)
-                        .font(.system(size: layout.iconSize * 1.3))
-                        .frame(width: layout.scaled(40))
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: layout.bodyFontSize * 1.3, weight: .semibold))
-                        
-                        if let subtitle = subtitle {
-                            Text(subtitle)
-                                .font(.system(size: layout.captionFontSize, weight: .regular))
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: layout.bodyFontSize, weight: .semibold))
-                }
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, layout.padding)
-            .padding(.vertical, layout.scaled(18))
-            .background(
-                RoundedRectangle(cornerRadius: layout.cornerRadius)
-                    .fill(Color(red: 0.08, green: 0.08, blue: 0.09))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: layout.cornerRadius)
-                            .stroke(.white.opacity(0.08), lineWidth: 1)
+        VStack(alignment: .leading, spacing: layout.scaled(15)) {
+            Text("SYSTEM MENU")
+                .font(.system(size: layout.scaled(20), weight: .heavy, design: .rounded))
+                .foregroundColor(themeDark)
+                .tracking(1.5)
+                .padding(.leading, layout.scaled(10))
+                .padding(.bottom, layout.scaled(5))
+            
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: layout.scaled(16)) {
+                    // Main Actions
+                    SlantedMenuButton(
+                        title: "START MISSION",
+                        subtitle: "BEGIN VIRTUAL SIMULATION",
+                        number: "01",
+                        icon: "play.fill",
+                        isHovered: hoveredButton == "play",
+                        layout: layout,
+                        themeBlue: themeBlue,
+                        themeWhite: themeWhite,
+                        themeDark: themeDark,
+                        onHover: { hovering in hoveredButton = hovering ? "play" : nil },
+                        action: onPlay
                     )
-            )
+                    
+                    SlantedMenuButton(
+                        title: "ARCHIVE",
+                        subtitle: "CHAPTER SELECT",
+                        number: "02",
+                        icon: "square.grid.2x2.fill",
+                        isHovered: hoveredButton == "select",
+                        layout: layout,
+                        themeBlue: themeBlue,
+                        themeWhite: themeWhite,
+                        themeDark: themeDark,
+                        onHover: { hovering in hoveredButton = hovering ? "select" : nil },
+                        action: onSelect
+                    )
+                    
+                    SlantedMenuButton(
+                        title: "LABORATORY",
+                        subtitle: "FEATURE TESTING GROUND",
+                        number: "03",
+                        icon: "testtube.2",
+                        isHovered: hoveredButton == "lab",
+                        layout: layout,
+                        themeBlue: themeBlue,
+                        themeWhite: themeWhite,
+                        themeDark: themeDark,
+                        onHover: { hovering in hoveredButton = hovering ? "lab" : nil },
+                        action: onLab
+                    )
+                    
+                    // Spacer for grouping
+                    Color.clear.frame(height: layout.scaled(10))
+                    
+                    // Secondary Actions
+                    HStack(spacing: layout.scaled(16)) {
+                        SlantedSmallButton(
+                            title: "SETTINGS",
+                            icon: "gearshape.fill",
+                            isHovered: hoveredButton == "settings",
+                            layout: layout,
+                            themeBlue: themeBlue,
+                            themeWhite: themeWhite,
+                            themeDark: themeDark,
+                            onHover: { hovering in hoveredButton = hovering ? "settings" : nil },
+                            action: onSettings
+                        )
+                        
+                        SlantedSmallButton(
+                            title: "CREDITS",
+                            icon: "info.circle.fill",
+                            isHovered: hoveredButton == "about",
+                            layout: layout,
+                            themeBlue: themeBlue,
+                            themeWhite: themeWhite,
+                            themeDark: themeDark,
+                            onHover: { hovering in hoveredButton = hovering ? "about" : nil },
+                            action: onAbout
+                        )
+                    }
+                }
+                .padding(.horizontal, layout.scaled(10))
+                .padding(.bottom, layout.scaled(15))
+            }
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
-// MARK: - Small Icon Button (Secondary Actions)
-struct SmallIconButton: View {
+// MARK: - Slanted Menu Button
+private struct SlantedMenuButton: View {
     let title: String
-    var subtitle: String? = nil
+    let subtitle: String
+    let number: String
     let icon: String
+    let isHovered: Bool
     let layout: ResponsiveLayout
+    let themeBlue: Color
+    let themeWhite: Color
+    let themeDark: Color
+    let onHover: (Bool) -> Void
     let action: () -> Void
     
     @State private var isPressed = false
-    @State private var isHovered = false
     
     var body: some View {
         Button(action: action) {
-            ZStack {
-                // Background fills entire button
-                RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
-                    .fill(Color(
-                        red: isHovered ? 0.14 : 0.09,
-                        green: isHovered ? 0.14 : 0.09,
-                        blue: isHovered ? 0.15 : 0.10
-                    ))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: layout.cornerRadius * 0.8)
-                            .stroke(.white.opacity(0.08), lineWidth: 1)
-                    )
-                
-                // Content centered
-                VStack(spacing: 6) {
-                    Image(systemName: icon)
-                        .font(.system(size: layout.iconSize))
-                        .frame(height: layout.iconSize)
+            HStack(spacing: 0) {
+                // Number Bar Accent
+                ZStack {
+                    Rectangle()
+                        .fill(isHovered || isPressed ? themeBlue : Color.gray.opacity(0.2))
                     
-                    // Fixed height container for text to ensure consistency
-                    VStack(spacing: 2) {
-                        Text(title)
-                            .font(.system(size: layout.captionFontSize, weight: .medium))
-                        
-                        // Always reserve space for subtitle (show if exists, or invisible spacer)
-                        if let subtitle = subtitle {
-                            Text(subtitle)
-                                .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
-                                .foregroundColor(.white.opacity(0.6))
-                        } else {
-                            Text(" ")
-                                .font(.system(size: layout.captionFontSize * 0.85, weight: .regular))
-                        }
-                    }
-                    .frame(height: layout.captionFontSize * 2.2)
+                    Text(number)
+                        .font(.system(size: layout.scaled(12), weight: .black, design: .rounded))
+                        .foregroundColor(themeWhite)
+                        .rotationEffect(.degrees(-90))
                 }
-                .foregroundColor(.white)
+                .frame(width: layout.scaled(24))
+                
+                // Content Area
+                HStack(spacing: layout.scaled(12)) {
+                    Image(systemName: icon)
+                        .font(.system(size: layout.scaled(22)))
+                        .foregroundColor(isHovered || isPressed ? themeBlue : .gray.opacity(0.8))
+                        .frame(width: layout.scaled(30))
+                        
+                    VStack(alignment: .leading, spacing: layout.scaled(2)) {
+                        Text(title)
+                            .font(.system(size: layout.scaled(16), weight: .black, design: .rounded))
+                            .foregroundColor(isHovered || isPressed ? themeDark : .gray)
+                            .tracking(1)
+                            
+                        Text(subtitle)
+                            .font(.system(size: layout.scaled(10), weight: .bold))
+                            .foregroundColor(isHovered || isPressed ? themeBlue.opacity(0.8) : .gray.opacity(0.5))
+                            .tracking(1)
+                    }
+                    
+                    Spacer(minLength: 0)
+                    
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: layout.scaled(14), weight: .bold))
+                        .foregroundColor(isHovered || isPressed ? themeBlue : .gray.opacity(0.4))
+                }
+                .padding(.vertical, layout.scaled(16))
+                .padding(.horizontal, layout.scaled(16))
+                .background(isHovered || isPressed ? themeWhite : themeWhite.opacity(0.7))
             }
-            .scaleEffect(isPressed ? 0.95 : 1.0)
+            .clipShape(SlantedRect(offset: layout.scaled(12), direction: .backward))
+            .overlay(
+                SlantedRect(offset: layout.scaled(12), direction: .backward)
+                    .stroke(isHovered || isPressed ? themeBlue : Color.clear, lineWidth: layout.scaled(2))
+            )
+            .shadow(color: isHovered || isPressed ? themeBlue.opacity(0.25) : .black.opacity(0.05), radius: layout.scaled(8), x: 0, y: layout.scaled(4))
+            .offset(x: isHovered || isPressed ? layout.scaled(-10) : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+            .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isPressed)
         }
         .buttonStyle(.plain)
         #if os(macOS)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .onHover { onHover($0) }
         #endif
         .pressEvents {
             isPressed = true
         } onRelease: {
             isPressed = false
         }
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
+    }
+}
+
+// MARK: - Slanted Small Action Button
+private struct SlantedSmallButton: View {
+    let title: String
+    let icon: String
+    let isHovered: Bool
+    let layout: ResponsiveLayout
+    let themeBlue: Color
+    let themeWhite: Color
+    let themeDark: Color
+    let onHover: (Bool) -> Void
+    let action: () -> Void
+    
+    @State private var isPressed = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: layout.scaled(8)) {
+                Image(systemName: icon)
+                    .font(.system(size: layout.scaled(14)))
+                
+                Text(title)
+                    .font(.system(size: layout.scaled(12), weight: .black, design: .rounded))
+                    .tracking(1)
+            }
+            .foregroundColor(isHovered || isPressed ? themeBlue : .gray)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, layout.scaled(14))
+            .background(isHovered || isPressed ? themeWhite : themeWhite.opacity(0.7))
+            .clipShape(SlantedRect(offset: layout.scaled(10), direction: .backward))
+            .overlay(
+                SlantedRect(offset: layout.scaled(10), direction: .backward)
+                    .stroke(isHovered || isPressed ? themeBlue : Color.clear, lineWidth: layout.scaled(2))
+            )
+            .shadow(color: isHovered || isPressed ? themeBlue.opacity(0.2) : .black.opacity(0.05), radius: layout.scaled(6), x: 0, y: layout.scaled(3))
+            .offset(y: isHovered || isPressed ? layout.scaled(-4) : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+            .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isPressed)
+        }
+        .buttonStyle(.plain)
+        #if os(macOS)
+        .onHover { onHover($0) }
+        #endif
+        .pressEvents {
+            isPressed = true
+        } onRelease: {
+            isPressed = false
+        }
     }
 }
 

@@ -2,8 +2,7 @@ import SwiftUI
 
 // FeatureTestingView uses the shared ResponsiveLayout from ResponsiveLayout.swift
 
-// MARK: - Feature Testing Menu
-// MARK: - Feature Testing Menu
+// MARK: - Feature Testing Menu (Blue Archive Light Theme)
 struct FeatureTestingView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: GlobalSettingsStore
@@ -12,6 +11,12 @@ struct FeatureTestingView: View {
     @State private var showImageTraining = false
     @State private var activeStoryChapter: StoryChapter? = nil
     @State private var hoveredCardID: String? = nil
+    
+    // MARK: - Theme Colors (matching chapter select)
+    private let themeBlue = Color(red: 0.12, green: 0.51, blue: 0.88)
+    private let themeLight = Color(red: 0.88, green: 0.95, blue: 0.98)
+    private let themeDark = Color(red: 0.05, green: 0.15, blue: 0.25)
+    private let themeWhite = Color.white
     
     var body: some View {
         NavigationStack {
@@ -23,172 +28,193 @@ struct FeatureTestingView: View {
                 )
                 
                 ZStack {
-                    // Background image with blue overlay
-                    Image("lantassc")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: geo.size.width, height: geo.size.height)
-                        .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.25, green: 0.55, blue: 0.85).opacity(0.35),
-                                    Color(red: 0.15, green: 0.40, blue: 0.70).opacity(0.25)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    // 1. Light sky gradient background (matching chapter select)
+                    LinearGradient(
+                        colors: [themeWhite, themeLight, themeWhite],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                    
+                    // Decorative slanted shapes
+                    SlantedRect(offset: layout.scaled(100), direction: .forward)
+                        .fill(themeWhite.opacity(0.6))
+                        .frame(width: geo.size.width * 0.8, height: geo.size.height)
+                        .offset(x: -geo.size.width * 0.2)
                         .ignoresSafeArea()
                     
-                    // Character on left side
+                    SlantedRect(offset: layout.scaled(60), direction: .backward)
+                        .fill(themeBlue.opacity(0.04))
+                        .frame(width: geo.size.width * 0.5, height: geo.size.height)
+                        .offset(x: geo.size.width * 0.4)
+                        .ignoresSafeArea()
+                    
+                    // 2. Character on left side
                     HStack(spacing: 0) {
                         Image("char")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: geo.size.height * 1.05)
-                            .offset(x: -geo.size.width * 0.03, y: geo.size.height * 0.08)
-                            .shadow(color: .black.opacity(0.35), radius: 25, x: 5, y: 10)
+                            .frame(height: geo.size.height * 0.9)
+                            .offset(x: -geo.size.width * 0.02, y: geo.size.height * 0.08)
+                            .shadow(color: themeBlue.opacity(0.2), radius: 20, x: 5, y: 10)
                         Spacer()
                     }
                     .ignoresSafeArea()
                     
-                    // Top bar
+                    // 3. Top bar - Back button
                     VStack {
                         HStack {
                             Button(action: { dismiss() }) {
-                                HStack(spacing: 6) {
+                                HStack(spacing: layout.scaled(6)) {
                                     Image(systemName: "chevron.left")
-                                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                                        .font(.system(size: layout.scaled(12), weight: .bold))
                                     Text("Back")
-                                        .font(.system(size: layout.bodyFontSize, weight: .bold))
+                                        .font(.system(size: layout.scaled(14), weight: .bold, design: .rounded))
                                 }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.black.opacity(0.4))
-                                .clipShape(Capsule())
+                                .foregroundColor(themeDark)
+                                .padding(.horizontal, layout.scaled(16))
+                                .padding(.vertical, layout.scaled(10))
+                                .background(themeWhite.opacity(0.95))
+                                .clipShape(SlantedRect(offset: layout.scaled(8), direction: .forward))
+                                .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: layout.scaled(3))
                             }
+                            .buttonStyle(.plain)
                             Spacer()
                         }
-                        .padding(layout.padding)
+                        .padding(.top, geo.safeAreaInsets.top + layout.scaled(15))
+                        .padding(.leading, layout.scaled(25))
                         Spacer()
                     }
+                    .zIndex(2)
                     
-                    // Right Side Card Grid
-                    HStack {
-                        // Character takes left ~42%
+                    // 4. Right Side Card Grid
+                    HStack(spacing: 0) {
+                        // Character takes left ~40%
                         Color.clear
-                            .frame(width: geo.size.width * 0.42)
+                            .frame(width: geo.size.width * 0.40)
                         
-                        // Card grid takes right ~58%
-                        VStack(spacing: layout.scaled(10)) {
-                            // Top row: 2 large cards
-                            HStack(spacing: layout.scaled(10)) {
-                                labCardView(
-                                    id: "hallucination",
-                                    title: "AI\nHallucination",
-                                    subtitle: "Test Model Reliability",
-                                    icon: "brain.head.profile",
-                                    color: Color(red: 0.1, green: 0.55, blue: 0.85),
-                                    bgImage: "schooltopview",
-                                    layout: layout,
-                                    isLarge: true,
-                                    action: { showAIHallucination = true }
-                                )
-                                
-                                labCardView(
-                                    id: "imagelab",
-                                    title: "Image\nLab",
-                                    subtitle: "KNN Live Draw",
-                                    icon: "paintbrush.pointed.fill",
-                                    color: Color.orange,
-                                    bgImage: "507room",
-                                    layout: layout,
-                                    isLarge: true,
-                                    action: { showImageTraining = true }
-                                )
-                            }
-                            .frame(height: layout.scaled(130))
+                        // Card grid takes right ~60%
+                        VStack(alignment: .leading, spacing: layout.scaled(12)) {
+                            // Header
+                            Text("LAB PLAYGROUND")
+                                .font(.system(size: layout.scaled(22), weight: .heavy, design: .rounded))
+                                .foregroundColor(themeDark)
+                                .tracking(1.5)
+                                .padding(.leading, layout.scaled(25))
                             
-                            // Middle row: 3 cards
-                            HStack(spacing: layout.scaled(10)) {
-                                labCardView(
-                                    id: "bias",
-                                    title: "Bias\nAudit",
-                                    subtitle: "Chapter 2 Lab",
-                                    icon: "chart.bar.doc.horizontal.fill",
-                                    color: Color.purple,
-                                    bgImage: "cnxaqu",
-                                    layout: layout,
-                                    isLarge: false,
-                                    action: { launchInlineActivity(title: "Bias Audit", inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)) }
-                                )
-                                
-                                labCardView(
-                                    id: "zoo",
-                                    title: "Zoo\nHunt",
-                                    subtitle: "Chapter 2 Quiz",
-                                    icon: "pawprint.fill",
-                                    color: Color(red: 0.2, green: 0.75, blue: 0.45),
-                                    bgImage: "cnxgate",
-                                    layout: layout,
-                                    isLarge: false,
-                                    action: { launchInlineActivity(title: "Zoo Hunt", inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)) }
-                                )
-                                
-                                labCardView(
-                                    id: "review",
-                                    title: "AI\nReview",
-                                    subtitle: "Chapter 2 Mistakes",
-                                    icon: "doc.text.magnifyingglass",
-                                    color: Color.pink,
-                                    bgImage: "room",
-                                    layout: layout,
-                                    isLarge: false,
-                                    action: { launchInlineActivity(title: "AI Review", inlineActivity: .biasDataAudit(oldChapter2BiasAndBadDataLabMiniGame)) }
-                                )
-                            }
-                            .frame(height: layout.scaled(110))
-                            
-                            // Bottom row: remaining cards
-                            HStack(spacing: layout.scaled(10)) {
-                                labCardView(
-                                    id: "meme",
-                                    title: "Meme\nRescue",
-                                    subtitle: "Chapter 3 KNN",
-                                    icon: "bolt.heart.fill",
-                                    color: Color.red,
-                                    bgImage: "507room",
-                                    layout: layout,
-                                    isLarge: false,
-                                    action: { launchInlineActivity(title: "Meme Rescue", inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)) }
-                                )
-                                
-                                labCardView(
-                                    id: "ethics",
-                                    title: "Ethics\nQuiz",
-                                    subtitle: "Professor New",
-                                    icon: "checkmark.shield.fill",
-                                    color: Color(red: 0.95, green: 0.55, blue: 0.15),
-                                    bgImage: "schooltopview",
-                                    layout: layout,
-                                    isLarge: false,
-                                    action: {
-                                        let chapters = StoryChapterRepository.all
-                                        if !chapters.isEmpty {
-                                            activeStoryChapter = chapters[0]
-                                        }
+                            ScrollView(.vertical, showsIndicators: false) {
+                                VStack(spacing: layout.scaled(10)) {
+                                    // Top row: 2 large cards
+                                    HStack(spacing: layout.scaled(10)) {
+                                        labCardView(
+                                            id: "hallucination",
+                                            title: "AI\nHallucination",
+                                            subtitle: "Test Model Reliability",
+                                            icon: "brain.head.profile",
+                                            color: Color(red: 0.12, green: 0.51, blue: 0.88),
+                                            bgImage: "schooltopview",
+                                            layout: layout,
+                                            isLarge: true,
+                                            action: { showAIHallucination = true }
+                                        )
+                                        
+                                        labCardView(
+                                            id: "imagelab",
+                                            title: "Image\nLab",
+                                            subtitle: "KNN Live Draw",
+                                            icon: "paintbrush.pointed.fill",
+                                            color: Color(red: 0.92, green: 0.58, blue: 0.12),
+                                            bgImage: "507room",
+                                            layout: layout,
+                                            isLarge: true,
+                                            action: { showImageTraining = true }
+                                        )
                                     }
-                                )
-                                
-                                // Empty spacer card slot 
-                                Color.clear
+                                    .frame(height: layout.scaled(130))
+                                    
+                                    // Middle row: 3 cards
+                                    HStack(spacing: layout.scaled(10)) {
+                                        labCardView(
+                                            id: "bias",
+                                            title: "Bias\nAudit",
+                                            subtitle: "Chapter 2 Lab",
+                                            icon: "chart.bar.doc.horizontal.fill",
+                                            color: Color(red: 0.55, green: 0.35, blue: 0.82),
+                                            bgImage: "cnxaqu",
+                                            layout: layout,
+                                            isLarge: false,
+                                            action: { launchInlineActivity(title: "Bias Audit", inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)) }
+                                        )
+                                        
+                                        labCardView(
+                                            id: "zoo",
+                                            title: "Zoo\nHunt",
+                                            subtitle: "Chapter 2 Quiz",
+                                            icon: "pawprint.fill",
+                                            color: Color(red: 0.15, green: 0.68, blue: 0.42),
+                                            bgImage: "cnxgate",
+                                            layout: layout,
+                                            isLarge: false,
+                                            action: { launchInlineActivity(title: "Zoo Hunt", inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)) }
+                                        )
+                                        
+                                        labCardView(
+                                            id: "review",
+                                            title: "AI\nReview",
+                                            subtitle: "Chapter 2 Mistakes",
+                                            icon: "doc.text.magnifyingglass",
+                                            color: Color(red: 0.85, green: 0.35, blue: 0.52),
+                                            bgImage: "room",
+                                            layout: layout,
+                                            isLarge: false,
+                                            action: { launchInlineActivity(title: "AI Review", inlineActivity: .biasDataAudit(oldChapter2BiasAndBadDataLabMiniGame)) }
+                                        )
+                                    }
+                                    .frame(height: layout.scaled(110))
+                                    
+                                    // Bottom row: remaining cards
+                                    HStack(spacing: layout.scaled(10)) {
+                                        labCardView(
+                                            id: "meme",
+                                            title: "Meme\nRescue",
+                                            subtitle: "Chapter 3 KNN",
+                                            icon: "bolt.heart.fill",
+                                            color: Color(red: 0.85, green: 0.22, blue: 0.25),
+                                            bgImage: "507room",
+                                            layout: layout,
+                                            isLarge: false,
+                                            action: { launchInlineActivity(title: "Meme Rescue", inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)) }
+                                        )
+                                        
+                                        labCardView(
+                                            id: "ethics",
+                                            title: "Ethics\nQuiz",
+                                            subtitle: "Professor New",
+                                            icon: "checkmark.shield.fill",
+                                            color: Color(red: 0.90, green: 0.52, blue: 0.12),
+                                            bgImage: "schooltopview",
+                                            layout: layout,
+                                            isLarge: false,
+                                            action: {
+                                                let chapters = StoryChapterRepository.all
+                                                if !chapters.isEmpty {
+                                                    activeStoryChapter = chapters[0]
+                                                }
+                                            }
+                                        )
+                                        
+                                        // Empty spacer card slot
+                                        Color.clear
+                                    }
+                                    .frame(height: layout.scaled(110))
+                                }
+                                .padding(.horizontal, layout.scaled(15))
+                                .padding(.bottom, layout.scaled(30))
                             }
-                            .frame(height: layout.scaled(110))
                         }
                         .padding(.trailing, layout.scaled(20))
-                        .padding(.vertical, layout.scaled(60))
+                        .padding(.top, geo.safeAreaInsets.top + layout.scaled(65))
+                        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(20))
                     }
                 }
             }
@@ -204,7 +230,7 @@ struct FeatureTestingView: View {
         }
     }
     
-    // MARK: - Blue Archive Style Lab Card
+    // MARK: - Light Theme Lab Card (Blue Archive Style)
     private func labCardView(
         id: String,
         title: String,
@@ -225,67 +251,37 @@ struct FeatureTestingView: View {
                 let h = cardGeo.size.height
                 
                 ZStack(alignment: .bottomLeading) {
-                    // Background: image + gradient, all properly bounded
+                    // Background: white frosted panel with subtle image
                     Color.clear
                         .overlay(
-                            Group {
+                            ZStack {
+                                // Base white
+                                themeWhite
+                                
+                                // Subtle background image
                                 if let bgImage = bgImage {
                                     Image(bgImage)
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: w, height: h)
                                         .clipped()
-                                        .opacity(0.35)
-                                } else {
-                                    color.opacity(0.15)
+                                        .opacity(0.12)
                                 }
+                                
+                                // Light gradient overlay
+                                LinearGradient(
+                                    colors: [
+                                        color.opacity(0.08),
+                                        themeWhite.opacity(0.85),
+                                        themeWhite.opacity(0.95)
+                                    ],
+                                    startPoint: .topTrailing,
+                                    endPoint: .bottomLeading
+                                )
                             }
-                        )
-                        .overlay(
-                            // Glassmorphism gradient
-                            LinearGradient(
-                                colors: [
-                                    color.opacity(0.35),
-                                    color.opacity(0.15),
-                                    Color.white.opacity(0.08)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            // White glass layer
-                            Color.white.opacity(isHovered ? 0.35 : 0.2)
                         )
                         .frame(width: w, height: h)
                         .clipShape(SlantedParallelogram(slant: slant))
-                    
-                    // Content overlay
-                    VStack(alignment: .leading, spacing: layout.scaled(3)) {
-                        Spacer()
-                        
-                        Image(systemName: icon)
-                            .font(.system(size: layout.scaled(isLarge ? 18 : 14)))
-                            .foregroundColor(.white)
-                            .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
-                        
-                        Text(title)
-                            .font(.system(size: layout.scaled(isLarge ? 22 : 16), weight: .black, design: .rounded))
-                            .italic()
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.65)
-                            .shadow(color: .black.opacity(0.6), radius: 3, x: 0, y: 2)
-                        
-                        Text(subtitle)
-                            .font(.system(size: layout.scaled(isLarge ? 11 : 9), weight: .bold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.85))
-                            .lineLimit(1)
-                            .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
-                    }
-                    .padding(.leading, layout.scaled(20))
-                    .padding(.bottom, layout.scaled(10))
-                    .padding(.trailing, layout.scaled(8))
                     
                     // Left accent bar
                     SlantedParallelogram(slant: slant)
@@ -301,16 +297,43 @@ struct FeatureTestingView: View {
                             )
                         )
                         .frame(width: w, height: h)
+                    
+                    // Content overlay
+                    VStack(alignment: .leading, spacing: layout.scaled(3)) {
+                        Spacer()
+                        
+                        Image(systemName: icon)
+                            .font(.system(size: layout.scaled(isLarge ? 18 : 14)))
+                            .foregroundColor(color)
+                        
+                        Text(title)
+                            .font(.system(size: layout.scaled(isLarge ? 22 : 16), weight: .black, design: .rounded))
+                            .italic()
+                            .foregroundColor(themeDark)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.65)
+                        
+                        Text(subtitle)
+                            .font(.system(size: layout.scaled(isLarge ? 11 : 9), weight: .bold, design: .rounded))
+                            .foregroundColor(themeDark.opacity(0.5))
+                            .lineLimit(1)
+                    }
+                    .padding(.leading, layout.scaled(20))
+                    .padding(.bottom, layout.scaled(10))
+                    .padding(.trailing, layout.scaled(8))
                 }
                 .frame(width: w, height: h)
                 .clipShape(SlantedParallelogram(slant: slant))
                 .contentShape(SlantedParallelogram(slant: slant))
                 .overlay(
                     SlantedParallelogram(slant: slant)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                        .stroke(
+                            isHovered ? color.opacity(0.4) : Color.gray.opacity(0.15),
+                            lineWidth: isHovered ? 2 : 1
+                        )
                 )
-                .shadow(color: color.opacity(0.2), radius: 6, x: 2, y: 3)
-                .shadow(color: Color.black.opacity(0.12), radius: 3, x: 1, y: 2)
+                .shadow(color: color.opacity(isHovered ? 0.25 : 0.1), radius: layout.scaled(8), x: 0, y: layout.scaled(4))
+                .shadow(color: Color.black.opacity(0.06), radius: 3, x: 1, y: 2)
             }
             .clipped()
             .scaleEffect(isHovered ? 1.02 : 1.0)
