@@ -107,18 +107,6 @@ struct FeatureTestingView: View {
                                     // Top row: 2 large cards
                                     HStack(spacing: layout.scaled(10)) {
                                         labCardView(
-                                            id: "hallucination",
-                                            title: "AI\nHallucination",
-                                            subtitle: "Test Model Reliability",
-                                            icon: "brain.head.profile",
-                                            color: Color(red: 0.12, green: 0.51, blue: 0.88),
-                                            bgImage: "schooltopview",
-                                            layout: layout,
-                                            isLarge: true,
-                                            action: { showAIHallucination = true }
-                                        )
-                                        
-                                        labCardView(
                                             id: "imagelab",
                                             title: "Image\nLab",
                                             subtitle: "KNN Live Draw",

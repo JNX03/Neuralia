@@ -241,7 +241,7 @@ struct MainMenuView: View {
                     Image("icon")
                         .resizable()
                         .scaledToFit()
-                        .frame(height: geo.size.height * 0.22)
+                        .frame(height: geo.size.height * 0.52)
                         .shadow(color: themeBlue.opacity(0.15), radius: 10)
                         .offset(
                             x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.08,
@@ -256,7 +256,7 @@ struct MainMenuView: View {
                 
                 // Character bottom-left
                 HStack {
-                    Image("char")
+                    Image("unknow")
                         .resizable()
                         .scaledToFit()
                         .frame(height: geo.size.height * 0.7)
@@ -322,7 +322,7 @@ struct MainMenuView: View {
             Image("icon")
                 .resizable()
                 .scaledToFit()
-                .frame(height: geo.size.height * 0.15)
+                .frame(height: geo.size.height * 0.55)
                 .shadow(color: themeBlue.opacity(0.15), radius: 8)
                 .padding(.top, geo.safeAreaInsets.top + layout.scaled(10))
             

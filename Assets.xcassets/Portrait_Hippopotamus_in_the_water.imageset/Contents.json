@@ -1,12 +1,12 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "Portrait_Hippopotamus_in_the_water.jpeg",
-      "idiom" : "universal"
+      "filename": "Portrait_Hippopotamus_in_the_water.heic",
+      "idiom": "universal"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }
