@@ -549,6 +549,9 @@ private struct SlantedMenuButton: View {
             .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isPressed)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title), \(subtitle)")
+        .accessibilityAddTraits(.isButton)
         #if os(macOS)
         .onHover { onHover($0) }
         #endif
@@ -599,6 +602,9 @@ private struct SlantedSmallButton: View {
             .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isPressed)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
         #if os(macOS)
         .onHover { onHover($0) }
         #endif

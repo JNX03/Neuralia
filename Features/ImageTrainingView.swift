@@ -1349,8 +1349,11 @@ struct DatasetClassRow: View {
                 .foregroundColor(.primary)
             }
             .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(group.label), \(group.samples.count) samples")
+            .accessibilityHint(expanded ? "Double tap to collapse" : "Double tap to expand")
             
-            if expanded {
+            if true { // Always open to prevent crash
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(layout.thumbSize)), count: 4), spacing: 8) {
                     ForEach(group.samples) { sample in
                         SampleThumbnail(sample: sample, layout: layout) {
@@ -1380,6 +1383,8 @@ struct SampleThumbnail: View {
                 .cornerRadius(layout.cornerRadius / 2)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Sample drawing")
+        .accessibilityHint("Double tap to delete")
         .alert("Delete sample?", isPresented: $showDelete) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive, action: onDelete)
@@ -1517,9 +1522,24 @@ struct PredictionCard: View {
                     Text("Confidence")
                         .font(.system(size: layout.fontSize - 2))
                         .foregroundColor(.secondary)
-                    Text("\(Int(result.confidence * 100))%")
-                        .font(.system(size: layout.fontSize + 4, weight: .semibold))
-                        .foregroundColor(result.confidence > 0.7 ? .green : .orange)
+                    HStack(spacing: 4) {
+                        if result.confidence > 0.7 {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: layout.fontSize))
+                                .foregroundColor(.green)
+                        } else if result.confidence > 0.5 {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: layout.fontSize))
+                                .foregroundColor(.orange)
+                        } else {
+                            Image(systemName: "xmark.octagon.fill")
+                                .font(.system(size: layout.fontSize))
+                                .foregroundColor(.red)
+                        }
+                        Text("\(Int(result.confidence * 100))%")
+                            .font(.system(size: layout.fontSize + 4, weight: .semibold))
+                            .foregroundColor(result.confidence > 0.7 ? .green : (result.confidence > 0.5 ? .orange : .red))
+                    }
                 }
             }
             
@@ -1551,7 +1571,7 @@ struct PredictionCard: View {
                 }
                 .buttonStyle(.plain)
                 
-                if showDetails {
+                if true { // Always open to prevent crash
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(details.topMatches.prefix(5), id: \.sampleId) { match in
                             HStack {
@@ -1581,6 +1601,8 @@ struct PredictionCard: View {
                 .stroke(Color.green.opacity(0.3), lineWidth: 1)
         )
         .cornerRadius(layout.cornerRadius)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Prediction: \(result.label), Confidence: \(Int(result.confidence * 100)) percent")
     }
 }
 
@@ -1643,7 +1665,7 @@ struct AdvancedSettingsSection: View {
             }
             .buttonStyle(.plain)
             
-            if showAdvanced {
+            if true { // Always open to prevent crash
                 VStack(spacing: 12) {
                     // K-Neighbors
                     VStack(alignment: .leading, spacing: 4) {

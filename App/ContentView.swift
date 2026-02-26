@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var settings: GlobalSettingsStore
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     // Temporary toggle: keep startup screens in code, but bypass them at launch.
     private let skipStartupScreens = true
     @State private var showMainMenu = true
@@ -37,10 +38,16 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            if systemReduceMotion {
+                settings.reduceMotion = true
+            }
             // Ensure the initial state follows the temporary bypass toggle.
             if showMainMenu != skipStartupScreens {
                 showMainMenu = skipStartupScreens
             }
+        }
+        .onChange(of: systemReduceMotion) { newValue in
+            settings.reduceMotion = newValue
         }
     }
     

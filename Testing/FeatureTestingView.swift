@@ -12,10 +12,10 @@ struct FeatureTestingView: View {
     @State private var activeStoryChapter: StoryChapter? = nil
     @State private var hoveredCardID: String? = nil
     
-    // MARK: - Theme Colors (matching chapter select)
-    private let themeBlue = Color(red: 0.12, green: 0.51, blue: 0.88)
-    private let themeLight = Color(red: 0.88, green: 0.95, blue: 0.98)
-    private let themeDark = Color(red: 0.05, green: 0.15, blue: 0.25)
+    // MARK: - Theme Colors (Premium Blue Archive style)
+    private let themeBlue = Color(red: 0.08, green: 0.6, blue: 0.95)
+    private let themeLight = Color(red: 0.92, green: 0.96, blue: 0.99)
+    private let themeDark = Color(red: 0.05, green: 0.12, blue: 0.22)
     private let themeWhite = Color.white
     
     var body: some View {
@@ -28,55 +28,64 @@ struct FeatureTestingView: View {
                 )
                 
                 ZStack {
-                    // 1. Light sky gradient background (matching chapter select)
+                    // 1. Premium sky gradient background
                     LinearGradient(
-                        colors: [themeWhite, themeLight, themeWhite],
+                        colors: [themeWhite, themeLight, Color(red: 0.85, green: 0.92, blue: 0.96)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                     .ignoresSafeArea()
                     
-                    // Decorative slanted shapes
-                    SlantedRect(offset: layout.scaled(100), direction: .forward)
-                        .fill(themeWhite.opacity(0.6))
+                    // Floating Decor
+                    LabFloatingParticles(layout: layout, color: themeBlue)
+                    
+                    // Decorative slanted shapes (Watermarks)
+                    SlantedRect(offset: layout.scaled(120), direction: .forward)
+                        .fill(themeWhite.opacity(0.8))
                         .frame(width: geo.size.width * 0.8, height: geo.size.height)
-                        .offset(x: -geo.size.width * 0.2)
+                        .offset(x: -geo.size.width * 0.15)
                         .ignoresSafeArea()
                     
-                    SlantedRect(offset: layout.scaled(60), direction: .backward)
+                    SlantedRect(offset: layout.scaled(80), direction: .backward)
                         .fill(themeBlue.opacity(0.04))
-                        .frame(width: geo.size.width * 0.5, height: geo.size.height)
-                        .offset(x: geo.size.width * 0.4)
+                        .frame(width: geo.size.width * 0.6, height: geo.size.height * 1.2)
+                        .offset(x: geo.size.width * 0.35, y: -geo.size.height * 0.1)
                         .ignoresSafeArea()
                     
                     // 2. Character on left side
                     HStack(spacing: 0) {
-                        Image("char")
+                        Image("teachnew")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: geo.size.height * 0.9)
+                            .frame(height: geo.size.height * 0.95)
                             .offset(x: -geo.size.width * 0.02, y: geo.size.height * 0.08)
-                            .shadow(color: themeBlue.opacity(0.2), radius: 20, x: 5, y: 10)
+                            .shadow(color: themeBlue.opacity(0.15), radius: 25, x: 5, y: 15)
                         Spacer()
                     }
                     .ignoresSafeArea()
                     
-                    // 3. Top bar - Back button
+                    // 3. Top bar - Back button (Polished)
                     VStack {
                         HStack {
                             Button(action: { dismiss() }) {
-                                HStack(spacing: layout.scaled(6)) {
+                                HStack(spacing: layout.scaled(8)) {
                                     Image(systemName: "chevron.left")
-                                        .font(.system(size: layout.scaled(12), weight: .bold))
+                                        .font(.system(size: layout.scaled(13), weight: .heavy))
                                     Text("Back")
-                                        .font(.system(size: layout.scaled(14), weight: .bold, design: .rounded))
+                                        .font(.system(size: layout.scaled(15), weight: .heavy, design: .rounded))
+                                        .italic()
                                 }
-                                .foregroundColor(themeDark)
-                                .padding(.horizontal, layout.scaled(16))
-                                .padding(.vertical, layout.scaled(10))
-                                .background(themeWhite.opacity(0.95))
-                                .clipShape(SlantedRect(offset: layout.scaled(8), direction: .forward))
-                                .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: layout.scaled(3))
+                                .foregroundColor(themeWhite)
+                                .padding(.horizontal, layout.scaled(18))
+                                .padding(.vertical, layout.scaled(12))
+                                .background(themeDark.opacity(0.9))
+                                .clipShape(SlantedRect(offset: layout.scaled(10), direction: .forward))
+                                .overlay(
+                                    SlantedRect(offset: layout.scaled(10), direction: .forward)
+                                        .stroke(themeWhite, lineWidth: 2)
+                                        .padding(1)
+                                )
+                                .shadow(color: themeDark.opacity(0.2), radius: 8, x: 0, y: layout.scaled(4))
                             }
                             .buttonStyle(.plain)
                             Spacer()
@@ -91,25 +100,38 @@ struct FeatureTestingView: View {
                     HStack(spacing: 0) {
                         // Character takes left ~40%
                         Color.clear
-                            .frame(width: geo.size.width * 0.40)
+                            .frame(width: geo.size.width * 0.38)
                         
-                        // Card grid takes right ~60%
-                        VStack(alignment: .leading, spacing: layout.scaled(12)) {
+                        // Card grid takes right ~62%
+                        VStack(alignment: .leading, spacing: layout.scaled(10)) {
                             // Header
-                            Text("LAB PLAYGROUND")
+                            let headerText: String = {
+                                switch hoveredCardID {
+                                case "0": return "IMAGE LAB"
+                                case "1": return "BIAS AUDIT"
+                                case "2": return "ZOO HUNT"
+                                case "3": return "AI REVIEW"
+                                case "4": return "MEME RESCUE"
+                                case "5": return "ETHICS QUIZ"
+                                default: return "LAB PLAYGROUND"
+                                }
+                            }()
+                            
+                            Text(headerText)
                                 .font(.system(size: layout.scaled(20), weight: .heavy, design: .rounded))
                                 .foregroundColor(themeDark)
                                 .tracking(1.5)
                                 .padding(.leading, layout.scaled(25))
+                                .animation(.default, value: hoveredCardID)
                             
                             ScrollView(showsIndicators: false) {
-                                VStack(spacing: layout.scaled(12)) {
+                                VStack(spacing: layout.scaled(16)) {
                                     labMenuRow(
                                         index: 0,
                                         title: "Image Lab",
                                         subtitle: "KNN Live Draw",
                                         icon: "paintbrush.pointed.fill",
-                                        color: Color(red: 0.92, green: 0.58, blue: 0.12),
+                                        color: Color(red: 0.95, green: 0.60, blue: 0.1),
                                         layout: layout
                                     ) { showImageTraining = true }
                                     
@@ -118,7 +140,7 @@ struct FeatureTestingView: View {
                                         title: "Bias Audit",
                                         subtitle: "Chapter 2 Lab",
                                         icon: "chart.bar.doc.horizontal.fill",
-                                        color: Color(red: 0.55, green: 0.35, blue: 0.82),
+                                        color: Color(red: 0.55, green: 0.35, blue: 0.88),
                                         layout: layout
                                     ) { launchInlineActivity(title: "Bias Audit", inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)) }
                                     
@@ -127,7 +149,7 @@ struct FeatureTestingView: View {
                                         title: "Zoo Hunt",
                                         subtitle: "Chapter 2 Quiz",
                                         icon: "pawprint.fill",
-                                        color: Color(red: 0.15, green: 0.68, blue: 0.42),
+                                        color: Color(red: 0.1, green: 0.72, blue: 0.45),
                                         layout: layout
                                     ) { launchInlineActivity(title: "Zoo Hunt", inlineActivity: .lectureQuiz(chapter2ZooMemoryHuntMiniGame)) }
                                     
@@ -136,7 +158,7 @@ struct FeatureTestingView: View {
                                         title: "AI Review",
                                         subtitle: "Chapter 2 Mistakes",
                                         icon: "doc.text.magnifyingglass",
-                                        color: Color(red: 0.85, green: 0.35, blue: 0.52),
+                                        color: Color(red: 0.9, green: 0.3, blue: 0.5),
                                         layout: layout
                                     ) { launchInlineActivity(title: "AI Review", inlineActivity: .biasDataAudit(oldChapter2BiasAndBadDataLabMiniGame)) }
                                     
@@ -145,7 +167,7 @@ struct FeatureTestingView: View {
                                         title: "Meme Rescue",
                                         subtitle: "Chapter 3 KNN",
                                         icon: "bolt.heart.fill",
-                                        color: Color(red: 0.85, green: 0.22, blue: 0.25),
+                                        color: Color(red: 0.92, green: 0.2, blue: 0.25),
                                         layout: layout
                                     ) { launchInlineActivity(title: "Meme Rescue", inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)) }
                                     
@@ -154,7 +176,7 @@ struct FeatureTestingView: View {
                                         title: "Ethics Quiz",
                                         subtitle: "Professor New",
                                         icon: "checkmark.shield.fill",
-                                        color: Color(red: 0.90, green: 0.52, blue: 0.12),
+                                        color: Color(red: 0.95, green: 0.55, blue: 0.1),
                                         layout: layout
                                     ) {
                                         let chapters = StoryChapterRepository.all
@@ -164,14 +186,13 @@ struct FeatureTestingView: View {
                                     }
                                 }
                                 .padding(.leading, layout.scaled(25))
-                                .padding(.trailing, layout.scaled(10))
-                                .padding(.bottom, layout.scaled(40))
-                                .padding(.top, layout.scaled(10))
+                                .padding(.trailing, layout.scaled(15))
+                                .padding(.bottom, layout.scaled(60))
+                                .padding(.top, layout.scaled(8))
                             }
                         }
                         .padding(.trailing, layout.scaled(20))
-                        .padding(.top, geo.safeAreaInsets.top + layout.scaled(65))
-                        .padding(.bottom, geo.safeAreaInsets.bottom + layout.scaled(20))
+                        .padding(.top, geo.safeAreaInsets.top + layout.scaled(60))
                     }
                 }
             }
@@ -187,7 +208,7 @@ struct FeatureTestingView: View {
         }
     }
     
-    // MARK: - Light Theme Lab Menu Row (Blue Archive Style)
+    // MARK: - Premium Blue Archive Lab Menu Row
     private func labMenuRow(
         index: Int,
         title: String,
@@ -200,59 +221,96 @@ struct FeatureTestingView: View {
         let isHovered = hoveredCardID == String(index)
         
         return Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                 action()
             }
         } label: {
-            HStack(spacing: 0) {
-                // Accent Bar (Left side)
-                Rectangle()
-                    .fill(color)
-                    .frame(width: layout.scaled(8))
-
-                // Row Details
-                HStack(spacing: layout.scaled(12)) {
-                    // Index
+            ZStack {
+                // Background drop shadow layer
+                SlantedRect(offset: layout.scaled(15), direction: .backward)
+                    .fill(isHovered ? color.opacity(0.25) : Color.black.opacity(0.06))
+                    .offset(x: isHovered ? layout.scaled(6) : layout.scaled(4), y: isHovered ? layout.scaled(8) : layout.scaled(4))
+                
+                // Main card surface
+                SlantedRect(offset: layout.scaled(15), direction: .backward)
+                    .fill(isHovered ? themeWhite : themeWhite.opacity(0.92))
+                    
+                // Gradient accent bar inside (Left edge)
+                HStack(spacing: 0) {
+                    SlantedRect(offset: layout.scaled(15), direction: .backward)
+                        .fill(
+                            LinearGradient(
+                                colors: [color, color.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: layout.scaled(10))
+                        .offset(x: layout.scaled(-2)) // Push slightly left to mask edge safely
+                    Spacer()
+                }
+                .clipShape(SlantedRect(offset: layout.scaled(15), direction: .backward))
+                
+                // Right side decorative numbers (Watermark)
+                HStack {
+                    Spacer()
                     Text(String(format: "%02d", index + 1))
-                        .font(.system(size: layout.scaled(22), weight: .black, design: .rounded))
-                        .foregroundColor(color.opacity(0.8))
+                        .font(.system(size: layout.scaled(65), weight: .black, design: .rounded))
+                        .italic()
+                        .foregroundColor(Color(white: 0.94))
+                        .offset(x: layout.scaled(15), y: layout.scaled(10))
+                }
+                .clipShape(SlantedRect(offset: layout.scaled(15), direction: .backward))
+                
+                // Content
+                HStack(spacing: layout.scaled(16)) {
+                    // Small index + Icon circle
+                    ZStack {
+                        Circle()
+                            .fill(color.opacity(isHovered ? 1.0 : 0.12))
+                            .frame(width: layout.scaled(42), height: layout.scaled(42))
+                        Image(systemName: icon)
+                            .font(.system(size: layout.scaled(18), weight: .bold))
+                            .foregroundColor(isHovered ? .white : color)
+                    }
+                    .padding(.leading, layout.scaled(28))
 
-                    // Icon
-                    Image(systemName: icon)
-                        .font(.system(size: layout.scaled(18)))
-                        .foregroundColor(color)
-                        .frame(width: layout.scaled(24))
-
-                    VStack(alignment: .leading, spacing: layout.scaled(2)) {
+                    VStack(alignment: .leading, spacing: layout.scaled(1)) {
                         Text(title.replacingOccurrences(of: "\n", with: " "))
-                            .font(.system(size: layout.scaled(15), weight: .bold))
+                            .font(.system(size: layout.scaled(22), weight: .black, design: .rounded))
+                            .italic()
                             .foregroundColor(themeDark)
                             .lineLimit(1)
 
                         Text(subtitle)
-                            .font(.system(size: layout.scaled(12), weight: .bold))
-                            .foregroundColor(color.opacity(0.85))
+                            .font(.system(size: layout.scaled(13), weight: .bold))
+                            .foregroundColor(color)
                             .lineLimit(1)
                     }
 
                     Spacer(minLength: 0)
                     
-                    Image(systemName: "chevron.right")
-                        .foregroundColor(color.opacity(0.7))
-                        .font(.system(size: layout.scaled(14)))
+                    // Arrow button
+                    ZStack {
+                        Circle()
+                            .stroke(color.opacity(0.2), lineWidth: 2)
+                            .background(Circle().fill(isHovered ? color : Color.clear))
+                            .frame(width: layout.scaled(32), height: layout.scaled(32))
+                            
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: layout.scaled(12), weight: .bold))
+                            .foregroundColor(isHovered ? .white : color.opacity(0.7))
+                    }
+                    .padding(.trailing, layout.scaled(28))
                 }
-                .padding(.vertical, layout.scaled(14))
-                .padding(.horizontal, layout.scaled(14))
-                .background(isHovered ? themeWhite : themeWhite.opacity(0.7))
+                .padding(.vertical, layout.scaled(18))
             }
-            .clipShape(SlantedRect(offset: layout.scaled(12), direction: .backward))
             .overlay(
-                SlantedRect(offset: layout.scaled(12), direction: .backward)
-                    .stroke(isHovered ? color.opacity(0.5) : Color.clear, lineWidth: layout.scaled(2))
+                SlantedRect(offset: layout.scaled(15), direction: .backward)
+                    .stroke(isHovered ? color.opacity(0.8) : themeWhite, lineWidth: layout.scaled(2))
             )
-            .shadow(color: isHovered ? color.opacity(0.2) : .black.opacity(0.05), radius: layout.scaled(8), x: 0, y: layout.scaled(4))
-            .offset(x: isHovered ? layout.scaled(-5) : 0) // Hover pop out
-            .animation(.easeOut(duration: 0.15), value: isHovered)
+            .offset(x: isHovered ? layout.scaled(-12) : 0) // dramatic hover pop out
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isHovered)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -273,11 +331,38 @@ struct FeatureTestingView: View {
             subtitle: "Lab Minigame",
             accentHex: "4A90E2",
             coverBackgroundImage: "507room",
-            coverCharacterImage: "char",
+            coverCharacterImage: "unknow",
             overview: "",
             lines: [dummyLine]
         )
         activeStoryChapter = chapter
+    }
+}
+
+// MARK: - Lab Floating Particles
+private struct LabFloatingParticles: View {
+    let layout: ResponsiveLayout
+    let color: Color
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            ForEach(0..<8, id: \.self) { i in
+                Image(systemName: i % 2 == 0 ? "plus" : "circle")
+                    .font(.system(size: layout.scaled(Double.random(in: 12...30)), weight: .heavy))
+                    .foregroundColor(color.opacity(0.12))
+                    .offset(
+                        x: animate ? layout.scaled(Double.random(in: -400...400)) : layout.scaled(Double.random(in: -200...200)),
+                        y: animate ? layout.scaled(Double.random(in: -500...500)) : layout.scaled(Double.random(in: -300...300))
+                    )
+                    .rotationEffect(.degrees(animate ? Double.random(in: 180...360) : 0))
+            }
+        }
+        .onAppear {
+            withAnimation(.linear(duration: Double.random(in: 25...40)).repeatForever(autoreverses: false)) {
+                animate = true
+            }
+        }
     }
 }
 
@@ -1004,11 +1089,11 @@ struct VisualNovelDialogView: View {
                 .offset(y: -layout.scaled(8))
             
             // Character image with all interactions
-            Image("char")
+            Image("unknow")
                 .resizable()
                 .scaledToFit()
                 .frame(height: characterHeight)
-                .scaleEffect(charScale * (isPressed ? 0.95 : 1.0))
+                .scaleEffect(charScale * (isPressed ? 0.75 : 0.7))
                 .offset(y: charOffset + (isPressed ? layout.scaled(8) : 0))
                 .rotationEffect(.degrees(charRotation))
                 .opacity(charOpacity)

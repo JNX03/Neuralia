@@ -6724,6 +6724,8 @@ struct ClassroomLectureQuizMiniGameStage: View {
         .padding(.leading, CGFloat(alignTrailing ? middleInset : edgeInset))
         .padding(.trailing, CGFloat(alignTrailing ? edgeInset : middleInset))
         .padding(.vertical, layout.isCompact ? 2 : 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(name), \(role). \(text)")
     }
 
     private func select(_ choice: LectureQuizOption) {
