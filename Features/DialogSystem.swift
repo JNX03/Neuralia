@@ -1816,8 +1816,19 @@ struct ResponsiveDialogView: View {
             }
             Spacer(minLength: 0)
             if showSettings {
-                dialogSpeedButton(layout: layout)
-                dialogSkipButton(layout: layout)
+                // During minigames, stack speed and skip vertically to avoid overlap
+                // with minigame controls (like draw mode toggle)
+                if isOnMinigameNode {
+                    VStack(spacing: 6) {
+                        dialogSpeedButton(layout: layout)
+                        dialogSkipButton(layout: layout)
+                    }
+                } else {
+                    HStack(spacing: layout.isCompact ? 6 : 10) {
+                        dialogSpeedButton(layout: layout)
+                        dialogSkipButton(layout: layout)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
