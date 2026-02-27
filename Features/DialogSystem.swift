@@ -6681,7 +6681,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     Image(imageName)
                         .resizable()
                         .scaledToFill()
-                        .frame(height: layout.isCompact ? 120 : 170)
+                        .frame(height: layout.isCompact ? 240 : 340)
                         .frame(maxWidth: .infinity)
                         .clipped()
                         .overlay(
