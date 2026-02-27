@@ -428,12 +428,23 @@ struct Chapter3KNNRescueMiniGame: Sendable {
     }
 }
 
+struct PhotoShowcase: Sendable {
+    let title: String
+    let imageNames: [String]
+
+    init(title: String, imageNames: [String]) {
+        self.title = title
+        self.imageNames = imageNames
+    }
+}
+
 enum DialogInlineActivity: Sendable {
     case video(DialogVideoClip)
     case promptBuilder(PromptBuilderMiniGame)
     case lectureQuiz(LectureQuizMiniGame)
     case biasDataAudit(BiasDataAuditMiniGame)
     case chapter3KNNRescue(Chapter3KNNRescueMiniGame)
+    case photoShowcase(PhotoShowcase)
 }
 
 struct StoryDialogLine: Sendable {

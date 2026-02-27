@@ -682,7 +682,7 @@ struct ResponsiveDialogView: View {
         switch activity {
         case .video:
             return 1.0
-        case .lectureQuiz, .promptBuilder, .biasDataAudit, .chapter3KNNRescue:
+        case .lectureQuiz, .promptBuilder, .biasDataAudit, .chapter3KNNRescue, .photoShowcase:
             return 0.72
         }
     }
@@ -1102,6 +1102,8 @@ struct ResponsiveDialogView: View {
             biasDataAuditActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
         case .chapter3KNNRescue(let minigame):
             chapter3KNNRescueActivityScene(layout: layout, geometry: geometry, node: node, minigame: minigame)
+        case .photoShowcase(let showcase):
+            photoShowcaseScene(layout: layout, geometry: geometry, node: node, showcase: showcase)
         }
     }
 
@@ -1304,6 +1306,47 @@ struct ResponsiveDialogView: View {
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                 onComplete: { result in
                     viewModel.completeInlineActivity(for: node.id, result: result)
+                    handleAdvanceAction()
+                }
+            )
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func photoShowcaseScene(
+        layout: DialogAdaptiveLayout,
+        geometry: GeometryProxy,
+        node: DialogNode,
+        showcase: PhotoShowcase
+    ) -> some View {
+        let horizontalPadding = layout.dialogPadding
+        let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
+        let bottomInset = max(layout.safeAreaInsets.bottom, 10)
+
+        return ZStack {
+            VStack {
+                topBar(layout: layout)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, topBarTopPadding(for: layout))
+                Spacer()
+            }
+            .zIndex(20)
+
+            PhotoShowcaseStage(
+                showcase: showcase,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
+                instructionText: viewModel.displayedText,
+                isTyping: viewModel.isTyping,
+                onSkipTyping: { handleSkipTypingAction() },
+                onComplete: {
+                    viewModel.completeInlineActivity(for: node.id, result: "Photos viewed")
+                },
+                onContinue: {
+                    guard viewModel.isInlineActivityCompleted(for: node.id) else { return }
                     handleAdvanceAction()
                 }
             )
@@ -2627,6 +2670,14 @@ struct ResponsiveDialogView: View {
                     handleAdvanceAction()
                 }
             )
+        case .photoShowcase(let showcase):
+            PhotoShowcaseCard(
+                showcase: showcase,
+                layout: layout,
+                isCompleted: viewModel.isInlineActivityCompleted(for: nodeID)
+            ) { result in
+                viewModel.completeInlineActivity(for: nodeID, result: result)
+            }
         }
     }
     
@@ -9766,6 +9817,149 @@ struct MessengerLectureQuizMiniGameStage: View {
             return count + 1
         }
         return "Quiz complete: \(correctCount)/\(questions.count) correct. \(quiz.summaryNote)"
+    }
+}
+
+struct PhotoShowcaseCard: View {
+    let showcase: PhotoShowcase
+    let layout: DialogAdaptiveLayout
+    let isCompleted: Bool
+    let onComplete: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(showcase.title)
+                .font(.system(size: layout.captionFontSize + 2, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 8) {
+                ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 100)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                }
+            }
+
+            if !isCompleted {
+                Button {
+                    onComplete("Photos viewed")
+                } label: {
+                    Label("View Photos", systemImage: "photo.on.rectangle.angled")
+                        .font(.system(size: layout.captionFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.70), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+struct PhotoShowcaseStage: View {
+    let showcase: PhotoShowcase
+    let layout: DialogAdaptiveLayout
+    let isCompleted: Bool
+    let instructionText: String
+    let isTyping: Bool
+    let onSkipTyping: () -> Void
+    let onComplete: () -> Void
+    let onContinue: () -> Void
+
+    @State private var completionSubmitted = false
+
+    var body: some View {
+        VStack(spacing: layout.isCompact ? 12 : 16) {
+            // Title
+            Text(showcase.title)
+                .font(.system(size: layout.isCompact ? 18 : 22, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Spacer(minLength: 8)
+
+            // Photo Grid - Dropped on table style with rotation and overlap
+            ZStack(alignment: .center) {
+                ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: layout.isCompact ? 180 : 240)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 8)
+                        // Rotation and offset for dropped on table effect
+                        .rotationEffect(.degrees(Double(index) * 8 - 4), anchor: .center)
+                        .offset(
+                            x: CGFloat(index - (showcase.imageNames.count - 1) / 2) * 16,
+                            y: CGFloat(index) * 12
+                        )
+                }
+            }
+            .frame(height: layout.isCompact ? 220 : 290)
+            .padding(.vertical, layout.isCompact ? 8 : 12)
+
+            Spacer(minLength: 12)
+
+            // Action Button
+            if isCompleted {
+                Button {
+                    onContinue()
+                } label: {
+                    Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.green.opacity(0.92), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+            } else {
+                Button {
+                    onComplete()
+                } label: {
+                    Label("View Complete", systemImage: "checkmark.circle.fill")
+                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.blue.opacity(0.92), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(layout.isCompact ? 12 : 16)
+        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
     }
 }
 

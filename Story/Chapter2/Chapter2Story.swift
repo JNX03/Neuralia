@@ -222,13 +222,13 @@ let chapterTwoStory = StoryChapter(
             emotion: .excited,
             backgroundImage: "507room",
             characterImage: "unknow",
-            cutsceneTitle: "To Be Continued",
-            cutsceneSubtitle: "Safer answers together",
-            showcaseMedia: DialogShowcaseMedia(
-                title: "Chapter Complete",
-                subtitle: "See you next time",
-                imageName: "chapter2ending",
-                badge: "End"
+            cutsceneTitle: "Chapter 2 Memories",
+            cutsceneSubtitle: "Photos from the day",
+            inlineActivity: .photoShowcase(
+                PhotoShowcase(
+                    title: "Memory Photos",
+                    imageNames: ["chapter2ending", "chapter2ending2"]
+                )
             )
         )
     ]
