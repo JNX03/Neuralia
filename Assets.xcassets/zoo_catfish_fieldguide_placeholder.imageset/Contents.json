@@ -1,12 +1,12 @@
 {
-  "images": [
+  "images" : [
     {
-      "filename": "zoo_catfish_fieldguide_placeholder.heic",
-      "idiom": "universal"
+      "filename" : "zoo_shark_scene.png",
+      "idiom" : "universal"
     }
   ],
-  "info": {
-    "author": "xcode",
-    "version": 1
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
   }
 }
