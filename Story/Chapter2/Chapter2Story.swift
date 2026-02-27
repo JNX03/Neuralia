@@ -21,9 +21,9 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "I wake up and realize {{ai_name}} is still here... like, actually here.",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "room",
-            characterImage: "char_surprised",
+            characterImage: "char_excited",
             cutsceneTitle: "Morning Check",
             cutsceneSubtitle: "Still not used to this"
         ),
@@ -73,7 +73,7 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "",
             text: "Sometimes AI generates answers that sound correct even when they are wrong, especially when it lacks reliable context. That is called hallucination.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "room",
             characterImage: "__none__",
             cutsceneTitle: "Lesson: Hallucination",
@@ -82,7 +82,7 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "{{ai_name}}",
             text: "Best fix: verify with real sources like clocks, signs, and trusted information. Also let me say 'I'm not sure' instead of forcing a guess.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "room",
             characterImage: "unknow",
             cutsceneTitle: "Safer Habit",
@@ -173,7 +173,7 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "{{ai_name}}",
             text: "Wait... before we leave. I made mistakes today. Can we look at why? I want to understand what went wrong — the blurry glass, the Red Panda I rejected... help me sort it out?",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "cnxaqu",
             characterImage: "unknow",
             cutsceneTitle: "Bias & Bad Data Lab",
@@ -183,16 +183,16 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "See? You were wrong a few times, but that is normal. The dangerous part is pretending the guess is always right.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "cnxaqu",
-            characterImage: "char_gentle",
+            characterImage: "char_happy",
             cutsceneTitle: "After The Lessons",
             cutsceneSubtitle: "Correction is part of learning"
         ),
         StoryDialogLine(
             speaker: "{{ai_name}}",
             text: "Thanks for correcting me... you do not get angry when I am wrong.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "cnxaqu",
             characterImage: "unknow",
             cutsceneTitle: "Quiet Moment",
@@ -201,9 +201,9 @@ let chapterTwoStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "Because being wrong is normal. But pretending you are always right is dangerous.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "cnxaqu",
-            characterImage: "char_gentle",
+            characterImage: "char_happy",
             cutsceneTitle: "Trust Rule",
             cutsceneSubtitle: "Honesty is safer than confidence"
         ),

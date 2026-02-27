@@ -401,16 +401,7 @@ final class SpeechManager: ObservableObject {
         case .sad, .concerned:
             utterance.pitchMultiplier = 0.9
             utterance.rate = 0.42
-        case .angry:
-            utterance.pitchMultiplier = 1.05
-            utterance.rate = 0.58
-        case .mysterious:
-            utterance.pitchMultiplier = 0.95
-            utterance.rate = 0.4
-        case .surprised:
-            utterance.pitchMultiplier = 1.35
-            utterance.rate = 0.52
-        case .gentle, .curious:
+        case .curious:
             utterance.pitchMultiplier = 1.1
             utterance.rate = 0.45
         case .neutral:
@@ -460,7 +451,7 @@ final class SpeechManager: ObservableObject {
 }
 
 enum Emotion: String, CaseIterable {
-    case neutral, happy, excited, sad, concerned, angry, mysterious, surprised, gentle, curious
+    case neutral, happy, excited, sad, concerned, curious
 }
 
 enum CharacterAnimation {

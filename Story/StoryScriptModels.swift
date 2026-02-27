@@ -529,7 +529,10 @@ struct StoryChapter: Identifiable, Sendable, Hashable {
 
 enum StoryCharacterAsset {
     static func placeholder(for emotion: Emotion) -> String {
-        "char_\(emotion.rawValue)"
+        switch emotion {
+        case .neutral: return "char"
+        default: return "char_\(emotion.rawValue)"
+        }
     }
 }
 

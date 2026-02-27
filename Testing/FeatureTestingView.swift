@@ -993,7 +993,7 @@ struct VisualNovelDialogView: View {
     let nodes: [(speaker: String, text: String, emotion: Emotion, hasChoices: Bool, hasInput: Bool)] = [
         ("Ploy", "Hello! Welcome to the dialog test! I'm Ploy. Try interacting with me! Tap to bounce, drag to move, long press to wiggle!", .happy, false, false),
         ("Ploy", "How are you feeling today? Choose an option that matches your mood!", .curious, true, false),
-        ("Ploy", "I'd love to know your name! Please type it below.", .gentle, false, true),
+        ("Ploy", "I'd love to know your name! Please type it below.", .happy, false, true),
         ("Ploy", "The dialog system supports different emotions! Watch my expressions and listen to my voice change!", .excited, false, false),
         ("Ploy", "Thanks for testing this feature! I hope you enjoyed our conversation!", .happy, false, false)
     ]
@@ -1272,10 +1272,7 @@ struct VisualNovelDialogView: View {
         case .happy: return .yellow
         case .excited: return .orange
         case .sad, .concerned: return .blue
-        case .angry: return .red
-        case .mysterious: return .purple
-        case .surprised: return .pink
-        case .gentle, .curious: return .mint
+        case .curious: return .mint
         case .neutral: return .cyan
         }
     }
@@ -1403,7 +1400,7 @@ struct VisualNovelDialogView: View {
     private func submitInput() {
         guard !userInput.isEmpty else { return }
         showTextInput = false
-        speechManager.speak("Nice to meet you, \(userInput)!", emotion: .gentle)
+        speechManager.speak("Nice to meet you, \(userInput)!", emotion: .happy)
         triggerAnimation(.bounce)
         userInput = ""
         Task { @MainActor in
@@ -1930,7 +1927,7 @@ struct AIHallucinationView: View {
                 .overlay(
                     // Glitch effect on character when confused
                     Group {
-                        if characterEmotion == .surprised {
+                        if characterEmotion == .excited {
                             GlitchOverlay()
                         }
                     }
@@ -2450,7 +2447,7 @@ struct AIHallucinationView: View {
             characterEmotion = .happy
             triggerBounce()
         } else {
-            characterEmotion = .surprised
+            characterEmotion = .excited
             triggerGlitch()
         }
         
@@ -2507,10 +2504,7 @@ struct AIHallucinationView: View {
         case .happy: return .green
         case .excited: return .orange
         case .sad, .concerned: return .blue
-        case .angry: return .red
-        case .mysterious: return .purple
-        case .surprised: return .pink
-        case .gentle, .curious: return .mint
+        case .curious: return .mint
         case .neutral: return .cyan
         }
     }

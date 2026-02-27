@@ -1297,6 +1297,7 @@ struct ResponsiveDialogView: View {
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                 onComplete: { result in
                     viewModel.completeInlineActivity(for: node.id, result: result)
+                    handleAdvanceAction()
                 }
             )
             .padding(.horizontal, horizontalPadding)
@@ -2616,6 +2617,7 @@ struct ResponsiveDialogView: View {
                 isCompleted: viewModel.isInlineActivityCompleted(for: nodeID),
                 onComplete: { result in
                     viewModel.completeInlineActivity(for: nodeID, result: result)
+                    handleAdvanceAction()
                 }
             )
         }
@@ -3058,10 +3060,7 @@ struct ResponsiveDialogView: View {
         case .happy: return .yellow
         case .excited: return .orange
         case .sad, .concerned: return .blue
-        case .angry: return .red
-        case .mysterious: return .purple
-        case .surprised: return .pink
-        case .gentle, .curious: return .mint
+        case .curious: return .mint
         case .neutral: return .cyan
         }
     }
@@ -5690,14 +5689,6 @@ struct PromptBuilderMessagesMiniGameStage: View {
             return Color(hex: "5CE38C")
         case .sad, .concerned:
             return Color(hex: "8ED0F7")
-        case .angry:
-            return Color(hex: "FF7D7D")
-        case .mysterious:
-            return Color(hex: "BE93F5")
-        case .surprised:
-            return Color(hex: "FFD77A")
-        case .gentle:
-            return Color(hex: "91F0C3")
         case .curious:
             return Color(hex: "4AB0FF")
         case .neutral:
@@ -8742,10 +8733,7 @@ struct ChoiceButton: View {
         case .happy: return .green
         case .excited: return .orange
         case .sad, .concerned: return .blue
-        case .angry: return .red
-        case .mysterious: return .purple
-        case .surprised: return .pink
-        case .gentle, .curious: return .mint
+        case .curious: return .mint
         case .neutral: return .cyan
         }
     }
@@ -9114,10 +9102,7 @@ struct MessengerLectureQuizMiniGameStage: View {
         switch emotion {
         case .happy, .excited: return Color(hex: "5CE38C")
         case .sad, .concerned: return Color(hex: "8ED0F7")
-        case .angry: return Color(hex: "FF7D7D")
-        case .mysterious: return Color(hex: "BE93F5")
-        case .surprised: return Color(hex: "FFD77A")
-        case .gentle: return Color(hex: "91F0C3")
+
         case .curious: return Color(hex: "4AB0FF")
         case .neutral: return Color.white.opacity(0.85)
         }

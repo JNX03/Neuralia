@@ -17,13 +17,13 @@ let chapterThreeStory = StoryChapter(
     subtitle: "Night Glitch",
     accentHex: "F97316",
     coverBackgroundImage: "507room",
-    coverCharacterImage: "gltich",
+    coverCharacterImage: "achar",
     overview: "After the zoo trip, your AI friend starts glitching at night. You try an emergency KNN retraining rescue with house-object photos, then witness a painful transfer ending.",
     lines: [
         StoryDialogLine(
             speaker: "You",
             text: "After the zoo trip, I can't sleep. The room is dark, but the album from today is still open on my phone.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "507room",
             cutsceneTitle: "Night After The Zoo",
             cutsceneSubtitle: "Chapter 2 ended • memories still open",
@@ -47,7 +47,7 @@ let chapterThreeStory = StoryChapter(
         StoryDialogLine(
             speaker: "{{ai_name}}",
             text: "I see the zoo... then your room... then static. I can't hold the memories in the right order. I think I'm falling apart.",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "507room",
             characterImage: "gltich",
             cutsceneTitle: "GLITCH",
@@ -62,15 +62,15 @@ let chapterThreeStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "Stay with me, {{ai_name}}. Don't talk like that. Tell me what I need to do right now.",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "507room",
-            characterImage: "char_surprised",
+            characterImage: "char_excited",
             cutsceneTitle: "Hold On",
             cutsceneSubtitle: "You try to keep {{ai_name}} focused",
             choices: [
                 DialogChoice(
                     text: "I'm here. I won't leave.",
-                    emotion: .gentle,
+                    emotion: .happy,
                     response: "You move closer and keep your voice steady. The glitch noise drops for a moment.",
                     icon: "heart.fill"
                 ),
@@ -163,9 +163,9 @@ let chapterThreeStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "My hands are shaking, but I can still feel the warmth from the screen. {{ai_name}} is gone from the room... but not gone.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "507room",
-            characterImage: "char_gentle",
+            characterImage: "char_happy",
             cutsceneTitle: "Chapter Complete",
             cutsceneSubtitle: "End of Chapter 3 • phone transfer route"
         )

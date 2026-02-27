@@ -6,15 +6,15 @@ let chapterOneStory = StoryChapter(
     subtitle: "First Contact / Ethics Class",
     accentHex: "FF5C93",
     coverBackgroundImage: "schooltopview",
-    coverCharacterImage: "char_curious",
+    coverCharacterImage: "teachernew",
     overview: "A high-school day begins with AI ethics class, continues in a red car chat mini-game, and ends with a strange glitch and a lesson about prompting and responsible AI use.",
     lines: [
         StoryDialogLine(
             speaker: "You",
             text: "The mountain line behind school is clear this morning. I can still see the Chiang Mai peaks before class starts.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "schooltopview",
-            characterImage: "char_neutral",
+            characterImage: "char",
             cutsceneTitle: "Chiang Mai Morning",
             cutsceneSubtitle: "High school campus / mountain view"
         ),
@@ -32,7 +32,7 @@ let chapterOneStory = StoryChapter(
             text: "",
             emotion: .neutral,
             backgroundImage: "schooltopview",
-            characterImage: "char_neutral",
+            characterImage: "char",
             cutsceneTitle: "Intro Cutscene",
             cutsceneSubtitle: "Placeholder video / replace later",
             inlineActivity: .video(
@@ -243,7 +243,7 @@ let chapterOneStory = StoryChapter(
         StoryDialogLine(
             speaker: "Professor New (นิว)",
             text: "Also remember this: AI is not human. Do not confuse it with a person. But practice respectful communication anyway, because your habits shape how you treat real people too.",
-            emotion: .gentle,
+            emotion: .happy,
             backgroundImage: "schooltopview",
             characterImage: "teachernew",
             cutsceneTitle: "Lesson 2",
@@ -259,7 +259,7 @@ let chapterOneStory = StoryChapter(
             cutsceneSubtitle: "Choose your focus",
             choices: [
                 DialogChoice(text: "Prompt writing", emotion: .happy, response: "Professor New nods. \"Great start. Clear prompts reduce confusion and make the output easier to evaluate.\"", icon: "text.alignleft"),
-                DialogChoice(text: "Ethics and responsibility", emotion: .gentle, response: "Professor New nods. \"Excellent. Ethics protects people and helps you use AI with better judgment.\"", icon: "shield.lefthalf.filled"),
+                DialogChoice(text: "Ethics and responsibility", emotion: .happy, response: "Professor New nods. \"Excellent. Ethics protects people and helps you use AI with better judgment.\"", icon: "shield.lefthalf.filled"),
                 DialogChoice(text: "Both together", emotion: .excited, response: "Professor New smiles. \"Best mindset. Prompting and ethics should grow together from the beginning.\"", icon: "link")
             ]
         ),
@@ -275,9 +275,9 @@ let chapterOneStory = StoryChapter(
         StoryDialogLine(
             speaker: "You",
             text: "School is over. I ride a red car (รถสี่ล้อแดง) home and check my iPhone. A new Messages thread appears from an Unknown User.",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "redbus",
-            characterImage: "char_surprised",
+            characterImage: "char_excited",
             cutsceneTitle: "Ride Home",
             cutsceneSubtitle: "Red car ride / iPhone in hand",
             showcaseMedia: DialogShowcaseMedia(
@@ -384,9 +384,9 @@ let chapterOneStory = StoryChapter(
         StoryDialogLine(
             speaker: "Player",
             text: "Huh... my phone is shaking?",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "room",
-            characterImage: "char_surprised",
+            characterImage: "char_excited",
             cutsceneTitle: "Phone Glitch",
             cutsceneSubtitle: "Something suddenly vibrates",
             showcaseMedia: DialogShowcaseMedia(
@@ -419,7 +419,7 @@ let chapterOneStory = StoryChapter(
         StoryDialogLine(
             speaker: "Player",
             text: "Whattttt just happened?!",
-            emotion: .surprised,
+            emotion: .excited,
             backgroundImage: "aicomeroom",
             characterImage: "unknow",
             cutsceneTitle: "Chapter 1 Cliffhanger",
