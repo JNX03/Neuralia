@@ -1076,10 +1076,10 @@ struct ResponsiveDialogView: View {
         LinearGradient(
             stops: [
                 .init(color: .clear, location: 0.0),
-                .init(color: .clear, location: 0.60),
-                .init(color: Color.black.opacity(0.18), location: 0.72),
-                .init(color: Color.black.opacity(0.56), location: 0.86),
-                .init(color: Color.black.opacity(0.86), location: 1.0)
+                .init(color: .clear, location: 0.45),
+                .init(color: Color.black.opacity(0.45), location: 0.62),
+                .init(color: Color.black.opacity(0.78), location: 0.80),
+                .init(color: Color.black.opacity(0.95), location: 1.0)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -1332,22 +1332,17 @@ struct ResponsiveDialogView: View {
         node: DialogNode,
         showcase: PhotoShowcase
     ) -> some View {
-        let horizontalPadding = layout.dialogPadding
-        let topInset = topBarTopPadding(for: layout) + max(36, layout.topBarReservedHeight - (geometry.size.height < 700 ? 18 : 10))
-        let bottomInset = max(layout.safeAreaInsets.bottom, 10)
+        let safeTop = max(geometry.safeAreaInsets.top, 20)
+        let safeBottom = max(geometry.safeAreaInsets.bottom, 10)
+        let topInset = safeTop + 60 // Space for top bar
+        let bottomInset = safeBottom + 20
 
         return ZStack {
-            VStack {
-                topBar(layout: layout)
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, topBarTopPadding(for: layout))
-                Spacer()
-            }
-            .zIndex(20)
-
+            // Full screen photos layer (no padding, fills entire screen)
             PhotoShowcaseStage(
                 showcase: showcase,
                 layout: layout,
+                geometry: geometry,
                 isCompleted: viewModel.isInlineActivityCompleted(for: node.id),
                 instructionText: viewModel.displayedText,
                 isTyping: viewModel.isTyping,
@@ -1360,11 +1355,52 @@ struct ResponsiveDialogView: View {
                     handleAdvanceAction()
                 }
             )
-            .padding(.horizontal, horizontalPadding)
-            .padding(.top, topInset)
-            .padding(.bottom, bottomInset)
+            .ignoresSafeArea()
+
+            // Top bar overlay
+            VStack {
+                HStack {
+                    if showSettings {
+                        chapterMenuButton(layout: layout)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, layout.dialogPadding)
+                .padding(.top, safeTop + 8)
+                Spacer()
+            }
+            .zIndex(20)
+
+            // Full screen fade overlay at bottom for text readability
+            visualNovelBottomFade(layout: layout)
+                .allowsHitTesting(false)
+                .zIndex(5)
+
+            // Continue button overlay at bottom
+            VStack {
+                Spacer()
+                if viewModel.isInlineActivityCompleted(for: node.id) {
+                    Button {
+                        handleAdvanceAction()
+                    } label: {
+                        Label("Continue", systemImage: "arrow.right.circle.fill")
+                            .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(Color.green.opacity(0.92))
+                                    .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, safeBottom + 20)
+                }
+            }
+            .zIndex(15)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func classroomLectureQuizActivityScene(
@@ -9891,6 +9927,7 @@ struct PhotoShowcaseCard: View {
 struct PhotoShowcaseStage: View {
     let showcase: PhotoShowcase
     let layout: DialogAdaptiveLayout
+    let geometry: GeometryProxy
     let isCompleted: Bool
     let instructionText: String
     let isTyping: Bool
@@ -9901,70 +9938,113 @@ struct PhotoShowcaseStage: View {
     @State private var completionSubmitted = false
 
     var body: some View {
-        VStack(spacing: layout.isCompact ? 12 : 16) {
-            // Title
-            Text(showcase.title)
-                .font(.system(size: layout.isCompact ? 18 : 22, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, alignment: .center)
+        GeometryReader { geo in
+            let size = geo.size
+            let safeTop = max(geometry.safeAreaInsets.top, 20)
+            let safeBottom = max(geometry.safeAreaInsets.bottom, 10)
+            let isLandscape = size.width > size.height
+            let imageSpacing: CGFloat = isLandscape ? 24 : 16
+            let horizontalPadding: CGFloat = isLandscape ? 40 : 20
+            let topPadding = safeTop + 70 // Account for top bar
+            let bottomPadding = safeBottom + 80 // Account for continue button
 
-            Spacer(minLength: 8)
+            ZStack {
+                // Background
+                Color.black.ignoresSafeArea()
 
-            // Photos side by side at original size
-            HStack(spacing: layout.isCompact ? 12 : 16) {
-                ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
-                    Image(imageName)
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 8)
-                }
-            }
-            .frame(maxHeight: layout.isCompact ? 240 : 380)
-            .padding(.vertical, layout.isCompact ? 8 : 12)
-
-            Spacer(minLength: 12)
-
-            // Action Button
-            if isCompleted {
-                Button {
-                    onContinue()
-                } label: {
-                    Label("Next Chapter", systemImage: "arrow.right.circle.fill")
-                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
+                VStack(spacing: 0) {
+                    // Title at top
+                    Text(showcase.title)
+                        .font(.system(size: isLandscape ? 28 : 22, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.green.opacity(0.92), in: Capsule())
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, topPadding)
+                        .padding(.horizontal, horizontalPadding)
+                        .shadow(color: Color.black.opacity(0.6), radius: 4, x: 0, y: 2)
+
+                    Spacer(minLength: 20)
+
+                    // Photos - responsive layout (smaller images)
+                    if isLandscape {
+                        // Landscape: side by side with smaller images
+                        HStack(spacing: imageSpacing) {
+                            ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
+                                photoImage(imageName: imageName, maxHeight: size.height * 0.45)
+                            }
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                    } else {
+                        // Portrait: stack vertically or side by side depending on aspect
+                        if size.width < 400 {
+                            // Very narrow: stack vertically
+                            VStack(spacing: imageSpacing) {
+                                ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
+                                    photoImage(imageName: imageName, maxHeight: (size.height - topPadding - bottomPadding - 120) / 2.5)
+                                }
+                            }
+                            .padding(.horizontal, horizontalPadding)
+                        } else {
+                            // Wider portrait: side by side
+                            HStack(spacing: imageSpacing) {
+                                ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
+                                    photoImage(imageName: imageName, maxHeight: size.height * 0.38)
+                                }
+                            }
+                            .padding(.horizontal, horizontalPadding)
+                        }
+                    }
+
+                    Spacer(minLength: 20)
+
+                    // Action Button area (above the fade)
+                    VStack(spacing: 12) {
+                        if isCompleted {
+                            // Button moved to overlay, just show text hint here
+                            Text("Tap Continue to proceed")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.7))
+                        } else {
+                            Button {
+                                onComplete()
+                            } label: {
+                                Label("Save to Memories", systemImage: "checkmark.circle.fill")
+                                    .font(.system(size: isLandscape ? 18 : 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 28)
+                                    .padding(.vertical, 14)
+                                    .background(
+                                        Capsule()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [Color.blue.opacity(0.9), Color.purple.opacity(0.8)],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .shadow(color: Color.blue.opacity(0.4), radius: 12, x: 0, y: 6)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.bottom, bottomPadding)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                Button {
-                    onComplete()
-                } label: {
-                    Label("View Complete", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.blue.opacity(0.92), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(layout.isCompact ? 12 : 16)
-        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
+    }
+
+    private func photoImage(imageName: String, maxHeight: CGFloat) -> some View {
+        Image(imageName)
+            .resizable()
+            .scaledToFit()
+            .frame(maxHeight: maxHeight)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.4), radius: 16, x: 0, y: 8)
     }
 }
 
