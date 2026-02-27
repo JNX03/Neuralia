@@ -84,3 +84,59 @@ Accessibility was not an afterthought in Neura; it was integrated directly into 
 *   **Modern Visual Style:** Neura relies on a clean, modern UI showcasing heavily styled frosted glass panels (glassmorphism), dynamic colorful gradients, and animated orbs. It draws direct UI inspiration from premium anime visual novels to create a striking, high-contrast dark theme.
 *   **Rich Local Setting:** The app is strongly rooted in its local Thai context. It features explicit references to the Chiang Mai mountain line, iconic local 'red cars' (รถสี่ล้อแดง), and beautifully blends everyday high school life elements with futuristic sci-fi UI design.
 *   **Native Performance:** Built 100% in pure SwiftUI, ensuring flawless performance, native gestures, and responsive layouts across all supported iOS and iPadOS device orientations.
+
+
+
+## 🎯 Motivation & Problem It Solves
+
+**The Problem:** As Artificial Intelligence becomes rapidly integrated into daily life, there is a critical gap in AI literacy among the general public and students. Many people interact with AI systems (like using them for homework or health questions) but harbor dangerous misconceptions—assuming AI is perfectly reliable, objective, and harmless. 
+
+**The Inspiration:** Traditional classroom lectures on abstract concepts like "algorithmic bias" or "hallucinations" can be dry and difficult to grasp. The inspiration behind Neura is to solve this by making these abstract AI concepts tangible through an engaging, relatable, interactive narrative. By bringing an AI character into a relatable student's life (a high schooler in Chiang Mai) and forcing the player to correct the AI's real-world mistakes, the app transforms passive learning into active problem-solving. The design draws heavy inspiration from popular anime-style visual novels (like "Blue Archive"), leveraging a high-contrast, dynamic aesthetic to keep learners engaged.
+
+---
+
+## 👥 Target Audience & Beneficiaries
+
+*   **High School Students & Teenagers:** The primary audience. The relatable setting (classrooms, riding a red car home, messy bedrooms) and engaging visual novel format speak directly to younger demographics who are most likely to actively use consumer AI tools.
+*   **Complete Beginners to AI:** Anyone looking for a gentle, zero-jargon introduction to how AI works.
+*   **Educators:** Teachers who need an interactive tool to demonstrate the necessity of prompt engineering, privacy protection, and the risks of AI hallucinations in a classroom setting.
+
+---
+
+## 📖 The Story and Curriculum
+
+The narrative follows the player (a student) who accidentally manifests an AI entity into the real world. Across three chapters, the player interacts with this AI and their teacher, Professor New, to learn about responsible AI usage. 
+
+### Chapter 1: "H~Hi Who are you?" (First Contact / Ethics Class)
+*   **Story:** The game starts in an AI ethics class. After class, the player receives strange text messages from an "Unknown User" with a noisy signal. To fix the communication, the player builds a structured prompt. That night, the AI physically appears in their room.
+*   **What it teaches:** 
+    *   **Prompt Engineering:** How to build a good prompt using `[Goal] + [Context] + [Action] + [Format]`.
+    *   **AI Ethics:** Verifying health answers, protecting privacy by removing personal info from images, recognizing biased outputs, and verifying fake AI citations.
+
+### Chapter 2: "New Friend?" (Hallucination / Bias / Bad Data)
+*   **Story:** To build real-world memories, the player takes the AI to the Chiang Mai Zoo. There, the AI tries to guess animals but makes mistakes based on bad clues (blurry vision, confusing data). Later, they review these mistakes together.
+*   **What it teaches:**
+    *   **Hallucination:** Understanding that AI can generate answers that sound plausible but are entirely fake when it lacks context. 
+    *   **Allowing Uncertainty:** Teaching the AI that it's better to admit "I'm not sure" than to confidently guess.
+    *   **Bias & Bad Data:** A minigame where the player categorizes why the AI made mistakes, illustrating how poor input data leads to incorrect AI assumptions.
+
+### Chapter 3: "99.98%" (Night Glitch)
+*   **Story:** The AI's signal becomes unstable, and its memories start corrupting. In a panic, the AI instructs the player to execute an "Emergency KNN Rescue" by taking photos of everyday objects around the room to anchor its memory patterns. The distance matching stabilizes at `99.98%`, and the AI successfully transfers itself into the player's phone.
+*   **What it teaches:**
+    *   **Machine Learning (KNN):** Interactive image training based on K-Nearest Neighbors. The player takes photos to provide "training samples," illustrating how AI models classify objects based on distance/similarity to known examples.
+
+---
+
+## ♿ Accessibility Design Process
+
+Accessibility was not an afterthought but integrated directly into the core foundation of the app ([AccessibleColors.swift](file:///Users/jnx03/Desktop/Swift2026/Neura/Neura.swiftpm/Core/AccessibleColors.swift) and `GlobalSettingsStore.swift`). The design process factored in diverse user needs in the following ways:
+
+1.  **Color-Blind Safe Palette (WCAG Compliant):**
+    *   The app avoids relying solely on traditional Red/Green colors for Success/Error indicators, which are invisible to many color-blind users. 
+    *   When the dedicated **"Color Blind Mode"** is toggled, the app dynamically shifts semantic colors to a Wong color-blind-safe palette: Success (Green) shifts to Blue, Error (Red) shifts to Vermillion, and Warning (Orange) shifts to Yellow. Theme accents (like the UI's pink and cyan) are also shifted for better contrast.
+2.  **Multi-Modal Feedback (Shape Cues + Text):**
+    *   Information is never conveyed by color alone. The `AccessibleConfidenceIndicator` pairs every color with a specific shape cue (e.g., a checkmark for success, a triangle for warning, an X for error) and explicit textual labels (e.g., "High Confidence (90%)").
+3.  **Contrast Adjustments:**
+    *   Menu panels, backgrounds, and text primary/secondary colors are intentionally darkened or lightened to strictly maintain WCAG AA compliance (a 4.5:1 contrast ratio) so text is always legible against the frosted glass UI.
+4.  **Motion Sensitivity (Reduce Motion):**
+    *   The app features heavy use of dynamic animated orbs and parallax effects. Recognizing that this can cause vertigo or nausea for some users, a **"Reduce Motion"** toggle is built into the global settings. When enabled, it disables the parallax coordinate tracking and replaces the rich animations with simple, comfortable opacity cross-fades. It automatically respects the OS-level "Reduce Motion" preference upon launch.
