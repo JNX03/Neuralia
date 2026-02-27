@@ -33,7 +33,7 @@ let chapter2ZooMemoryHuntMiniGame =
                     )
                 ],
                 aiGuessLine: "{{ai_name}}: \"Woah... a plane? ...or maybe a drone?\"",
-                sceneImageName: "zoo_bird_scene_placeholder",
+                sceneImageName: "zoo_bird_scene",
                 sceneImageCaption: "Zoo walkway placeholder scene. Replace with your real bird scene image later.",
                 referenceBookTitle: "Open Zoo Field Guide",
                 referencePages: [
@@ -41,7 +41,7 @@ let chapter2ZooMemoryHuntMiniGame =
                         id: "bird-guide-1",
                         title: "Bird Check",
                         text: "Use simple clues first: flapping motion, size, and where it appears. A fast AI guess can confuse similar shapes when the view is quick.",
-                        imageName: "zoo_bird_fieldguide_placeholder"
+                        imageName: "zoo_bird_fieldguide"
                     ),
                     LectureQuizReferencePage(
                         id: "bird-guide-2",
@@ -75,7 +75,7 @@ let chapter2ZooMemoryHuntMiniGame =
                     )
                 ],
                 aiGuessLine: "{{ai_name}}: \"Look! A fox... or maybe a raccoon? Impossible. Panda should be big and black-and-white.\"",
-                sceneImageName: "zoo_redpanda_scene_placeholder",
+                sceneImageName: "zoo_redpanda_scene",
                 sceneImageCaption: "Red Panda enclosure placeholder scene. Replace with your real red panda image later.",
                 referenceBookTitle: "Open Zoo Field Guide",
                 referencePages: [
@@ -83,7 +83,7 @@ let chapter2ZooMemoryHuntMiniGame =
                         id: "rp-guide-1",
                         title: "Ground Truth > Pattern Guess",
                         text: "AI can overgeneralize: 'panda = big black-and-white' is a pattern, not a rule. Exceptions exist. Labels and signs are ground truth.",
-                        imageName: "zoo_redpanda_fieldguide_placeholder"
+                        imageName: "zoo_redpanda_fieldguide"
                     ),
                     LectureQuizReferencePage(
                         id: "rp-guide-2",
@@ -117,7 +117,7 @@ let chapter2ZooMemoryHuntMiniGame =
                     )
                 ],
                 aiGuessLine: "{{ai_name}}: \"Alert! Sea Monster detected! Green slime skin, 10 meters long!\"",
-                sceneImageName: "zoo_aquarium_blurry_placeholder",
+                sceneImageName: "zoo_aquarium_blurry",
                 sceneImageCaption: "Aquarium blocked-view placeholder scene. Replace with your real algae/blur image later.",
                 referenceBookTitle: "Open Aquarium Field Guide",
                 referencePages: [
@@ -125,7 +125,7 @@ let chapter2ZooMemoryHuntMiniGame =
                         id: "aq-guide-1",
                         title: "Bad Data = Bad Prediction",
                         text: "If the view is blocked, dark, or low quality, even a strong model can fail. Improve the input before judging the output.",
-                        imageName: "zoo_catfish_fieldguide_placeholder"
+                        imageName: "zoo_catfish_fieldguide"
                     ),
                     LectureQuizReferencePage(
                         id: "aq-guide-2",

@@ -186,7 +186,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     @State private var drawStrokes: [[CGPoint]] = []
     @State private var drawCurrentStroke: [CGPoint] = []
     @State private var drawCanvasSize: CGSize = .zero
-    @State private var drawCurrentLabel: String = "Pen"
+    @State private var drawCurrentLabel: String = "1"
     @State private var drawCurrentIndex: Int = 0  // 0-2 for current label
 
     // Shared training data (projected to 2D for scatter plot)
@@ -219,7 +219,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     @State private var drawTestStrokes: [[CGPoint]] = []
     @State private var drawTestCurrentStroke: [CGPoint] = []
     @State private var drawTestCanvasSize: CGSize = .zero
-    @State private var drawTestLabel: String = "Pen"
+    @State private var drawTestLabel: String = "1"
 
     // AI Name
     private var aiName: String {
@@ -228,7 +228,9 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
             : GlobalSettingsStore.shared.aiDisplayName
     }
 
-    private let labels = ["Pen", "Hand", "Bottle"]
+    private var labels: [String] {
+        mode == .photo ? ["Pen", "Hand", "Bottle"] : ["1", "2", "3"]
+    }
     private let samplesPerClass = 3
 
     init(minigame: Chapter3KNNRescueMiniGame, layout: DialogAdaptiveLayout, isCompleted: Bool, onComplete: @escaping (String) -> Void) {
@@ -244,7 +246,10 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         [
             "Pen": Color(hex: "3B82F6"),
             "Hand": Color(hex: "F59E0B"),
-            "Bottle": Color(hex: "10B981")
+            "Bottle": Color(hex: "10B981"),
+            "1": Color(hex: "3B82F6"),
+            "2": Color(hex: "F59E0B"),
+            "3": Color(hex: "10B981")
         ]
     }
 
@@ -252,7 +257,10 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         [
             "Pen": "pencil",
             "Hand": "hand.raised.fill",
-            "Bottle": "cup.and.saucer.fill"
+            "Bottle": "cup.and.saucer.fill",
+            "1": "1.circle.fill",
+            "2": "2.circle.fill",
+            "3": "3.circle.fill"
         ]
     }
 
@@ -325,23 +333,29 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
             .frame(maxWidth: stageMaxWidth, maxHeight: .infinity, alignment: .top)
 
             // Bottom gradient
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.0),
-                    .init(color: .clear, location: 0.55),
-                    .init(color: Color.black.opacity(0.3), location: 0.68),
-                    .init(color: Color.black.opacity(0.65), location: 0.82),
-                    .init(color: Color.black.opacity(0.92), location: 1.0)
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
+            VStack {
+                Spacer()
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: Color.black.opacity(0.25), location: 0.15),
+                        .init(color: Color.black.opacity(0.55), location: 0.35),
+                        .init(color: Color.black.opacity(0.82), location: 0.6),
+                        .init(color: Color.black.opacity(0.95), location: 1.0)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: bottomDialogReserve + 80)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea()
             .allowsHitTesting(false)
             .zIndex(1)
 
             bottomDialog.zIndex(2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .bottom)
         .onAppear { initChat() }
         .onDisappear {
             trainingTask?.cancel()
@@ -764,7 +778,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                     .foregroundColor(.white)
                 Spacer()
             }
-            Text("Draw 3 samples for each class. The KNN will learn from your drawings.")
+            Text("Draw the numbers 1, 2, and 3 — three samples each. The KNN will learn from your drawings.")
                 .font(.system(size: layout.isCompact ? 11 : 12, design: .rounded))
                 .foregroundColor(.white.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
@@ -1053,7 +1067,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
 
     private func drawTestHeader(label: String, color: Color, icon: String) -> some View {
         VStack(spacing: 6) {
-            Text("Test \(currentTestIndex + 1) of 3: Draw a \(label)")
+            Text("Test \(currentTestIndex + 1) of 3: Draw \(label)")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
             Image(systemName: icon)
@@ -1646,15 +1660,19 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
 
     // Mode toggle
     private func toggleMode() {
+        let newMode: Chapter3KNNRescueMode = (mode == .photo) ? .drawFallback : .photo
         withAnimation(.easeInOut(duration: 0.25)) {
-            mode = (mode == .photo) ? .drawFallback : .photo
+            mode = newMode
         }
         // Reset collect state when switching
         trainingPoints.removeAll()
         trainingFeatures.removeAll()
-        if mode == .photo {
+        if newMode == .photo {
             addChat("Switching to photo mode...", isUser: true)
         } else {
+            drawCurrentLabel = "1"
+            drawCurrentIndex = 0
+            drawSamples.removeAll()
             addChat("Switching to drawing mode...", isUser: true)
         }
     }
@@ -1664,7 +1682,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     private func initChat() {
         guard !didInitializeChat else { return }
         didInitializeChat = true
-        addChat("Signal fragmenting... I need KNN anchors. Upload photos or draw: \(labels.joined(separator: ", "))", isUser: false)
+        addChat("Signal fragmenting... I need KNN anchors. Upload photos or draw samples to train KNN!", isUser: false)
         addChat("On it! Starting the rescue.", isUser: true)
     }
 
