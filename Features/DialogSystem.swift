@@ -799,7 +799,6 @@ struct ResponsiveDialogView: View {
             || matchesSpeakerName(normalized, candidate: "Unknown User")
             || matchesSpeakerName(normalized, candidate: "Unknown Sender")
             || matchesSpeakerName(normalized, candidate: "unknow")
-            || matchesSpeakerName(normalized, candidate: "Phone")
     }
 
     private func voiceProfile(for speaker: String) -> SpeechVoiceProfile {
@@ -811,6 +810,9 @@ struct ResponsiveDialogView: View {
             return .playerFemale
         }
         if isAISpeaker(normalized) {
+            return .playerFemale
+        }
+        if isPhoneSpeaker(normalized) {
             return .playerFemale
         }
         return .default
@@ -857,10 +859,13 @@ struct ResponsiveDialogView: View {
             || normalizedText.hasPrefix("unknown user ")
             || normalizedText == "unknown sender"
             || normalizedText.hasPrefix("unknown sender ")
-            || normalizedText == "phone"
-            || normalizedText.hasPrefix("phone ")
 
         if startsWithAICue {
+            return .playerFemale
+        }
+        
+        // Phone speaker (text messages)
+        if normalizedText == "phone" || normalizedText.hasPrefix("phone ") {
             return .playerFemale
         }
 
@@ -869,7 +874,12 @@ struct ResponsiveDialogView: View {
 
     private func shouldSpeakForSpeaker(_ speaker: String) -> Bool {
         let normalized = normalizedVoiceMatchText(speaker)
-        return !isPlayerSpeaker(normalized)
+        // Don't speak for player or Phone (text message sounds only)
+        return !isPlayerSpeaker(normalized) && !isPhoneSpeaker(normalized)
+    }
+    
+    private func isPhoneSpeaker(_ normalized: String) -> Bool {
+        normalized == "phone" || normalized.contains("phone")
     }
 
     private func speakCurrentNodeText() {
@@ -2551,6 +2561,10 @@ struct ResponsiveDialogView: View {
         .contentShape(Rectangle())
         .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
         .onTapGesture {
+            guard canAdvanceFromDialogTap else { return }
+            handleAdvanceAction()
+        }
+        .onLongPressGesture(minimumDuration: 0.01, maximumDistance: 50) {
             guard canAdvanceFromDialogTap else { return }
             handleAdvanceAction()
         }

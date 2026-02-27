@@ -4,7 +4,7 @@ struct ContentView: View {
     @EnvironmentObject private var settings: GlobalSettingsStore
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     // Temporary toggle: keep startup screens in code, but bypass them at launch.
-    private let skipStartupScreens = true
+    private let skipStartupScreens = false
     @State private var showMainMenu = true
     @State private var contentOpacity: Double = 1.0
     

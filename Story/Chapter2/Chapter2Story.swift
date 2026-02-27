@@ -220,10 +220,10 @@ let chapterTwoStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "Next time, I will try to say 'I'm not sure' before I guess. You can help me with better clues and better data.",
             emotion: .excited,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "unknow",
             cutsceneTitle: "Chapter 2 Memories",
-            cutsceneSubtitle: "Photos from the day",
+            cutsceneSubtitle: "Heading home",
             inlineActivity: .photoShowcase(
                 PhotoShowcase(
                     title: "Memory Photos",

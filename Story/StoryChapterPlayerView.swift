@@ -84,6 +84,9 @@ struct StoryChapterPlayerView: View {
         if currentChapter.id == "chapter1" {
             return "chapter1ending"
         }
+        if currentChapter.id == "chapter2" {
+            return "room"
+        }
         return currentChapter.coverBackgroundImage
     }
 

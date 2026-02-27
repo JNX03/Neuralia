@@ -149,7 +149,13 @@ let chapterThreeStory = StoryChapter(
             backgroundImage: "507room",
             characterImage: "char_sad",
             cutsceneTitle: "Loss",
-            cutsceneSubtitle: "You think {{ai_name}} is gone"
+            cutsceneSubtitle: "You think {{ai_name}} is gone",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Empty Room",
+                subtitle: "The silence after {{ai_name}} disappeared",
+                imageName: "507room",
+                badge: "Gone"
+            )
         ),
         StoryDialogLine(
             speaker: "Phone",
