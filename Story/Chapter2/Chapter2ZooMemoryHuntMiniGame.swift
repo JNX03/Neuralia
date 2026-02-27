@@ -89,7 +89,7 @@ let chapter2ZooMemoryHuntMiniGame =
                     )
                 ],
                 aiGuessLine: "{{ai_name}}: \"Alert! Sea Monster detected! Green slime skin, 10 meters long!\"",
-                sceneImageName: "zoo_aquarium_blurry",
+                sceneImageName: "zoo_shark_screen",
                 sceneImageCaption: "Aquarium blocked-view placeholder scene. Replace with your real algae/blur image later."
             )
         ],

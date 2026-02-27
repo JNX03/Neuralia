@@ -6732,7 +6732,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     Image(imageName)
                         .resizable()
                         .scaledToFill()
-                        .frame(height: layout.isCompact ? 240 : 340)
+                        .frame(height: layout.isCompact ? 320 : 480)
                         .frame(maxWidth: .infinity)
                         .clipped()
                         .overlay(
@@ -9896,30 +9896,21 @@ struct PhotoShowcaseStage: View {
 
             Spacer(minLength: 8)
 
-            // Photo Grid - Dropped on table style with rotation and overlap
-            ZStack(alignment: .center) {
+            // Photos side by side at original size
+            HStack(spacing: layout.isCompact ? 12 : 16) {
                 ForEach(Array(showcase.imageNames.enumerated()), id: \.offset) { index, imageName in
                     Image(imageName)
                         .resizable()
-                        .scaledToFill()
-                        .frame(height: layout.isCompact ? 180 : 240)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
+                        .scaledToFit()
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                 .stroke(Color.white.opacity(0.15), lineWidth: 1)
                         )
                         .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 8)
-                        // Rotation and offset for dropped on table effect
-                        .rotationEffect(.degrees(Double(index) * 8 - 4), anchor: .center)
-                        .offset(
-                            x: CGFloat(index - (showcase.imageNames.count - 1) / 2) * 16,
-                            y: CGFloat(index) * 12
-                        )
                 }
             }
-            .frame(height: layout.isCompact ? 220 : 290)
+            .frame(maxHeight: layout.isCompact ? 240 : 380)
             .padding(.vertical, layout.isCompact ? 8 : 12)
 
             Spacer(minLength: 12)
@@ -9929,7 +9920,7 @@ struct PhotoShowcaseStage: View {
                 Button {
                     onContinue()
                 } label: {
-                    Label("Continue Story", systemImage: "arrow.right.circle.fill")
+                    Label("Next Chapter", systemImage: "arrow.right.circle.fill")
                         .font(.system(size: layout.isCompact ? 14 : 15, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
