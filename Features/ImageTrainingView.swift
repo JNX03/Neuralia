@@ -1506,7 +1506,11 @@ struct PredictionCard: View {
     let layout: AdaptiveLayout
     @EnvironmentObject private var settings: GlobalSettingsStore
     @State private var showDetails = false
-    
+
+    private var colors: AccessibleColors {
+        AccessibleColors(colorBlindMode: settings.colorBlindMode)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: layout.spacing) {
             HStack {
@@ -1524,35 +1528,24 @@ struct PredictionCard: View {
                         .font(.system(size: layout.fontSize - 2))
                         .foregroundColor(.secondary)
                     HStack(spacing: 4) {
-                        if settings.colorBlindMode {
-                            if result.confidence > 0.7 {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: layout.fontSize))
-                                    .foregroundColor(.green)
-                            } else if result.confidence > 0.5 {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: layout.fontSize))
-                                    .foregroundColor(.orange)
-                            } else {
-                                Image(systemName: "xmark.octagon.fill")
-                                    .font(.system(size: layout.fontSize))
-                                    .foregroundColor(.red)
-                            }
-                        }
+                        // Always show icon for accessibility (not just in colorBlindMode)
+                        Image(systemName: colors.confidenceIcon(for: result.confidence))
+                            .font(.system(size: layout.fontSize))
+                            .foregroundColor(colors.confidenceColor(for: result.confidence))
                         Text("\(Int(result.confidence * 100))%")
                             .font(.system(size: layout.fontSize + 4, weight: .semibold))
-                            .foregroundColor(result.confidence > 0.7 ? .green : (result.confidence > 0.5 ? .orange : .red))
+                            .foregroundColor(colors.confidenceColor(for: result.confidence))
                     }
                 }
             }
-            
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemGray5))
                         .frame(height: 8)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(result.confidence > 0.7 ? Color.green : (result.confidence > 0.5 ? Color.orange : Color.red))
+                        .fill(colors.confidenceColor(for: result.confidence))
                         .frame(width: geo.size.width * result.confidence, height: 8)
                 }
             }
@@ -1598,14 +1591,14 @@ struct PredictionCard: View {
             }
         }
         .padding(layout.padding)
-        .background(Color.green.opacity(0.05))
+        .background(colors.success.opacity(0.05))
         .overlay(
             RoundedRectangle(cornerRadius: layout.cornerRadius)
-                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                .stroke(colors.success.opacity(0.3), lineWidth: 1)
         )
         .cornerRadius(layout.cornerRadius)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Prediction: \(result.label), Confidence: \(Int(result.confidence * 100)) percent")
+        .accessibilityLabel("Prediction: \(result.label), \(colors.confidenceLabel(for: result.confidence)), \(Int(result.confidence * 100)) percent")
     }
 }
 
@@ -1639,11 +1632,12 @@ struct StatusBadge: View {
             Text(status == .ready ? "Model Ready" : "Add samples from 2+ classes")
         }
         .font(.system(size: layout.fontSize - 2))
-        .foregroundColor(status == .ready ? .green : .orange)
+        .foregroundColor(status == .ready ? Color(red: 0.13, green: 0.72, blue: 0.45) : Color(red: 0.95, green: 0.55, blue: 0.15))
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background((status == .ready ? Color.green : Color.orange).opacity(0.1))
+        .background((status == .ready ? Color(red: 0.13, green: 0.72, blue: 0.45) : Color(red: 0.95, green: 0.55, blue: 0.15)).opacity(0.1))
         .cornerRadius(layout.cornerRadius / 2)
+        .accessibilityLabel(status == .ready ? "Model is ready for predictions" : "Add samples from 2 or more classes to train")
     }
 }
 
@@ -1727,7 +1721,7 @@ struct AdvancedSettingsSection: View {
                             let accuracy = knn.crossValidation()
                             Text("\(Int(accuracy * 100))%")
                                 .font(.system(size: layout.fontSize - 2, weight: .medium))
-                                .foregroundColor(accuracy > 0.8 ? .green : (accuracy > 0.5 ? .orange : .red))
+                                .foregroundColor(accuracy > 0.8 ? Color(red: 0.13, green: 0.72, blue: 0.45) : (accuracy > 0.5 ? Color(red: 0.95, green: 0.55, blue: 0.15) : Color(red: 0.90, green: 0.25, blue: 0.20)))
                         }
                     }
                 }

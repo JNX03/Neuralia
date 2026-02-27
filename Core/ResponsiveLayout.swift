@@ -67,11 +67,11 @@ struct ResponsiveLayout {
     
     var captionFontSize: CGFloat {
         switch true {
-        case isCompact: return 11
-        case isRegular: return 12
+        case isCompact: return 12  // Raised from 11 for readability
+        case isRegular: return 13  // Raised from 12
         case isLarge: return 14
         case isExtraLarge: return 16
-        default: return 12
+        default: return 13
         }
     }
     
@@ -230,15 +230,34 @@ extension View {
     }
 }
 
-// MARK: - Responsive Font Modifier
+// MARK: - Responsive Font Modifier (with Dynamic Type support)
 struct ResponsiveFont: ViewModifier {
     let size: CGFloat
     let weight: Font.Weight
     let layout: ResponsiveLayout
-    
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var dynamicScale: CGFloat {
+        switch dynamicTypeSize {
+        case .xSmall: return 0.85
+        case .small: return 0.92
+        case .medium: return 1.0
+        case .large: return 1.0
+        case .xLarge: return 1.08
+        case .xxLarge: return 1.16
+        case .xxxLarge: return 1.24
+        case .accessibility1: return 1.35
+        case .accessibility2: return 1.50
+        case .accessibility3: return 1.65
+        case .accessibility4: return 1.80
+        case .accessibility5: return 2.0
+        @unknown default: return 1.0
+        }
+    }
+
     func body(content: Content) -> some View {
         content
-            .font(.system(size: layout.scaled(size), weight: weight))
+            .font(.system(size: min(layout.scaled(size) * dynamicScale, size * 2.5), weight: weight))
     }
 }
 

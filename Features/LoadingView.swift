@@ -430,6 +430,8 @@ struct LoadingView: View {
             .onAppear { vm.start() }
             .onDisappear { vm.cleanup() }
         }
+        .accessibilityLabel(vm.phase == .main ? "Neura loading complete. Touch to start." : "Neura is loading")
+        .accessibilityHint(vm.phase == .main ? "Double tap to start the game" : "Please wait while the game loads")
         .onTapGesture {
             guard vm.phase == .main, !hasStarted else { return }
             hasStarted = true

@@ -302,8 +302,9 @@ struct MainMenuView: View {
                 if settings.showVersionLabel {
                     Text("Ver 1.0.0")
                         .font(.system(size: layout.captionFontSize, weight: .bold))
-                        .foregroundColor(.gray.opacity(0.5))
+                        .foregroundColor(AccessibleColors.versionLabel)
                         .padding(.top, layout.scaled(8))
+                        .accessibilityLabel("Version 1.0.0")
                 }
                 
                 Spacer()
@@ -354,7 +355,8 @@ struct MainMenuView: View {
             if settings.showVersionLabel {
                 Text("Ver 1.0.0")
                     .font(.system(size: layout.captionFontSize, weight: .bold))
-                    .foregroundColor(.gray.opacity(0.5))
+                    .foregroundColor(AccessibleColors.versionLabel)
+                    .accessibilityLabel("Version 1.0.0")
             }
             
             Spacer()
@@ -508,31 +510,31 @@ private struct SlantedMenuButton: View {
                         .rotationEffect(.degrees(-90))
                 }
                 .frame(width: layout.scaled(24))
-                
+
                 // Content Area
                 HStack(spacing: layout.scaled(12)) {
                     Image(systemName: icon)
                         .font(.system(size: layout.scaled(22)))
-                        .foregroundColor(isHovered || isPressed ? themeBlue : .gray.opacity(0.8))
+                        .foregroundColor(isHovered || isPressed ? themeBlue : AccessibleColors.menuIdleIcon)
                         .frame(width: layout.scaled(30))
-                        
+
                     VStack(alignment: .leading, spacing: layout.scaled(2)) {
                         Text(title)
                             .font(.system(size: layout.scaled(16), weight: .black, design: .rounded))
-                            .foregroundColor(isHovered || isPressed ? themeDark : .gray)
+                            .foregroundColor(isHovered || isPressed ? themeDark : AccessibleColors.menuIdleText)
                             .tracking(1)
-                            
+
                         Text(subtitle)
                             .font(.system(size: layout.scaled(10), weight: .bold))
-                            .foregroundColor(isHovered || isPressed ? themeBlue.opacity(0.8) : .gray.opacity(0.5))
+                            .foregroundColor(isHovered || isPressed ? themeBlue.opacity(0.8) : AccessibleColors.menuIdleSubtext)
                             .tracking(1)
                     }
-                    
+
                     Spacer(minLength: 0)
-                    
+
                     Image(systemName: "chevron.right")
                         .font(.system(size: layout.scaled(14), weight: .bold))
-                        .foregroundColor(isHovered || isPressed ? themeBlue : .gray.opacity(0.4))
+                        .foregroundColor(isHovered || isPressed ? themeBlue : AccessibleColors.menuIdleIcon)
                 }
                 .padding(.vertical, layout.scaled(16))
                 .padding(.horizontal, layout.scaled(16))
@@ -551,6 +553,7 @@ private struct SlantedMenuButton: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(subtitle)")
+        .accessibilityHint("Double tap to activate")
         .accessibilityAddTraits(.isButton)
         #if os(macOS)
         .onHover { onHover($0) }
@@ -587,7 +590,7 @@ private struct SlantedSmallButton: View {
                     .font(.system(size: layout.scaled(12), weight: .black, design: .rounded))
                     .tracking(1)
             }
-            .foregroundColor(isHovered || isPressed ? themeBlue : .gray)
+            .foregroundColor(isHovered || isPressed ? themeBlue : AccessibleColors.menuIdleText)
             .frame(maxWidth: .infinity)
             .padding(.vertical, layout.scaled(14))
             .background(isHovered || isPressed ? themeWhite : themeWhite.opacity(0.7))
@@ -604,6 +607,7 @@ private struct SlantedSmallButton: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
+        .accessibilityHint("Double tap to open \(title.lowercased())")
         .accessibilityAddTraits(.isButton)
         #if os(macOS)
         .onHover { onHover($0) }

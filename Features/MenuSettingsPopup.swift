@@ -6,13 +6,13 @@ struct MenuSettingsPopupOverlay: View {
     let onClose: () -> Void
 
     @State private var selectedTab: PopupTab = .games
-    private let panelBorder = Color(red: 0.80, green: 0.83, blue: 0.86)
-    private let panelBackground = Color(red: 0.95, green: 0.96, blue: 0.97)
-    private let sectionBorder = Color(red: 0.84, green: 0.86, blue: 0.88)
-    private let sidebarSelected = Color(red: 0.72, green: 0.86, blue: 0.97)
-    private let accent = Color(red: 0.32, green: 0.76, blue: 0.98)
-    private let textPrimary = Color(red: 0.17, green: 0.24, blue: 0.33)
-    private let textMuted = Color(red: 0.45, green: 0.50, blue: 0.58)
+    private let panelBorder = AccessibleColors.panelBorder
+    private let panelBackground = AccessibleColors.panelBackground
+    private let sectionBorder = AccessibleColors.sectionBorder
+    private let sidebarSelected = AccessibleColors.sidebarSelected
+    private let accent = Color(red: 0.20, green: 0.60, blue: 0.90)
+    private let textPrimary = AccessibleColors.textPrimary
+    private let textMuted = AccessibleColors.textSecondary
 
     var body: some View {
         ZStack {
@@ -74,6 +74,7 @@ struct MenuSettingsPopupOverlay: View {
             .buttonStyle(.plain)
             .padding(.trailing, layout.scaled(4))
             .accessibilityLabel("Close Settings")
+            .accessibilityHint("Double tap to close the settings panel")
             .accessibilityAddTraits(.isButton)
         }
         .padding(.horizontal, layout.scaled(16))
@@ -124,6 +125,8 @@ struct MenuSettingsPopupOverlay: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(tab.title) tab")
+                .accessibilityHint("Double tap to show \(tab.title.lowercased()) settings")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
 
@@ -140,6 +143,8 @@ struct MenuSettingsPopupOverlay: View {
                 .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
                 .foregroundStyle(textMuted)
                 .buttonStyle(.plain)
+                .accessibilityLabel("Reset all settings to defaults")
+                .accessibilityHint("Double tap to reset all options")
                 .accessibilityAddTraits(.isButton)
 
                 Spacer()
@@ -151,7 +156,7 @@ struct MenuSettingsPopupOverlay: View {
             width: layout.width < 700 || layout.isPortrait ? nil : max(128, layout.scaled(150)),
             height: layout.width < 700 || layout.isPortrait ? nil : .infinity
         )
-        .background(Color(red: 0.85, green: 0.93, blue: 0.98).opacity(0.85))
+        .background(AccessibleColors.sidebarBackground.opacity(0.90))
     }
 
     private var contentPane: some View {
@@ -325,12 +330,44 @@ struct MenuSettingsPopupOverlay: View {
         VStack(alignment: .leading, spacing: layout.scaled(12)) {
             optionSection(
                 title: "Color Blind Mode",
-                subtitle: "Enhances visual cues with shapes and patterns for color vision deficiencies.",
+                subtitle: "Replaces red/green indicators with blue/orange and adds shape icons for status cues.",
                 body: {
                     BinaryRadioGroup(
                         leftTitle: "On",
                         rightTitle: "Off",
                         selection: colorBlindModeBinding,
+                        layout: layout,
+                        accent: accent,
+                        textPrimary: textPrimary,
+                        textMuted: textMuted
+                    )
+                }
+            )
+
+            optionSection(
+                title: "Reduce Motion",
+                subtitle: "Disables parallax, bouncing, and other animations throughout the app.",
+                body: {
+                    BinaryRadioGroup(
+                        leftTitle: "On",
+                        rightTitle: "Off",
+                        selection: reduceMotionBinding,
+                        layout: layout,
+                        accent: accent,
+                        textPrimary: textPrimary,
+                        textMuted: textMuted
+                    )
+                }
+            )
+
+            optionSection(
+                title: "Voice Narration",
+                subtitle: "Spoken narration for dialog text. Helpful for users who prefer audio content.",
+                body: {
+                    BinaryRadioGroup(
+                        leftTitle: "On",
+                        rightTitle: "Off",
+                        selection: speechEnabledBinding,
                         layout: layout,
                         accent: accent,
                         textPrimary: textPrimary,
@@ -412,6 +449,13 @@ struct MenuSettingsPopupOverlay: View {
         Binding(
             get: { settings.colorBlindMode },
             set: { settings.colorBlindMode = $0 }
+        )
+    }
+
+    private var reduceMotionBinding: Binding<Bool> {
+        Binding(
+            get: { settings.reduceMotion },
+            set: { settings.reduceMotion = $0 }
         )
     }
 

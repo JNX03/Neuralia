@@ -304,7 +304,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
             HStack(spacing: 5) {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: layout.captionFontSize - 1, weight: .semibold))
-                    .foregroundColor(rescuePassed ? .green : Color(hex: "F97316"))
+                    .foregroundColor(rescuePassed ? Color(red: 0.13, green: 0.72, blue: 0.45) : Color(hex: "F97316"))
                 Text("KNN Rescue")
                     .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
                     .foregroundColor(.white)

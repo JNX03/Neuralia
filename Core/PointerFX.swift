@@ -190,18 +190,21 @@ private struct PointerFXModifier: ViewModifier {
     @State private var trailPoints: [CGPoint] = []
     @State private var pointerHideTask: Task<Void, Never>?
     @State private var trailClearTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
             .contentShape(Rectangle())
             .overlay {
-                PointerFXOverlay(
-                    location: pointerLocation,
-                    isDown: pointerIsDown,
-                    isVisible: pointerIsVisible,
-                    ripples: ripples,
-                    trailPoints: trailPoints
-                )
+                if !reduceMotion {
+                    PointerFXOverlay(
+                        location: pointerLocation,
+                        isDown: pointerIsDown,
+                        isVisible: pointerIsVisible,
+                        ripples: ripples,
+                        trailPoints: trailPoints
+                    )
+                }
             }
             .simultaneousGesture(pointerGesture)
             .onDisappear {

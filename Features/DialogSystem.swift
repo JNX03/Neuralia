@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import AVKit
 
 // MARK: - Dialog Node Types
@@ -947,6 +948,18 @@ struct ResponsiveDialogView: View {
         }
         .onDisappear {
             speechManager.stop()
+        }
+        .onChange(of: viewModel.isTyping) { _, isTyping in
+            if !isTyping, let node = viewModel.currentNode {
+                let speaker = viewModel.resolvedSpeaker(for: node)
+                let announcement = "\(speaker) says: \(viewModel.displayedText)"
+                UIAccessibility.post(notification: .announcement, argument: announcement as NSString)
+            }
+        }
+        .onChange(of: viewModel.showChoices) { _, showChoices in
+            if showChoices {
+                UIAccessibility.post(notification: .announcement, argument: "Choose a response" as NSString)
+            }
         }
         .dialogMacOSMinWindowFrame()
         .toolbar(.hidden, for: .navigationBar)
@@ -8410,6 +8423,10 @@ struct ChoiceButton: View {
             .shadow(color: Color.black.opacity(0.16), radius: 4, x: 0, y: 3)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Choice: \(choice.text)")
+        .accessibilityHint("Double tap to select this response")
+        .accessibilityAddTraits(.isButton)
         .dialogHoverIfAvailable { isHovered = $0 }
         .pressEvents {
             isPressed = true
@@ -8418,7 +8435,7 @@ struct ChoiceButton: View {
         }
         .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
-    
+
     private func getEmotionColor(_ emotion: Emotion) -> Color {
         switch emotion {
         case .happy: return .green

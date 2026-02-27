@@ -31,6 +31,8 @@ struct ContentView: View {
         }
         .ignoresSafeArea()
         .neuraPointerFX()
+        .accessibleColors(colorBlindMode: settings.colorBlindMode)
+        .accessibilityLabel("Neura App")
         .transaction { transaction in
             if settings.reduceMotion {
                 transaction.disablesAnimations = true
@@ -46,8 +48,8 @@ struct ContentView: View {
                 showMainMenu = skipStartupScreens
             }
         }
-        .onChange(of: systemReduceMotion) { newValue in
-            settings.reduceMotion = newValue
+        .onChange(of: systemReduceMotion) {
+            settings.reduceMotion = systemReduceMotion
         }
     }
     

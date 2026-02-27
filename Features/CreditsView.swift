@@ -11,13 +11,13 @@ struct MenuCreditsPopupOverlay: View {
 
     private let memoryImages = ["507room", "cnxaqu", "cnxgate", "lantassc", "redbus"]
 
-    private let panelBorder = Color(red: 0.80, green: 0.83, blue: 0.86)
-    private let panelBackground = Color(red: 0.95, green: 0.96, blue: 0.97)
-    private let sidebarSelected = Color(red: 0.72, green: 0.86, blue: 0.97)
-    private let sectionBorder = Color(red: 0.84, green: 0.86, blue: 0.88)
-    private let textPrimary = Color(red: 0.17, green: 0.24, blue: 0.33)
-    private let textMuted = Color(red: 0.45, green: 0.50, blue: 0.58)
-    private let accent = Color(red: 0.32, green: 0.76, blue: 0.98)
+    private let panelBorder = AccessibleColors.panelBorder
+    private let panelBackground = AccessibleColors.panelBackground
+    private let sidebarSelected = AccessibleColors.sidebarSelected
+    private let sectionBorder = AccessibleColors.sectionBorder
+    private let textPrimary = AccessibleColors.textPrimary
+    private let textMuted = AccessibleColors.textSecondary
+    private let accent = Color(red: 0.20, green: 0.60, blue: 0.90)
 
     var body: some View {
         ZStack {
@@ -84,6 +84,9 @@ struct MenuCreditsPopupOverlay: View {
             }
             .buttonStyle(.plain)
             .padding(.trailing, layout.scaled(4))
+            .accessibilityLabel("Close Credits")
+            .accessibilityHint("Double tap to close the credits panel")
+            .accessibilityAddTraits(.isButton)
         }
         .padding(.horizontal, layout.scaled(16))
         .padding(.vertical, layout.scaled(12))
@@ -129,6 +132,10 @@ struct MenuCreditsPopupOverlay: View {
                         .background(selectedTab == tab ? sidebarSelected : Color.clear)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("\(tab.title) tab")
+                .accessibilityHint("Double tap to view \(tab.title.lowercased())")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
 
                 Divider().overlay(panelBorder.opacity(0.8))
             }
@@ -151,7 +158,7 @@ struct MenuCreditsPopupOverlay: View {
             width: layout.width < 700 || layout.isPortrait ? nil : max(138, layout.scaled(160)),
             height: layout.width < 700 || layout.isPortrait ? nil : .infinity
         )
-        .background(Color(red: 0.85, green: 0.93, blue: 0.98).opacity(0.85))
+        .background(AccessibleColors.sidebarBackground.opacity(0.90))
     }
 
     private var contentPane: some View {

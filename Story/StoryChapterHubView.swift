@@ -301,17 +301,17 @@ struct StoryChapterHubView: View {
                 HStack(spacing: layout.scaled(12)) {
                     Text(String(format: "%02d", index + 1))
                         .font(.system(size: layout.scaled(22), weight: .black, design: .rounded))
-                        .foregroundColor(isSelected ? themeBlue : .gray.opacity(0.5))
+                        .foregroundColor(isSelected ? themeBlue : AccessibleColors.menuIdleText)
 
                     VStack(alignment: .leading, spacing: layout.scaled(2)) {
                         Text(chapter.title)
                             .font(.system(size: layout.scaled(15), weight: .bold))
-                            .foregroundColor(isSelected ? themeDark : .gray)
+                            .foregroundColor(isSelected ? themeDark : AccessibleColors.menuIdleText)
                             .lineLimit(1)
 
                         Text(chapter.subtitle)
                             .font(.system(size: layout.scaled(12), weight: .bold))
-                            .foregroundColor(isSelected ? themeBlue.opacity(0.85) : .gray.opacity(0.5))
+                            .foregroundColor(isSelected ? themeBlue.opacity(0.85) : AccessibleColors.menuIdleSubtext)
                             .lineLimit(1)
                     }
 
@@ -341,6 +341,11 @@ struct StoryChapterHubView: View {
         }
         .buttonStyle(.plain)
         .opacity(isUnlocked ? 1.0 : 0.6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Chapter \(index + 1): \(chapter.title). \(isCompleted ? "Completed." : isUnlocked ? "Available." : "Locked.")")
+        .accessibilityHint(isUnlocked ? "Double tap to select this chapter" : "Complete previous chapters to unlock")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Back Button
@@ -360,5 +365,8 @@ struct StoryChapterHubView: View {
             .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: layout.scaled(3))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Go back to main menu")
+        .accessibilityHint("Double tap to return to the main menu")
+        .accessibilityAddTraits(.isButton)
     }
 }

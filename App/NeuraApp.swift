@@ -10,6 +10,7 @@ struct NeuraApp: App {
                 ContentView()
             }
             .environmentObject(globalSettings)
+            .accessibleColors(colorBlindMode: globalSettings.colorBlindMode)
         }
     }
 }
