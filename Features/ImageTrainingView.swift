@@ -1504,6 +1504,7 @@ struct PredictionCard: View {
     let result: (label: String, confidence: Double)
     let details: KNNClassifier.PredictionDetails?
     let layout: AdaptiveLayout
+    @EnvironmentObject private var settings: GlobalSettingsStore
     @State private var showDetails = false
     
     var body: some View {
@@ -1523,18 +1524,20 @@ struct PredictionCard: View {
                         .font(.system(size: layout.fontSize - 2))
                         .foregroundColor(.secondary)
                     HStack(spacing: 4) {
-                        if result.confidence > 0.7 {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: layout.fontSize))
-                                .foregroundColor(.green)
-                        } else if result.confidence > 0.5 {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: layout.fontSize))
-                                .foregroundColor(.orange)
-                        } else {
-                            Image(systemName: "xmark.octagon.fill")
-                                .font(.system(size: layout.fontSize))
-                                .foregroundColor(.red)
+                        if settings.colorBlindMode {
+                            if result.confidence > 0.7 {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: layout.fontSize))
+                                    .foregroundColor(.green)
+                            } else if result.confidence > 0.5 {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: layout.fontSize))
+                                    .foregroundColor(.orange)
+                            } else {
+                                Image(systemName: "xmark.octagon.fill")
+                                    .font(.system(size: layout.fontSize))
+                                    .foregroundColor(.red)
+                            }
                         }
                         Text("\(Int(result.confidence * 100))%")
                             .font(.system(size: layout.fontSize + 4, weight: .semibold))

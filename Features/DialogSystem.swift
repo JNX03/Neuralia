@@ -5760,6 +5760,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
     let onComplete: (String) -> Void
     let onContinue: () -> Void
 
+    @EnvironmentObject private var settings: GlobalSettingsStore
     @StateObject private var speechManager = SpeechManager()
     @StateObject private var playerSpeechManager = SpeechManager()
     @State private var currentQuestionIndex = 0
@@ -6638,10 +6639,19 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     .frame(maxWidth: .infinity)
 
                 if isResultReveal {
-                    Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
-                        .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
-                        .transition(.scale.combined(with: .opacity))
+                    HStack(spacing: 4) {
+                        if settings.colorBlindMode {
+                            Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                                .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
+                                .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
+                                .transition(.scale.combined(with: .opacity))
+                        } else {
+                           Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                               .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
+                               .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
+                               .transition(.scale.combined(with: .opacity))
+                        }
+                    }
                 } else if isSelected {
                     Image(systemName: "sparkles")
                         .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold))
@@ -6649,6 +6659,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
+            .contentShape(Rectangle())
             .padding(.horizontal, 14)
             .padding(.vertical, layout.isCompact ? 12 : 14)
             .background(
@@ -8740,6 +8751,7 @@ struct MessengerLectureQuizMiniGameStage: View {
     @State private var chatMessages: [DialogShowcaseChatMessage] = []
     @State private var isShowingChoices = false
     @State private var hasSubmitted = false
+    @EnvironmentObject private var settings: GlobalSettingsStore
 
     private var questions: [LectureQuizQuestion] {
         quiz.questions.isEmpty
@@ -9115,11 +9127,20 @@ struct MessengerLectureQuizMiniGameStage: View {
                 Spacer()
 
                 if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white)
+                    HStack(spacing: 4) {
+                        if settings.colorBlindMode {
+                            Image(systemName: choice.isBestAnswer ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
                 }
             }
+            .contentShape(Rectangle())
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(

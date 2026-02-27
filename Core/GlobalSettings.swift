@@ -13,6 +13,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let masterVolume = "globalSettings.masterVolume"
         static let speechEnabled = "globalSettings.speechEnabled"
         static let aiDisplayName = "globalSettings.aiDisplayName"
+        static let colorBlindMode = "globalSettings.colorBlindMode"
     }
     
     private enum Defaults {
@@ -24,6 +25,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let masterVolume = 0.85
         static let speechEnabled = true
         static let aiDisplayName = "Ploy"
+        static let colorBlindMode = false
     }
     
     private let userDefaults: UserDefaults
@@ -61,6 +63,10 @@ final class GlobalSettingsStore: ObservableObject {
         didSet { persist(aiDisplayName, forKey: Keys.aiDisplayName) }
     }
     
+    @Published var colorBlindMode: Bool = Defaults.colorBlindMode {
+        didSet { persist(colorBlindMode, forKey: Keys.colorBlindMode) }
+    }
+    
     var effectiveParallaxStrength: CGFloat {
         reduceMotion ? 0 : CGFloat(parallaxStrength)
     }
@@ -85,6 +91,7 @@ final class GlobalSettingsStore: ObservableObject {
         masterVolume = Defaults.masterVolume
         speechEnabled = Defaults.speechEnabled
         aiDisplayName = Defaults.aiDisplayName
+        colorBlindMode = Defaults.colorBlindMode
     }
     
     private func load() {
@@ -113,6 +120,9 @@ final class GlobalSettingsStore: ObservableObject {
         }
         if let storedAIName = userDefaults.string(forKey: Keys.aiDisplayName) {
             aiDisplayName = storedAIName
+        }
+        if userDefaults.object(forKey: Keys.colorBlindMode) != nil {
+            colorBlindMode = userDefaults.bool(forKey: Keys.colorBlindMode)
         }
         
         if !parallaxStrength.isFinite {

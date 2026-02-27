@@ -73,6 +73,8 @@ struct MenuSettingsPopupOverlay: View {
             }
             .buttonStyle(.plain)
             .padding(.trailing, layout.scaled(4))
+            .accessibilityLabel("Close Settings")
+            .accessibilityAddTraits(.isButton)
         }
         .padding(.horizontal, layout.scaled(16))
         .padding(.vertical, layout.scaled(12))
@@ -119,8 +121,11 @@ struct MenuSettingsPopupOverlay: View {
                         .padding(.horizontal, layout.scaled(16))
                         .padding(.vertical, layout.scaled(12))
                         .background(selectedTab == tab ? sidebarSelected : Color.clear)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
 
                 Divider()
                     .overlay(panelBorder.opacity(0.8))
@@ -135,6 +140,7 @@ struct MenuSettingsPopupOverlay: View {
                 .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
                 .foregroundStyle(textMuted)
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(.isButton)
 
                 Spacer()
             }
@@ -160,6 +166,8 @@ struct MenuSettingsPopupOverlay: View {
                     noticeTab
                 case .language:
                     languageTab
+                case .accessibility:
+                    accessibilityTab
                 }
             }
             .padding(layout.scaled(12))
@@ -313,6 +321,26 @@ struct MenuSettingsPopupOverlay: View {
         )
     }
 
+    private var accessibilityTab: some View {
+        VStack(alignment: .leading, spacing: layout.scaled(12)) {
+            optionSection(
+                title: "Color Blind Mode",
+                subtitle: "Enhances visual cues with shapes and patterns for color vision deficiencies.",
+                body: {
+                    BinaryRadioGroup(
+                        leftTitle: "On",
+                        rightTitle: "Off",
+                        selection: colorBlindModeBinding,
+                        layout: layout,
+                        accent: accent,
+                        textPrimary: textPrimary,
+                        textMuted: textMuted
+                    )
+                }
+            )
+        }
+    }
+
     @ViewBuilder
     private func optionSection<Content: View>(
         title: String,
@@ -380,6 +408,13 @@ struct MenuSettingsPopupOverlay: View {
         )
     }
 
+    private var colorBlindModeBinding: Binding<Bool> {
+        Binding(
+            get: { settings.colorBlindMode },
+            set: { settings.colorBlindMode = $0 }
+        )
+    }
+
     private var parallaxPresetBinding: Binding<IntensityPreset> {
         Binding(
             get: { IntensityPreset.closest(to: settings.parallaxStrength) },
@@ -407,6 +442,7 @@ private enum PopupTab: String, CaseIterable, Identifiable {
     case volume = "Volume"
     case notice = "Notice"
     case language = "Language"
+    case accessibility = "Accessibility"
 
     var id: String { rawValue }
     var title: String { rawValue }
@@ -502,8 +538,13 @@ private struct BinaryRadioGroup: View {
                     .font(.system(size: layout.bodyFontSize))
                     .foregroundStyle(isSelected ? textPrimary : textMuted)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -532,9 +573,14 @@ private struct ChoiceRadioGroup<Option: Hashable & Identifiable>: View {
                                     .foregroundStyle(selection == option ? textPrimary : textMuted)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(isDisabled)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(label(option))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAddTraits(selection == option ? .isSelected : [])
                     }
 
                     if row.count == 1 {
