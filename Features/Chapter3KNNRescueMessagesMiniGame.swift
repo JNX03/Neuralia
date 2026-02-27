@@ -46,7 +46,9 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     let layout: DialogAdaptiveLayout
     let isCompleted: Bool
     let onComplete: (String) -> Void
-    
+
+    @Environment(\.accessibleColors) private var accessColors
+
     // Game phases
     enum GamePhase: Int, CaseIterable {
         case collect = 0, train = 1, test = 2, complete = 3
@@ -304,7 +306,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
             HStack(spacing: 5) {
                 Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: layout.captionFontSize - 1, weight: .semibold))
-                    .foregroundColor(rescuePassed ? Color(red: 0.13, green: 0.72, blue: 0.45) : Color(hex: "F97316"))
+                    .foregroundColor(rescuePassed ? accessColors.success : accessColors.warning)
                 Text("KNN Rescue")
                     .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
@@ -314,9 +316,9 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
             
             Text("\(trainingData.count) samples")
                 .font(.system(size: layout.captionFontSize - 1, weight: .bold, design: .monospaced))
-                .foregroundColor(hasMinimumSamples ? Color(hex: "34D399") : Color(hex: "FBBF24"))
+                .foregroundColor(hasMinimumSamples ? accessColors.success : accessColors.warning)
                 .padding(.horizontal, 9).padding(.vertical, 5)
-                .background(Capsule().fill((hasMinimumSamples ? Color(hex: "34D399") : Color(hex: "FBBF24")).opacity(0.12)))
+                .background(Capsule().fill((hasMinimumSamples ? accessColors.success : accessColors.warning).opacity(0.12)))
             
             Spacer()
             
@@ -593,7 +595,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                         HStack(spacing: 8) {
                             Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 .font(.system(size: 22))
-                                .foregroundColor(isCorrect ? Color(hex: "34D399") : Color(hex: "EF4444"))
+                                .foregroundColor(isCorrect ? accessColors.success : accessColors.error)
                             
                             Text(isCorrect ? "Correct! KNN found: \(answer)" : "KNN said \(answer), was \(test.label)")
                                 .font(.system(size: layout.isCompact ? 13 : 14, weight: .bold, design: .rounded))
@@ -616,7 +618,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                         .buttonStyle(.plain)
                     }
                     .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 14).fill((isCorrect ? Color(hex: "34D399") : Color(hex: "EF4444")).opacity(0.1)))
+                    .background(RoundedRectangle(cornerRadius: 14).fill((isCorrect ? accessColors.success : accessColors.error).opacity(0.1)))
                 } else {
                     // User picks answer
                     Text("What class is the ❓ mystery point?")
@@ -810,7 +812,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                 VStack(spacing: 8) {
                     HStack {
                         Image(systemName: (fallbackIsCorrect == true) ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor((fallbackIsCorrect == true) ? Color(hex: "34D399") : Color(hex: "EF4444"))
+                            .foregroundColor((fallbackIsCorrect == true) ? accessColors.success : accessColors.error)
                         Text("Predicted: \(pred.label) (\(Int(pred.confidence * 100))%)")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
@@ -828,7 +830,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                     .buttonStyle(.plain)
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 12).fill((fallbackIsCorrect == true ? Color(hex: "34D399") : Color(hex: "EF4444")).opacity(0.1)))
+                .background(RoundedRectangle(cornerRadius: 12).fill((fallbackIsCorrect == true ? accessColors.success : accessColors.error).opacity(0.1)))
             } else {
                 HStack(spacing: 10) {
                     Button(action: {
@@ -848,7 +850,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                             .font(.system(size: 12, weight: .bold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(Capsule().fill(fallbackStrokes.isEmpty ? Color.white.opacity(0.1) : Color(hex: "22C55E")))
+                            .background(Capsule().fill(fallbackStrokes.isEmpty ? Color.white.opacity(0.1) : accessColors.success))
                     }
                     .buttonStyle(.plain)
                     .disabled(fallbackStrokes.isEmpty)
@@ -933,8 +935,8 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                         .font(.system(size: layout.isCompact ? 14 : 16, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 24).padding(.vertical, 12)
-                        .background(Capsule().fill(LinearGradient(colors: [Color(hex: "22C55E"), Color(hex: "16A34A")], startPoint: .leading, endPoint: .trailing))
-                            .shadow(color: Color(hex: "22C55E").opacity(0.4), radius: 8, y: 4))
+                        .background(Capsule().fill(LinearGradient(colors: [accessColors.success, accessColors.success.opacity(0.8)], startPoint: .leading, endPoint: .trailing))
+                            .shadow(color: accessColors.success.opacity(0.4), radius: 8, y: 4))
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity).padding(.top, 4)

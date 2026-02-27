@@ -5774,6 +5774,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
     let onContinue: () -> Void
 
     @EnvironmentObject private var settings: GlobalSettingsStore
+    @Environment(\.accessibleColors) private var accessColors
     @StateObject private var speechManager = SpeechManager()
     @StateObject private var playerSpeechManager = SpeechManager()
     @State private var currentQuestionIndex = 0
@@ -6279,7 +6280,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
                     .background(
                         LinearGradient(
                             colors: canFinishQuiz
-                                ? [Color.green.opacity(0.95), Color.mint.opacity(0.9)]
+                                ? [accessColors.success.opacity(0.95), accessColors.success.opacity(0.75)]
                                 : [Color.blue.opacity(0.95), Color.cyan.opacity(0.85)],
                             startPoint: .leading,
                             endPoint: .trailing
@@ -6616,16 +6617,18 @@ struct ClassroomLectureQuizMiniGameStage: View {
         let isCorrect = choice.isBestAnswer
         let isWrong = !choice.isBestAnswer
         let isPulsing = pulsingChoiceID == choice.id
+        let successColor = accessColors.success
+        let errorColor = accessColors.error
 
         let fillColor: Color = {
             guard isResultReveal else {
                 return isSelected ? Color.cyan.opacity(0.30) : Color.white.opacity(0.88)
             }
             if isCorrect {
-                return isSelected ? Color.green.opacity(0.34) : Color.green.opacity(0.20)
+                return isSelected ? successColor.opacity(0.34) : successColor.opacity(0.20)
             }
             if isWrong {
-                return isSelected ? Color.red.opacity(0.30) : Color.red.opacity(0.16)
+                return isSelected ? errorColor.opacity(0.30) : errorColor.opacity(0.16)
             }
             return Color.white.opacity(0.88)
         }()
@@ -6634,7 +6637,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
             guard isResultReveal else {
                 return isSelected ? Color.cyan.opacity(0.95) : Color.black.opacity(0.05)
             }
-            return isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.86)
+            return isCorrect ? successColor.opacity(0.95) : errorColor.opacity(0.86)
         }()
 
         let textColor: Color = isResultReveal
@@ -6656,12 +6659,12 @@ struct ClassroomLectureQuizMiniGameStage: View {
                         if settings.colorBlindMode {
                             Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.octagon.fill")
                                 .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
-                                .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
+                                .foregroundColor(isCorrect ? successColor.opacity(0.95) : errorColor.opacity(0.92))
                                 .transition(.scale.combined(with: .opacity))
                         } else {
                            Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
                                .font(.system(size: layout.isCompact ? 16 : 18, weight: .bold))
-                               .foregroundColor(isCorrect ? Color.green.opacity(0.95) : Color.red.opacity(0.92))
+                               .foregroundColor(isCorrect ? successColor.opacity(0.95) : errorColor.opacity(0.92))
                                .transition(.scale.combined(with: .opacity))
                         }
                     }
@@ -6688,7 +6691,7 @@ struct ClassroomLectureQuizMiniGameStage: View {
             )
             .shadow(
                 color: isPulsing
-                    ? (isCorrect ? Color.green.opacity(0.30) : Color.red.opacity(0.28))
+                    ? (isCorrect ? successColor.opacity(0.30) : errorColor.opacity(0.28))
                     : Color.black.opacity(0.06),
                 radius: isPulsing ? 12 : 4,
                 x: 0,
@@ -6950,6 +6953,7 @@ struct BiasDataAuditMiniGameCard: View {
     @State private var noiseLevel: Double = 78
     @State private var diversityLevel: Double = 32
     @State private var labelQualityLevel: Double = 46
+    @Environment(\.accessibleColors) private var accessColors
 
     private var totalCards: Int {
         minigame.cards.count
@@ -7302,10 +7306,10 @@ struct BiasDataAuditMiniGameCard: View {
             }
         }
         .padding(12)
-        .background((passed ? Color.mint : Color.orange).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background((passed ? accessColors.success : accessColors.warning).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke((passed ? Color.mint : Color.orange).opacity(0.35), lineWidth: 1)
+                .stroke((passed ? accessColors.success : accessColors.warning).opacity(0.35), lineWidth: 1)
         )
     }
 
@@ -7394,10 +7398,10 @@ struct BiasDataAuditMiniGameCard: View {
                     .foregroundColor(.white.opacity(0.9))
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background((configPassed ? Color.cyan : Color.orange).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background((configPassed ? accessColors.success : accessColors.warning).opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke((configPassed ? Color.cyan : Color.orange).opacity(0.30), lineWidth: 1)
+                            .stroke((configPassed ? accessColors.success : accessColors.warning).opacity(0.30), lineWidth: 1)
                     )
             }
         }
@@ -7567,6 +7571,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
     @State private var diversityLevel: Double = 32
     @State private var labelQualityLevel: Double = 46
     @State private var hasSubmitted = false
+    @Environment(\.accessibleColors) private var accessColors
 
     private var cards: [BiasDataAuditCard] { minigame.cards }
 
@@ -7868,7 +7873,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
                     .background(
                         LinearGradient(
                             colors: canShowConfig
-                                ? [Color.green.opacity(0.95), Color.mint.opacity(0.9)]
+                                ? [accessColors.success.opacity(0.95), accessColors.success.opacity(0.75)]
                                 : [Color.blue.opacity(0.95), Color.cyan.opacity(0.85)],
                             startPoint: .leading,
                             endPoint: .trailing
@@ -7896,7 +7901,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
                     .font(.system(size: layout.isCompact ? 15 : 17, weight: .bold, design: .rounded))
                 Spacer()
             }
-            .foregroundColor(isCorrect ? .green : .orange)
+            .foregroundColor(isCorrect ? accessColors.success : accessColors.warning)
 
             Text(currentCard.feedback)
                 .font(.system(size: layout.isCompact ? 13 : 15, weight: .medium, design: .rounded))
@@ -7921,12 +7926,12 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
         }
         .padding(layout.isCompact ? 14 : 16)
         .background(
-            (isCorrect ? Color.green : Color.orange).opacity(0.08)
+            (isCorrect ? accessColors.success : accessColors.warning).opacity(0.08)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke((isCorrect ? Color.green : Color.orange).opacity(0.25), lineWidth: 1)
+                .stroke((isCorrect ? accessColors.success : accessColors.warning).opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -8059,7 +8064,7 @@ struct ClassroomBiasDataAuditMiniGameStage: View {
                     .padding(.vertical, layout.isCompact ? 11 : 13)
                     .background(
                         configPassed
-                            ? AnyShapeStyle(LinearGradient(colors: [Color.green.opacity(0.95), Color.mint.opacity(0.9)], startPoint: .leading, endPoint: .trailing))
+                            ? AnyShapeStyle(LinearGradient(colors: [accessColors.success.opacity(0.95), accessColors.success.opacity(0.75)], startPoint: .leading, endPoint: .trailing))
                             : AnyShapeStyle(Color.white.opacity(0.08)),
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous)
                     )
