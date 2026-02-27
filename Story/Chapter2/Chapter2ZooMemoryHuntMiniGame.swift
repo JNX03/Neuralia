@@ -34,7 +34,7 @@ let chapter2ZooMemoryHuntMiniGame =
                 ],
                 aiGuessLine: "{{ai_name}}: \"Woah... a plane? ...or maybe a drone?\"",
                 sceneImageName: "zoo_bird_scene",
-                sceneImageCaption: "Zoo walkway placeholder scene. Replace with your real bird scene image later."
+                sceneImageCaption: nil
             ),
             LectureQuizQuestion(
                 id: "zoo-red-panda",
@@ -62,7 +62,7 @@ let chapter2ZooMemoryHuntMiniGame =
                 ],
                 aiGuessLine: "{{ai_name}}: \"Look! A fox... or maybe a raccoon? Impossible. Panda should be big and black-and-white.\"",
                 sceneImageName: "zoo_redpanda_scene",
-                sceneImageCaption: "Red Panda enclosure placeholder scene. Replace with your real red panda image later."
+                sceneImageCaption: nil
             ),
             LectureQuizQuestion(
                 id: "aquarium-shark",
@@ -89,8 +89,8 @@ let chapter2ZooMemoryHuntMiniGame =
                     )
                 ],
                 aiGuessLine: "{{ai_name}}: \"Alert! Sea Monster detected! Green slime skin, 10 meters long!\"",
-                sceneImageName: "zoo_shark_screen",
-                sceneImageCaption: "Aquarium blocked-view placeholder scene. Replace with your real algae/blur image later."
+                sceneImageName: "zoo_sharke_screen",
+                sceneImageCaption: nil
             )
         ],
         promptLabel: "{{ai_name}} guesses first. You verify with clues and the field guide.",
