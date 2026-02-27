@@ -33,15 +33,7 @@ let chapterOneStory = StoryChapter(
             emotion: .neutral,
             backgroundImage: "schooltopview",
             characterImage: "char",
-            cutsceneTitle: "Intro Cutscene",
-            cutsceneSubtitle: "Placeholder video / replace later",
-            inlineActivity: .video(
-                DialogVideoClip(
-                    title: "Chapter 1 Placeholder Cutscene",
-                    subtitle: "Using 0000-0500.mp4 for now",
-                    resourceName: "0000-0500"
-                )
-            )
+            cutsceneSubtitle: "Welcome to class"
         ),
         StoryDialogLine(
             speaker: "Professor New (นิว)",

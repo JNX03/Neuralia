@@ -8,6 +8,9 @@ struct NeuraApp: App {
         WindowGroup {
             ForcedLandscape16x9Container {
                 ContentView()
+                    .onAppear {
+                        SoundManager.shared.playBGM()
+                    }
             }
             .environmentObject(globalSettings)
             .accessibleColors(colorBlindMode: globalSettings.colorBlindMode)

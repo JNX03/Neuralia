@@ -37,10 +37,9 @@ let package = Package(
         .executableTarget(
             name: "AppModule",
             path: ".",
-            sources: ["App/ContentView.swift", "Features/CreditsView.swift", "Features/DialogSystem.swift", "Previews/DialogSystemPreview.swift", "Testing/FeatureTestingData.swift", "Previews/FeatureTestingPreview.swift", "Testing/FeatureTestingView.swift", "Core/GlobalSettings.swift", "Core/AccessibleColors.swift", "Features/ImageTrainingView.swift", "Features/LoadingView.swift", "Features/MainMenu.swift", "App/NeuraApp.swift", "Core/PointerFX.swift", "Core/ResponsiveLayout.swift", "Features/MenuSettingsPopup.swift", "Core/SharedUISupport.swift", "Story/Chapter1/Chapter1Story.swift", "Story/Chapter2/Chapter2Story.swift", "Story/Chapter2/Chapter2BiasAndBadDataLabMiniGame.swift", "Story/Chapter2/Chapter2ZooMemoryHuntMiniGame.swift", "Story/Chapter2/Chapter2AIMistakeReviewMiniGame.swift", "Story/Chapter3/Chapter3Story.swift", "Story/StoryChapterHubView.swift", "Story/StoryChapterPlayerView.swift", "Story/StoryScriptModels.swift", "State/StoryProgressStore.swift", "Features/Chapter3KNNRescueMessagesMiniGame.swift"],
+            sources: ["App/ContentView.swift", "Features/CreditsView.swift", "Features/DialogSystem.swift", "Previews/DialogSystemPreview.swift", "Testing/FeatureTestingData.swift", "Previews/FeatureTestingPreview.swift", "Testing/FeatureTestingView.swift", "Core/GlobalSettings.swift", "Core/AccessibleColors.swift", "Features/ImageTrainingView.swift", "Features/LoadingView.swift", "Features/MainMenu.swift", "App/NeuraApp.swift", "Core/PointerFX.swift", "Core/ResponsiveLayout.swift", "Features/MenuSettingsPopup.swift", "Core/SharedUISupport.swift", "Story/Chapter1/Chapter1Story.swift", "Story/Chapter2/Chapter2Story.swift", "Story/Chapter2/Chapter2BiasAndBadDataLabMiniGame.swift", "Story/Chapter2/Chapter2ZooMemoryHuntMiniGame.swift", "Story/Chapter2/Chapter2AIMistakeReviewMiniGame.swift", "Story/Chapter3/Chapter3Story.swift", "Story/StoryChapterHubView.swift", "Story/StoryChapterPlayerView.swift", "Story/StoryScriptModels.swift", "State/StoryProgressStore.swift", "Features/Chapter3KNNRescueMessagesMiniGame.swift", "Core/SoundManager.swift"],
             resources: [
-                .process("Assets.xcassets"),
-                .process("0000-0500.mp4")
+                .process("Assets.xcassets")
             ]
         )
     ],

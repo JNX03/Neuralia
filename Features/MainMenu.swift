@@ -234,24 +234,8 @@ struct MainMenuView: View {
     // MARK: - Landscape Layout
     private func landscapeLayout(layout: ResponsiveLayout, geo: GeometryProxy) -> some View {
         HStack(spacing: 0) {
-            // LEFT COLUMN: Logo at top, Character at bottom
+            // LEFT COLUMN: Character at bottom
             VStack(spacing: 0) {
-                // Logo top-left
-                HStack {
-                    Image("icon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: geo.size.height * 0.52)
-                        .shadow(color: themeBlue.opacity(0.15), radius: 10)
-                        .offset(
-                            x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.08,
-                            y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.05
-                        )
-                    Spacer()
-                }
-                .padding(.leading, layout.scaled(20))
-                .padding(.top, layout.scaled(10))
-                
                 Spacer()
                 
                 // Character bottom-left
@@ -276,28 +260,42 @@ struct MainMenuView: View {
             VStack(spacing: 0) {
                 Spacer()
                 
-                MainMenuSidebar(
-                    layout: layout,
-                    geo: geo,
-                    themeBlue: themeBlue,
-                    themeWhite: themeWhite,
-                    themeDark: themeDark,
-                    hoveredButton: $hoveredButton,
-                    onPlay: { destination = .playChapterOne },
-                    onSelect: { destination = .chapterSelect },
-                    onLab: { destination = .featureTesting },
-                    onSettings: {
-                        withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                            showSettingsPopup = true
+                VStack(alignment: .leading, spacing: layout.scaled(10)) {
+                    // Logo above system menu
+                    Image("icon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: geo.size.height * 0.45)
+                        .shadow(color: themeBlue.opacity(0.15), radius: 10)
+                        .offset(
+                            x: viewModel.offsetX * settings.effectiveParallaxStrength * 0.08,
+                            y: viewModel.offsetY * settings.effectiveParallaxStrength * 0.05
+                        )
+                        .padding(.top, layout.scaled(100))
+                        .padding(.leading, layout.scaled(40))
+                    
+                    MainMenuSidebar(
+                        layout: layout,
+                        geo: geo,
+                        themeBlue: themeBlue,
+                        themeWhite: themeWhite,
+                        themeDark: themeDark,
+                        hoveredButton: $hoveredButton,
+                        onPlay: { destination = .playChapterOne },
+                        onSelect: { destination = .chapterSelect },
+                        onLab: { destination = .featureTesting },
+                        onSettings: {
+                            withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                showSettingsPopup = true
+                            }
+                        },
+                        onAbout: {
+                            withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                showCreditsPopup = true
+                            }
                         }
-                    },
-                    onAbout: {
-                        withAnimation(settings.reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                            showCreditsPopup = true
-                        }
-                    }
-                )
-                .padding(.top, layout.scaled(500))
+                    )
+                }
                 
                 if settings.showVersionLabel {
                     Text("Ver 1.0.0")
