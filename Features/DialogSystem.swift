@@ -627,6 +627,10 @@ struct ResponsiveDialogView: View {
     @State private var isCharacterPressed = false
     @State private var showSettingsPanel = false
     @State private var settingsAINameDraft = "Ploy"
+    @State private var dialogSpeed: Int = 1          // 1x, 2x, 3x
+    @State private var isAutoSkipping = false
+    @State private var autoSkipTask: Task<Void, Never>?
+    @State private var showSkipMinigameConfirm = false
     @State private var backgroundOpacity: Double = 1.0
     @State private var characterPlacement: VNCharacterPlacement = .center
     @State private var sceneContentOpacity: Double = 1.0
@@ -926,6 +930,7 @@ struct ResponsiveDialogView: View {
         .onChange(of: viewModel.isCompleted) { _, completed in
             if completed {
                 speechManager.stop()
+                stopAutoSkip()
                 onComplete?()
             }
         }
@@ -948,6 +953,7 @@ struct ResponsiveDialogView: View {
         }
         .onDisappear {
             speechManager.stop()
+            stopAutoSkip()
         }
         .onChange(of: viewModel.isTyping) { _, isTyping in
             if !isTyping, let node = viewModel.currentNode {
@@ -991,6 +997,12 @@ struct ResponsiveDialogView: View {
                 .opacity(1.0 - sceneContentOpacity)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+
+            // Skip minigame confirmation overlay
+            if showSkipMinigameConfirm {
+                skipMinigameOverlay(layout: layout)
+                    .zIndex(90)
+            }
 
             // Settings overlay
             if showSettingsPanel {
@@ -1701,11 +1713,15 @@ struct ResponsiveDialogView: View {
 
     // MARK: - Top Bar
     private func topBar(layout: DialogAdaptiveLayout) -> some View {
-        HStack {
+        HStack(spacing: layout.isCompact ? 6 : 10) {
             if showSettings {
                 chapterMenuButton(layout: layout)
             }
             Spacer(minLength: 0)
+            if showSettings {
+                dialogSpeedButton(layout: layout)
+                dialogSkipButton(layout: layout)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .top)
         .fixedSize(horizontal: false, vertical: true)
@@ -1732,6 +1748,286 @@ struct ResponsiveDialogView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Menu")
+    }
+
+    // MARK: - Speed & Skip Controls
+
+    private var missionThemeBlue: Color {
+        Color(red: 0.12, green: 0.51, blue: 0.88)
+    }
+
+    private func dialogSpeedButton(layout: DialogAdaptiveLayout) -> some View {
+        let fontSize: CGFloat = layout.isCompact ? 12 : 14
+        let slantOffset: CGFloat = layout.isCompact ? 5 : 7
+        let chevronCount = dialogSpeed  // 1 = >, 2 = >>, 3 = >>>
+        let isActive = dialogSpeed > 1
+        let bgColor = isActive ? missionThemeBlue : Color.black.opacity(0.45)
+
+        return Button {
+            cycleDialogSpeed()
+        } label: {
+            HStack(spacing: 3) {
+                HStack(spacing: -1) {
+                    ForEach(0..<chevronCount, id: \.self) { _ in
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: fontSize - 2, weight: .black))
+                    }
+                }
+                Text("\(dialogSpeed)x")
+                    .font(.system(size: fontSize, weight: .black, design: .rounded))
+                    .tracking(0.5)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, layout.isCompact ? 12 : 16)
+            .padding(.vertical, layout.isCompact ? 8 : 10)
+            .background(bgColor)
+            .clipShape(SlantedRect(offset: slantOffset, direction: .forward))
+            .shadow(color: bgColor.opacity(0.4), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Dialog speed \(dialogSpeed)x")
+        .accessibilityHint("Tap to cycle through 1x, 2x, 3x speed")
+    }
+
+    private func dialogSkipButton(layout: DialogAdaptiveLayout) -> some View {
+        let fontSize: CGFloat = layout.isCompact ? 12 : 14
+        let slantOffset: CGFloat = layout.isCompact ? 5 : 7
+        let onMinigame = isOnMinigameNode
+        let bgColor: Color = {
+            if isAutoSkipping { return Color(red: 0.98, green: 0.48, blue: 0.53) }
+            if onMinigame { return Color(red: 0.95, green: 0.6, blue: 0.15) }
+            return Color.black.opacity(0.45)
+        }()
+
+        return Button {
+            handleSkipButtonTap()
+        } label: {
+            HStack(spacing: layout.isCompact ? 4 : 6) {
+                Image(systemName: "forward.fill")
+                    .font(.system(size: fontSize - 1, weight: .bold))
+                Text("SKIP")
+                    .font(.system(size: fontSize, weight: .black, design: .rounded))
+                    .tracking(0.5)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, layout.isCompact ? 12 : 16)
+            .padding(.vertical, layout.isCompact ? 8 : 10)
+            .background(bgColor)
+            .clipShape(SlantedRect(offset: slantOffset, direction: .forward))
+            .shadow(color: bgColor.opacity(0.4), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isAutoSkipping ? "Stop skipping" : "Skip dialog")
+        .accessibilityHint("Auto-advance through dialog lines")
+    }
+
+    private func skipMinigameOverlay(layout: DialogAdaptiveLayout) -> some View {
+        let cardWidth: CGFloat = layout.isCompact ? 220 : 260
+
+        return ZStack {
+            // Dimmed backdrop — tap to dismiss
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.18)) { showSkipMinigameConfirm = false }
+                }
+
+            // Card
+            VStack(spacing: layout.isCompact ? 10 : 14) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: layout.isCompact ? 26 : 32))
+                    .foregroundColor(Color(red: 0.95, green: 0.6, blue: 0.15))
+
+                Text("Skip this minigame?")
+                    .font(.system(size: layout.isCompact ? 15 : 18, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                Text("You won't be able to replay it\nin this run.")
+                    .font(.system(size: layout.isCompact ? 11 : 13, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.65))
+                    .multilineTextAlignment(.center)
+
+                HStack(spacing: 10) {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.18)) { showSkipMinigameConfirm = false }
+                    } label: {
+                        Text("CANCEL")
+                            .font(.system(size: layout.isCompact ? 12 : 14, weight: .black, design: .rounded))
+                            .tracking(0.5)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, layout.isCompact ? 10 : 12)
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(SlantedRect(offset: 5, direction: .forward))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation(.easeOut(duration: 0.18)) { showSkipMinigameConfirm = false }
+                        skipCurrentMinigame()
+                    } label: {
+                        Text("SKIP")
+                            .font(.system(size: layout.isCompact ? 12 : 14, weight: .black, design: .rounded))
+                            .tracking(0.5)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, layout.isCompact ? 10 : 12)
+                            .background(Color(red: 0.98, green: 0.48, blue: 0.53))
+                            .clipShape(SlantedRect(offset: 5, direction: .forward))
+                            .shadow(color: Color(red: 0.98, green: 0.48, blue: 0.53).opacity(0.4), radius: 8, x: 0, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 4)
+            }
+            .padding(layout.isCompact ? 16 : 22)
+            .frame(width: cardWidth)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.92),
+                                Color(red: 0.08, green: 0.08, blue: 0.14)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.55), radius: 24, x: 0, y: 12)
+        }
+        .transition(.opacity)
+    }
+
+    private func cycleDialogSpeed() {
+        switch dialogSpeed {
+        case 1: dialogSpeed = 2
+        case 2: dialogSpeed = 3
+        default: dialogSpeed = 1
+        }
+        applyDialogSpeed()
+    }
+
+    private func applyDialogSpeed() {
+        let speed = Double(dialogSpeed)
+        viewModel.setTypingSpeed(speed)
+        speechManager.rateMultiplier = Float(speed == 1 ? 1.0 : (speed == 2 ? 1.4 : 1.8))
+    }
+
+    private func handleSkipButtonTap() {
+        // If already auto-skipping, stop it
+        if isAutoSkipping {
+            isAutoSkipping = false
+            stopAutoSkip()
+            return
+        }
+        // If on a minigame node, show confirmation dropdown
+        if isOnMinigameNode {
+            withAnimation(.easeOut(duration: 0.18)) {
+                showSkipMinigameConfirm.toggle()
+            }
+            return
+        }
+        // Otherwise toggle normal auto-skip
+        isAutoSkipping = true
+        startAutoSkip()
+    }
+
+    private func toggleAutoSkip() {
+        isAutoSkipping.toggle()
+        if isAutoSkipping {
+            startAutoSkip()
+        } else {
+            stopAutoSkip()
+        }
+    }
+
+    /// Whether the current node has an incomplete minigame (inline activity).
+    private var isOnMinigameNode: Bool {
+        guard let node = viewModel.currentNode else { return false }
+        return node.inlineActivity != nil && !viewModel.isInlineActivityCompleted(for: node.id)
+    }
+
+    /// Whether the current node is interactive and must not be auto-skipped.
+    private var isOnInteractiveNode: Bool {
+        guard let node = viewModel.currentNode else { return false }
+        if viewModel.showChoices || viewModel.showTextInput { return true }
+        if node.requiresInput { return true }
+        if node.choices != nil && !node.choices!.isEmpty { return true }
+        if isOnMinigameNode { return true }
+        return false
+    }
+
+    /// Force-skip the current minigame, marking it complete and advancing.
+    private func skipCurrentMinigame() {
+        guard let node = viewModel.currentNode,
+              node.inlineActivity != nil else { return }
+        viewModel.completeInlineActivity(for: node.id, result: "skipped")
+        speechManager.stop()
+        viewModel.advance()
+    }
+
+    private func startAutoSkip() {
+        // Never start skipping on an interactive / minigame node
+        if isOnInteractiveNode {
+            isAutoSkipping = false
+            return
+        }
+
+        autoSkipTask?.cancel()
+        autoSkipTask = Task { @MainActor in
+            while !Task.isCancelled && isAutoSkipping && !viewModel.isCompleted {
+                // If currently typing, skip to end instantly
+                if viewModel.isTyping {
+                    speechManager.stop()
+                    viewModel.skipTyping()
+                }
+
+                // Stop when hitting any interactive / minigame node
+                if isOnInteractiveNode {
+                    isAutoSkipping = false
+                    break
+                }
+
+                // Brief pause before advancing (shorter at higher speeds)
+                let delayMs: UInt64 = dialogSpeed >= 3 ? 150 : (dialogSpeed >= 2 ? 350 : 600)
+                try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
+                guard !Task.isCancelled && isAutoSkipping else { break }
+
+                // Re-check after sleep in case node changed
+                if isOnInteractiveNode {
+                    isAutoSkipping = false
+                    break
+                }
+
+                // Advance to next node
+                speechManager.stop()
+                viewModel.advance()
+
+                // Small delay to let the new node load
+                try? await Task.sleep(nanoseconds: 50_000_000)
+
+                // Check the newly loaded node immediately
+                if isOnInteractiveNode {
+                    isAutoSkipping = false
+                    break
+                }
+            }
+            if !Task.isCancelled {
+                isAutoSkipping = false
+            }
+        }
+    }
+
+    private func stopAutoSkip() {
+        autoSkipTask?.cancel()
+        autoSkipTask = nil
     }
 
     private func syncSettingsAINameDraft() {

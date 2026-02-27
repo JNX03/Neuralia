@@ -16,6 +16,7 @@ final class SpeechManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     @Published var isSpeaking = false
     @Published var speechEnabled = true
+    var rateMultiplier: Float = 1.0
     private var voice: AVSpeechSynthesisVoice?
     private var playerFemaleVoice: AVSpeechSynthesisVoice?
     private var professorMaleVoice: AVSpeechSynthesisVoice?
@@ -431,7 +432,12 @@ final class SpeechManager: ObservableObject {
         }
         
         utterance.volume = globalSettings.effectiveSpeechVolume
-        
+
+        // Apply speed multiplier (from dialog speed controls)
+        if rateMultiplier > 1.0 {
+            utterance.rate = min(utterance.rate * rateMultiplier, AVSpeechUtteranceMaximumSpeechRate)
+        }
+
         isSpeaking = true
         synthesizer.speak(utterance)
         
