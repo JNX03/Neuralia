@@ -20,6 +20,9 @@ struct StoryChapterPlayerView: View {
                 showCompletionOverlay: false
             )
             .id(currentChapter.id)
+            .onAppear {
+                SoundManager.shared.playBGM()
+            }
 
             if showChapterCompleteOverlay {
                 chapterCompleteOverlay
@@ -50,6 +53,7 @@ struct StoryChapterPlayerView: View {
         showChapterCompleteOverlay = false
         completionNextChapter = nil
         currentChapter = chapter
+        SoundManager.shared.playBGM()
     }
 
     private func chapterNumber(for chapter: StoryChapter) -> Int? {

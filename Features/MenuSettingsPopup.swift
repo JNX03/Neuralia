@@ -267,6 +267,22 @@ struct MenuSettingsPopupOverlay: View {
                     )
                 }
             )
+
+            optionSection(
+                title: "Background Music",
+                subtitle: "Turns the background music on or off.",
+                body: {
+                    BinaryRadioGroup(
+                        leftTitle: "On",
+                        rightTitle: "Off",
+                        selection: musicEnabledBinding,
+                        layout: layout,
+                        accent: accent,
+                        textPrimary: textPrimary,
+                        textMuted: textMuted
+                    )
+                }
+            )
         }
     }
 
@@ -442,6 +458,13 @@ struct MenuSettingsPopupOverlay: View {
         Binding(
             get: { settings.speechEnabled },
             set: { settings.speechEnabled = $0 }
+        )
+    }
+
+    private var musicEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.musicEnabled },
+            set: { settings.musicEnabled = $0 }
         )
     }
 

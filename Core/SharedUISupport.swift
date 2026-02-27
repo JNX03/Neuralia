@@ -519,16 +519,23 @@ final class SoundManager: ObservableObject {
             return
         }
         
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            try AVAudioSession.sharedInstance().setActive(true)
-            
-            bgmPlayer = try AVAudioPlayer(data: dataAsset.data)
-            bgmPlayer?.numberOfLoops = -1 // Loop indefinitely
-            bgmPlayer?.volume = 0.5
-            bgmPlayer?.play()
-        } catch {
-            print("Failed to play bgm: \(error.localizedDescription)")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                try AVAudioSession.sharedInstance().setActive(true)
+                
+                let player = try AVAudioPlayer(data: dataAsset.data)
+                player.numberOfLoops = -1 // Loop indefinitely
+                player.volume = 0.1 // Lowered volume per user request
+                player.prepareToPlay()
+                
+                DispatchQueue.main.async {
+                    self?.bgmPlayer = player
+                    self?.bgmPlayer?.play()
+                }
+            } catch {
+                print("Failed to play bgm: \(error.localizedDescription)")
+            }
         }
     }
     

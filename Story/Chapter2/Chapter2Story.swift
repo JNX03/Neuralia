@@ -223,7 +223,13 @@ let chapterTwoStory = StoryChapter(
             backgroundImage: "507room",
             characterImage: "unknow",
             cutsceneTitle: "To Be Continued",
-            cutsceneSubtitle: "Safer answers together"
+            cutsceneSubtitle: "Safer answers together",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Chapter Complete",
+                subtitle: "See you next time",
+                imageName: "chapter2ending",
+                badge: "End"
+            )
         )
     ]
 )

@@ -12,6 +12,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let showVersionLabel = "globalSettings.showVersionLabel"
         static let masterVolume = "globalSettings.masterVolume"
         static let speechEnabled = "globalSettings.speechEnabled"
+        static let musicEnabled = "globalSettings.musicEnabled"
         static let aiDisplayName = "globalSettings.aiDisplayName"
         static let colorBlindMode = "globalSettings.colorBlindMode"
     }
@@ -24,6 +25,7 @@ final class GlobalSettingsStore: ObservableObject {
         static let showVersionLabel = true
         static let masterVolume = 0.85
         static let speechEnabled = true
+        static let musicEnabled = true
         static let aiDisplayName = "Ploy"
         static let colorBlindMode = false
     }
@@ -59,6 +61,13 @@ final class GlobalSettingsStore: ObservableObject {
         didSet { persist(speechEnabled, forKey: Keys.speechEnabled) }
     }
 
+    @Published var musicEnabled: Bool = Defaults.musicEnabled {
+        didSet { 
+            persist(musicEnabled, forKey: Keys.musicEnabled)
+            SoundManager.shared.isMusicEnabled = musicEnabled
+        }
+    }
+
     @Published var aiDisplayName: String = Defaults.aiDisplayName {
         didSet { persist(aiDisplayName, forKey: Keys.aiDisplayName) }
     }
@@ -90,6 +99,7 @@ final class GlobalSettingsStore: ObservableObject {
         showVersionLabel = Defaults.showVersionLabel
         masterVolume = Defaults.masterVolume
         speechEnabled = Defaults.speechEnabled
+        musicEnabled = Defaults.musicEnabled
         aiDisplayName = Defaults.aiDisplayName
         colorBlindMode = Defaults.colorBlindMode
     }
@@ -118,6 +128,9 @@ final class GlobalSettingsStore: ObservableObject {
         if userDefaults.object(forKey: Keys.speechEnabled) != nil {
             speechEnabled = userDefaults.bool(forKey: Keys.speechEnabled)
         }
+        if userDefaults.object(forKey: Keys.musicEnabled) != nil {
+            musicEnabled = userDefaults.bool(forKey: Keys.musicEnabled)
+        }
         if let storedAIName = userDefaults.string(forKey: Keys.aiDisplayName) {
             aiDisplayName = storedAIName
         }
@@ -140,6 +153,8 @@ final class GlobalSettingsStore: ObservableObject {
         masterVolume = min(max(masterVolume, 0), 1)
         let trimmedAIName = aiDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         aiDisplayName = trimmedAIName.isEmpty ? Defaults.aiDisplayName : String(trimmedAIName.prefix(24))
+        
+        SoundManager.shared.isMusicEnabled = musicEnabled
         
         isLoading = false
     }

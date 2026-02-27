@@ -54,8 +54,9 @@ struct FeatureTestingView: View {
                     
                     // 2. Character on left side
                     HStack(spacing: 0) {
-                        Image("teachnew")
+                        Image("teachernew")
                             .resizable()
+                            .scaleEffect(x: -1, y: 1)
                             .scaledToFit()
                             .frame(height: geo.size.height * 0.95)
                             .offset(x: -geo.size.width * 0.02, y: geo.size.height * 0.08)

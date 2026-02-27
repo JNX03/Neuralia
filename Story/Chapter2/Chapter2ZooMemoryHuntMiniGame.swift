@@ -93,7 +93,7 @@ let chapter2ZooMemoryHuntMiniGame =
                 ]
             ),
             LectureQuizQuestion(
-                id: "aquarium-catfish",
+                id: "aquarium-shark",
                 question: "After moving to a clearer spot and wiping algae from the glass, what is it really?",
                 choices: [
                     LectureQuizOption(
@@ -103,9 +103,9 @@ let chapter2ZooMemoryHuntMiniGame =
                         icon: "exclamationmark.triangle.fill"
                     ),
                     LectureQuizOption(
-                        id: "aq-catfish",
-                        text: "Giant Catfish",
-                        feedback: "It is a Giant Catfish. After getting a clearer view, the answer becomes much easier to verify. Memory photo added.",
+                        id: "aq-shark",
+                        text: "Shark",
+                        feedback: "It is a Shark. After getting a clearer view, the answer becomes much easier to verify. Memory photo added.",
                         isBestAnswer: true,
                         icon: "camera.fill"
                     ),
@@ -130,7 +130,7 @@ let chapter2ZooMemoryHuntMiniGame =
                     LectureQuizReferencePage(
                         id: "aq-guide-2",
                         title: "Clearer View",
-                        text: "Move closer, change angle, or clean the glass. Better evidence produces better predictions. In this scene, the 'monster' was just a giant catfish behind plants."
+                        text: "Move closer, change angle, or clean the glass. Better evidence produces better predictions. In this scene, the 'monster' was just a shark behind plants."
                     )
                 ]
             )

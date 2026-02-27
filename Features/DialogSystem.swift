@@ -710,6 +710,13 @@ struct ResponsiveDialogView: View {
             }
         )
     }
+    
+    private var chapterMusicEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { globalSettings.musicEnabled },
+            set: { globalSettings.musicEnabled = $0 }
+        )
+    }
 
     private func volumePercentText(_ value: Double) -> String {
         "\(Int((min(max(value, 0), 1) * 100).rounded()))%"
@@ -2697,8 +2704,9 @@ struct ResponsiveDialogView: View {
             Color.clear
                 .frame(height: layout.isCompact ? 22 : 26)
 
-            menuVolumeSection(title: "MUSIC", value: chapterMusicVolumeBinding, layout: layout)
-            menuVolumeSection(title: "SPEECH", value: chapterSpeechVolumeBinding, layout: layout)
+            menuToggleSection(title: "BGM", value: chapterMusicEnabledBinding, layout: layout)
+            menuToggleSection(title: "VOICE", value: Binding(get: { globalSettings.speechEnabled }, set: { globalSettings.speechEnabled = $0 }), layout: layout)
+            menuVolumeSection(title: "VOLUME", value: chapterMusicVolumeBinding, layout: layout)
             aiNameSettingsSection(layout: layout)
 
             HStack(spacing: 10) {
@@ -2778,6 +2786,32 @@ struct ResponsiveDialogView: View {
                 .font(.system(size: layout.captionFontSize, weight: .medium))
                 .foregroundColor(.black.opacity(0.62))
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func menuToggleSection(title: String, value: Binding<Bool>, layout: DialogAdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                .foregroundColor(.black.opacity(0.95))
+                .tracking(0.3)
+
+            HStack {
+                Toggle("", isOn: value)
+                    .labelsHidden()
+                    .tint(Color(hex: "0A6FEA"))
+                Spacer()
+                Text(value.wrappedValue ? "On" : "Off")
+                    .font(.system(size: layout.bodyFontSize, weight: .bold, design: .rounded))
+                    .foregroundColor(value.wrappedValue ? Color(hex: "0A6FEA") : .gray)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.white.opacity(0.75), lineWidth: 1)
+            )
         }
     }
 

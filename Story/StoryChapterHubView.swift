@@ -82,6 +82,9 @@ struct StoryChapterHubView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            SoundManager.shared.playBGM()
+        }
     }
 
     // MARK: - Background

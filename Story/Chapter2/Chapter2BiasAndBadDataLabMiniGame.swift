@@ -45,7 +45,7 @@ let chapter2BiasAndBadDataLabMiniGame =
                 title: "The aquarium glass was dirty and I saw a 'sea monster'",
                 detail: "Remember the aquarium? The glass had algae and the water was dark. I could barely see the fish, so I panicked and called it a sea monster.",
                 correctBucketID: "bad-data",
-                feedback: "This is bad data. The view was blocked and noisy. Once you wiped the glass and moved closer, I could see it was just a Giant Catfish. Bad input leads to bad predictions.",
+                feedback: "This is bad data. The view was blocked and noisy. Once you wiped the glass and moved closer, I could see it was just a Shark. Bad input leads to bad predictions.",
                 systemImage: "drop.triangle.fill"
             ),
             BiasDataAuditCard(
@@ -59,9 +59,9 @@ let chapter2BiasAndBadDataLabMiniGame =
             BiasDataAuditCard(
                 id: "wrong-labels",
                 title: "Someone copy-pasted wrong labels on 200 fish photos",
-                detail: "Imagine a volunteer labeling zoo photos for training, but they accidentally labeled all the catfish photos as 'rock.' Now I learn that rocks swim.",
+                detail: "Imagine a volunteer labeling zoo photos for training, but they accidentally labeled all the shark photos as 'rock.' Now I learn that rocks swim.",
                 correctBucketID: "bad-data",
-                feedback: "This is bad data. Wrong labels poison everything I learn. If the training says catfish = rock, I will believe it, no matter how smart my model is.",
+                feedback: "This is bad data. Wrong labels poison everything I learn. If the training says shark = rock, I will believe it, no matter how smart my model is.",
                 systemImage: "tag.slash.fill"
             ),
             BiasDataAuditCard(

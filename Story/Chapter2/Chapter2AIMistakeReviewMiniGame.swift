@@ -55,7 +55,7 @@ let oldChapter2BiasAndBadDataLabMiniGame =
             BiasDataAuditCard(
                 id: "wrong-copypaste-labels",
                 title: "Copied labels are wrong on many images",
-                detail: "Catfish photos are labeled as 'rock' after a bad import.",
+                detail: "Shark photos are labeled as 'rock' after a bad import.",
                 correctBucketID: "bad-data",
                 feedback: "This is bad data. Incorrect labels directly poison the training signal.",
                 systemImage: "tag.slash.fill"
