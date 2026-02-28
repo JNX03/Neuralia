@@ -961,6 +961,13 @@ struct ResponsiveDialogView: View {
             withAnimation(globalSettings.reduceMotion ? nil : .easeOut(duration: 0.28)) {
                 sceneContentOpacity = 1.0
             }
+            // Safety fallback: ensure opacity recovers even if the animation is interrupted
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if sceneContentOpacity < 1.0 {
+                    sceneContentOpacity = 1.0
+                }
+            }
         }
         .transaction { transaction in
             if globalSettings.reduceMotion {
