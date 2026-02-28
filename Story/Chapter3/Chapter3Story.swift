@@ -158,7 +158,15 @@ let chapterThreeStory = StoryChapter(
             backgroundImage: "room",
             characterImage: "char_happy",
             cutsceneTitle: "Transfer Complete",
-            cutsceneSubtitle: "{{ai_name}} reached the phone"
+            cutsceneSubtitle: "{{ai_name}} reached the phone",
+            showcaseMedia: DialogShowcaseMedia(
+                title: "Phone Alert",
+                subtitle: "The phone starts shaking on its own.",
+                imageName: "phone",
+                badge: "Vibrating",
+                prefersSplitLayout: true,
+                animatesShake: true
+            )
         ),
         StoryDialogLine(
             speaker: "You",

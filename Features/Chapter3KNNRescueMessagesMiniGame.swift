@@ -527,15 +527,26 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
 
     private var topBarModeButton: some View {
         Button(action: toggleMode) {
-            HStack(spacing: 4) {
-                Image(systemName: topBarModeIcon)
-                    .font(.system(size: layout.captionFontSize - 2))
-                Text(topBarModeLabel)
-                    .font(.system(size: layout.captionFontSize - 1, weight: .semibold))
+            VStack(spacing: 2) {
+                if mode == .photo {
+                    Text("Can't take photo? Draw instead!")
+                        .font(.system(size: layout.captionFontSize - 3, weight: .bold))
+                        .foregroundColor(Color(hex: "FBBF24"))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color(hex: "FBBF24").opacity(0.2)))
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: topBarModeIcon)
+                        .font(.system(size: layout.captionFontSize))
+                    Text(topBarModeLabel)
+                        .font(.system(size: layout.captionFontSize, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Capsule().fill(Color(hex: "6366F1").opacity(0.8)))
+                .overlay(Capsule().stroke(Color.white.opacity(0.4), lineWidth: 1))
             }
-            .foregroundColor(.white)
-            .padding(.horizontal, 10).padding(.vertical, 6)
-            .background(Capsule().fill(Color(hex: "6366F1").opacity(0.5)))
         }
         .buttonStyle(.plain)
         .disabled(phase != .collect)
@@ -704,7 +715,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         let samples = photoSamples.filter { $0.label == label }
         HStack(spacing: 8) {
             ForEach(samples) { sample in
-                photoThumbnail(image: sample.image, color: color, size: thumbSize)
+                photoThumbnail(sample: sample, color: color, size: thumbSize)
             }
             if count < 3 {
                 photoAddButton(label: label, color: color, remaining: 3 - count, size: thumbSize)
@@ -713,16 +724,53 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         }
     }
 
-    private func photoThumbnail(image: UIImage, color: Color, size: CGFloat) -> some View {
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(color.opacity(0.6), lineWidth: 2)
-            )
+    private func photoThumbnail(sample: PhotoTrainingSample, color: Color, size: CGFloat) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Image(uiImage: sample.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(color.opacity(0.6), lineWidth: 2)
+                )
+            
+            Button(action: { removePhoto(sample) }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(Color(hex: "EF4444"))
+                    .background(Circle().fill(Color.white).padding(2))
+            }
+            .buttonStyle(.plain)
+            .offset(x: 6, y: -6)
+        }
+    }
+
+    private func removePhoto(_ sample: PhotoTrainingSample) {
+        withAnimation {
+            photoSamples.removeAll(where: { $0.id == sample.id })
+            
+            // Also need to remove from trainingPoints and trainingFeatures
+            // Find the index in trainingPoints by matching the coordinates roughly, or better, recreate the arrays
+            rebuildTrainingData()
+        }
+    }
+
+    private func rebuildTrainingData() {
+        trainingPoints = []
+        trainingFeatures = []
+        
+        for sample in photoSamples {
+            trainingPoints.append(KNNDataPoint(label: sample.label, x: sample.point2D.x, y: sample.point2D.y, emoji: ""))
+            trainingFeatures.append((label: sample.label, features: sample.features))
+        }
+        
+        // Also add back drawing samples if we are in drawing mode or just to be safe
+        for sample in drawSamples {
+            trainingPoints.append(KNNDataPoint(label: sample.label, x: sample.point2D.x, y: sample.point2D.y, emoji: ""))
+            trainingFeatures.append((label: sample.label, features: sample.features))
+        }
     }
 
     private func photoAddButton(label: String, color: Color, remaining: Int, size: CGFloat) -> some View {
@@ -1014,7 +1062,10 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                     testResultView(actualLabel: test.label)
                 } else if let img = test.image {
                     photoTestImagePreview(test: test)
-                    classifyPhotoButton
+                    HStack(spacing: 12) {
+                        photoTestUploadButton(label: test.label, color: testColor)
+                        classifyPhotoButton
+                    }
                 } else {
                     photoTestUploadButton(label: test.label, color: testColor)
                 }
@@ -1578,8 +1629,21 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         testImages = []
 
         if mode == .photo {
+            // Start with asset images
             for label in labels {
-                testImages.append((label: label, image: nil, features: []))
+                let assetName = label.lowercased() // "pen", "hand", "bottle"
+                let image = UIImage(named: assetName)
+                let features: [Double]
+                if let img = image {
+                    features = ImageFeatureExtractor.extractFeatures(from: img)
+                } else {
+                    // Fallback to pseudo-random distinct features if image missing
+                    features = (0..<50).map { i in
+                        let h = Double(label.hashValue ^ i)
+                        return abs(h.truncatingRemainder(dividingBy: 1.0))
+                    }
+                }
+                testImages.append((label: label, image: image, features: features))
             }
         }
 
@@ -1589,6 +1653,11 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         knnPrediction = nil
         testPoint = nil
         testPickerItems.removeAll()
+        
+        if mode == .photo, let first = testImages.first {
+            let pt = ImageFeatureExtractor.projectTo2D(features: first.features)
+            testPoint = KNNDataPoint(label: "?", x: pt.x, y: pt.y, emoji: "?")
+        }
     }
 
     // Run KNN test on current photo test image
@@ -1677,17 +1746,29 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     private func nextTest() {
         currentTestIndex += 1
 
-        if currentTestIndex >= 3 || (correctCount >= 1 && currentTestIndex >= 3) {
-            // All tests done
+        if currentTestIndex >= 3 {
+            // We finished the 3 basic requested tests.
+            // If the user wants to test more, we generate a placeholder for them to upload indefinitely
             if correctCount >= 1 {
-                withAnimation(.easeOut(duration: 0.4)) { phase = .complete }
-                addChat("Signal stabilized at 99.98%!", isUser: false)
+                if phase != .complete {
+                    withAnimation(.easeOut(duration: 0.4)) { phase = .complete }
+                    addChat("Signal stabilized at 99.98%!", isUser: false)
+                }
+                
+                // Allow infinite testing by appending a placeholder if we run out
+                if mode == .photo && currentTestIndex >= testImages.count {
+                    let randomLabel = labels.randomElement() ?? "Pen"
+                    testImages.append((label: randomLabel, image: nil, features: []))
+                } else if mode != .photo {
+                    // draw mode infinite tests
+                    // advance currentTestIndex but just use modulo for label if needed
+                }
             } else {
                 // Failed all 3 — restart test
                 addChat("Signal too weak. Trying again...", isUser: false)
                 prepareTests()
+                return
             }
-            return
         }
 
         // Reset for next test

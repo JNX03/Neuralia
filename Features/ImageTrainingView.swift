@@ -449,17 +449,19 @@ class KNNClassifier: ObservableObject {
         featureWeights = weights
     }
     
-    func classify(_ sample: DrawingSample) -> (label: String, confidence: Double) {
-        guard isTrained else { return ("Untrained", 0.0) }
+    func classify(_ sample: DrawingSample, using customSamples: [DrawingSample]? = nil, updateDetails: Bool = true) -> (label: String, confidence: Double) {
+        let currentSamples = customSamples ?? trainingSamples
+        let trained = customSamples != nil ? (currentSamples.count >= 2 && Set(currentSamples.map { $0.label }).count >= 2) : isTrained
+        guard trained else { return ("Untrained", 0.0) }
         
         let startTime = CFAbsoluteTimeGetCurrent()
         let testFeatures = sample.featureVector()
         
         // Get all samples including augmented if enabled
-        var allSamples = trainingSamples
+        var allSamples = currentSamples
         if useAugmentation {
-            for sample in trainingSamples {
-                allSamples.append(contentsOf: sample.augmentedSamples(count: augmentationFactor))
+            for trainSample in currentSamples {
+                allSamples.append(contentsOf: trainSample.augmentedSamples(count: augmentationFactor))
             }
         }
         
@@ -493,12 +495,14 @@ class KNNClassifier: ObservableObject {
         let confidence = winnerVotes / totalWeight
         
         // Store prediction details
-        let processingTime = CFAbsoluteTimeGetCurrent() - startTime
-        lastPredictionDetails = PredictionDetails(
-            topMatches: Array(kNearest),
-            featureSimilarities: calculateSimilarities(testFeatures, allSamples),
-            processingTime: processingTime
-        )
+        if updateDetails {
+            let processingTime = CFAbsoluteTimeGetCurrent() - startTime
+            lastPredictionDetails = PredictionDetails(
+                topMatches: Array(kNearest),
+                featureSimilarities: calculateSimilarities(testFeatures, allSamples),
+                processingTime: processingTime
+            )
+        }
         
         return (winner.key, confidence)
     }
@@ -576,17 +580,11 @@ class KNNClassifier: ObservableObject {
             var tempSamples = trainingSamples
             let testSample = tempSamples.remove(at: i)
             
-            // Temporarily set samples and classify
-            let savedSamples = trainingSamples
-            trainingSamples = tempSamples
-            
-            let result = classify(testSample)
+            let result = classify(testSample, using: tempSamples, updateDetails: false)
             if result.label == testSample.label {
                 correct += 1
             }
             total += 1
-            
-            trainingSamples = savedSamples
         }
         
         return Double(correct) / Double(total)
