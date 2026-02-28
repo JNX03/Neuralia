@@ -109,21 +109,32 @@ struct ImageFeatureExtractor {
         guard features.count >= 48 else { return (0.5, 0.5) }
 
         // Use weighted sums of different feature groups for x and y
-        // x: dominated by red-green spatial distribution
-        // y: dominated by blue-brightness spatial distribution
         var xVal = 0.0, yVal = 0.0
         for i in stride(from: 0, to: 48, by: 3) {
             let zone = i / 3
             let row = zone / 4
             let col = zone % 4
             let r = features[i], g = features[i + 1], b = features[i + 2]
-            xVal += (r - g) * (Double(col) / 3.0 - 0.5) + r * 0.3
-            yVal += (b - (r + g) / 2.0) * (Double(row) / 3.0 - 0.5) + b * 0.3
+            
+            // Map spatial color differences to [-0.5, 0.5] range roughly
+            xVal += (r - g) * (Double(col) / 3.0 - 0.5) + (r - 0.5) * 0.2
+            yVal += (b - (r + g) / 2.0) * (Double(row) / 3.0 - 0.5) + (b - 0.5) * 0.2
         }
 
+        // Add brightness and variance (features 48 and 49) to spread further
+        if features.count >= 50 {
+            xVal += (features[48] - 0.5) * 1.5
+            yVal += (features[49] - 0.1) * 3.0
+        }
+
+        // Small deterministic jitter based on feature sum to spread similar images
+        let sum = features.reduce(0, +)
+        let jitterX = (sum.truncatingRemainder(dividingBy: 1.0) - 0.5) * 0.15
+        let jitterY = ((sum * 1.3).truncatingRemainder(dividingBy: 1.0) - 0.5) * 0.15
+
         // Normalize to 0.1...0.9 range
-        let x = min(0.9, max(0.1, (xVal / 4.0) + 0.5))
-        let y = min(0.9, max(0.1, (yVal / 4.0) + 0.5))
+        let x = min(0.9, max(0.1, (xVal / 3.0) + 0.5 + jitterX))
+        let y = min(0.9, max(0.1, (yVal / 3.0) + 0.5 + jitterY))
         return (x, y)
     }
 
@@ -208,6 +219,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     @State private var correctCount = 0
     @State private var totalTests = 0
     @State private var showNeighborLines = false
+    @State private var testPickerItems: [PhotosPickerItem] = []
 
     // Chat
     @State private var chatMessages: [TrainingChatMessage] = []
@@ -369,6 +381,9 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         }
         .onChange(of: bottlePickerItems) { _, items in
             handlePhotoPick(items: items, label: "Bottle")
+        }
+        .onChange(of: testPickerItems) { _, items in
+            handleTestPhotoPick(items: items)
         }
     }
 
@@ -990,15 +1005,43 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
     private var photoTestContent: some View {
         if currentTestIndex < testImages.count {
             let test = testImages[currentTestIndex]
+            let testColor = labelColors[test.label] ?? .gray
+            
             VStack(spacing: 10) {
-                photoTestImagePreview(test: test)
-                scatterPlot(showTest: true, height: layout.isCompact ? 140 : 180)
+                photoTestHeader(label: test.label, color: testColor)
+                scatterPlot(showTest: testPoint != nil, height: layout.isCompact ? 140 : 180)
                 if showTestResult {
                     testResultView(actualLabel: test.label)
-                } else {
+                } else if let img = test.image {
+                    photoTestImagePreview(test: test)
                     classifyPhotoButton
+                } else {
+                    photoTestUploadButton(label: test.label, color: testColor)
                 }
             }
+        }
+    }
+
+    private func photoTestHeader(label: String, color: Color) -> some View {
+        VStack(spacing: 6) {
+            Text("Test \(currentTestIndex + 1) of 3: Upload \(label)")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+        }
+    }
+
+    private func photoTestUploadButton(label: String, color: Color) -> some View {
+        PhotosPicker(selection: $testPickerItems, maxSelectionCount: 1, matching: .images) {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 24))
+                Text("Upload Test Photo")
+                    .font(.system(size: 13, weight: .bold))
+            }
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(RoundedRectangle(cornerRadius: 12).stroke(color.opacity(0.5), style: StrokeStyle(lineWidth: 2, dash: [5])))
         }
     }
 
@@ -1410,6 +1453,25 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         }
     }
 
+    private func handleTestPhotoPick(items: [PhotosPickerItem]) {
+        guard let item = items.first else { return }
+        item.loadTransferable(type: Data.self) { result in
+            DispatchQueue.main.async {
+                if case .success(let data) = result, let data = data, let uiImage = UIImage(data: data) {
+                    let features = ImageFeatureExtractor.extractFeatures(from: uiImage)
+                    testImages[currentTestIndex].image = uiImage
+                    testImages[currentTestIndex].features = features
+                    
+                    let pt = ImageFeatureExtractor.projectTo2D(features: features)
+                    testPoint = KNNDataPoint(label: "?", x: pt.x, y: pt.y, emoji: "?")
+                    
+                    addChat("Uploaded test photo!", isUser: true)
+                }
+                self.testPickerItems.removeAll()
+            }
+        }
+    }
+
     // Submit a drawing sample
     private func submitDrawingSample() {
         guard !drawStrokes.isEmpty, drawCanvasSize != .zero else { return }
@@ -1454,18 +1516,22 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         guard features.count > 30 else { return 0.5 }
         var sum = 0.0
         for i in 0..<min(28, features.count) {
-            sum += features[i] * (i % 2 == 0 ? 1.0 : -0.5)
+            sum += (features[i] - 0.5) * (i % 2 == 0 ? 1.0 : -1.0)
         }
-        return min(0.9, max(0.1, (sum / 10.0) + 0.5))
+        let hashVal = features.reduce(0, +).truncatingRemainder(dividingBy: 1.0)
+        let jitter = (hashVal - 0.5) * 0.1
+        return min(0.9, max(0.1, (sum / 5.0) + 0.5 + jitter))
     }
 
     private func projectDrawingFeatureY(_ features: [Double]) -> Double {
         guard features.count > 56 else { return 0.5 }
         var sum = 0.0
         for i in 28..<min(56, features.count) {
-            sum += features[i] * (i % 2 == 0 ? -0.5 : 1.0)
+            sum += (features[i] - 0.5) * (i % 2 == 0 ? -1.0 : 1.0)
         }
-        return min(0.9, max(0.1, (sum / 10.0) + 0.5))
+        let hashVal = features.reduce(0, +).truncatingRemainder(dividingBy: 1.0)
+        let jitter = ((hashVal * 1.7).truncatingRemainder(dividingBy: 1.0) - 0.5) * 0.1
+        return min(0.9, max(0.1, (sum / 5.0) + 0.5 + jitter))
     }
 
     private func advanceDrawingPrompt() {
@@ -1512,21 +1578,9 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         testImages = []
 
         if mode == .photo {
-            // Use asset images as test data
             for label in labels {
-                let assetName = label.lowercased() // "pen", "hand", "bottle"
-                let image = UIImage(named: assetName)
-                let features: [Double]
-                if let img = image {
-                    features = ImageFeatureExtractor.extractFeatures(from: img)
-                } else {
-                    features = Array(repeating: 0.5, count: 50)
-                }
-                testImages.append((label: label, image: image, features: features))
+                testImages.append((label: label, image: nil, features: []))
             }
-        } else {
-            // For drawing mode, we test by having user draw new samples
-            // testImages stays empty, we use draw test flow instead
         }
 
         currentTestIndex = 0
@@ -1534,11 +1588,7 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
         showNeighborLines = false
         knnPrediction = nil
         testPoint = nil
-
-        if mode == .photo, let first = testImages.first {
-            let pt = ImageFeatureExtractor.projectTo2D(features: first.features)
-            testPoint = KNNDataPoint(label: "?", x: pt.x, y: pt.y, emoji: "?")
-        }
+        testPickerItems.removeAll()
     }
 
     // Run KNN test on current photo test image
@@ -1651,8 +1701,10 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
 
         if mode == .photo, currentTestIndex < testImages.count {
             let next = testImages[currentTestIndex]
-            let pt = ImageFeatureExtractor.projectTo2D(features: next.features)
-            testPoint = KNNDataPoint(label: "?", x: pt.x, y: pt.y, emoji: "?")
+            if !next.features.isEmpty {
+                let pt = ImageFeatureExtractor.projectTo2D(features: next.features)
+                testPoint = KNNDataPoint(label: "?", x: pt.x, y: pt.y, emoji: "?")
+            }
         }
     }
 

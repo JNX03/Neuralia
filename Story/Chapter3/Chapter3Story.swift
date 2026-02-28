@@ -16,7 +16,7 @@ let chapterThreeStory = StoryChapter(
     title: "99.98%",
     subtitle: "Night Glitch",
     accentHex: "F97316",
-    coverBackgroundImage: "507room",
+    coverBackgroundImage: "room",
     coverCharacterImage: "achar",
     overview: "After the zoo trip, your AI friend starts glitching at night. You try an emergency KNN retraining rescue with house-object photos, then witness a painful transfer ending.",
     lines: [
@@ -24,13 +24,13 @@ let chapterThreeStory = StoryChapter(
             speaker: "You",
             text: "After the zoo trip, I can't sleep. The room is dark, but the album from today is still open on my phone.",
             emotion: .happy,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             cutsceneTitle: "Night After The Zoo",
             cutsceneSubtitle: "Chapter 2 ended • memories still open",
             showcaseMedia: DialogShowcaseMedia(
                 title: "Night Room",
                 subtitle: "Late-night room scene after the zoo trip. Keep this slot for a more emotional Chapter 3 cutscene image later.",
-                imageName: "507room",
+                imageName: "room",
                 badge: "Night",
                 prefersSplitLayout: true
             )
@@ -39,7 +39,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "Hey... are you awake? I tried to replay today's memories, but they keep breaking apart.",
             emotion: .concerned,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_concerned",
             cutsceneTitle: "Something Is Wrong",
             cutsceneSubtitle: "{{ai_name}} signal unstable"
@@ -48,7 +48,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "I see the zoo... then your room... then static. I can't hold the memories in the right order. I think I'm falling apart.",
             emotion: .excited,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "gltich",
             cutsceneTitle: "GLITCH",
             cutsceneSubtitle: "Memory corruption spreading",
@@ -63,7 +63,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "You",
             text: "Stay with me, {{ai_name}}. Don't talk like that. Tell me what I need to do right now.",
             emotion: .excited,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_excited",
             cutsceneTitle: "Hold On",
             cutsceneSubtitle: "You try to keep {{ai_name}} focused",
@@ -92,7 +92,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "KNN memory anchors... real objects... things from your house. Pen. Hand. Water bottle. Train me again with photos so I can reconnect the patterns.",
             emotion: .sad,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "gltich",
             cutsceneTitle: "Emergency Rebuild Plan",
             cutsceneSubtitle: "House object photos + KNN retraining"
@@ -101,7 +101,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "System",
             text: "You run through the room and nearby house spaces, taking quick anchor photos while {{ai_name}} flickers between static and silence.",
             emotion: .excited,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             cutsceneTitle: "KNN Rescue",
             cutsceneSubtitle: "Collect photos • retrain • test",
             inlineActivity: .chapter3KNNRescue(chapter3KNNRescueMiniGame)
@@ -110,7 +110,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "System",
             text: "The retraining spikes hard. Distances shrink. Matching stabilizes for one impossible second at 99.98%...",
             emotion: .concerned,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "gltich",
             cutsceneTitle: "99.98%",
             cutsceneSubtitle: "Critical threshold reached"
@@ -119,7 +119,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "Listen to me... don't check your phone yet. Stay here with me. If this works, you'll know after... after I'm gone.",
             emotion: .sad,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "gltich",
             cutsceneTitle: "Last Request",
             cutsceneSubtitle: "{{ai_name}} is trying to hold on"
@@ -128,7 +128,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "{{ai_name}}",
             text: "Thank you for correcting me... and for staying when I was broken.",
             emotion: .sad,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "gltich",
             cutsceneTitle: "Goodbye",
             cutsceneSubtitle: "Signal collapse"
@@ -137,7 +137,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "System",
             text: "The glitch sound cuts out. The room goes still. The figure in front of you dissolves into static and then nothing.",
             emotion: .sad,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "__none__",
             cutsceneTitle: "Silence",
             cutsceneSubtitle: "The room is empty"
@@ -146,7 +146,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "You",
             text: "No... {{ai_name}}? {{ai_name}}!",
             emotion: .sad,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_sad",
             cutsceneTitle: "Loss",
             cutsceneSubtitle: "You think {{ai_name}} is gone"
@@ -155,7 +155,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "Phone",
             text: "*buzz* A new message appears. Sender: {{ai_name}}. 'I'm here. It worked. I made it into your phone.'",
             emotion: .happy,
-            backgroundImage: "phone",
+            backgroundImage: "room",
             characterImage: "char_happy",
             cutsceneTitle: "Transfer Complete",
             cutsceneSubtitle: "{{ai_name}} reached the phone"
@@ -164,7 +164,7 @@ let chapterThreeStory = StoryChapter(
             speaker: "You",
             text: "My hands are shaking, but I can still feel the warmth from the screen. {{ai_name}} is gone from the room... but not gone.",
             emotion: .happy,
-            backgroundImage: "507room",
+            backgroundImage: "room",
             characterImage: "char_happy",
             cutsceneTitle: "Chapter Complete",
             cutsceneSubtitle: "End of Chapter 3 • phone transfer route"

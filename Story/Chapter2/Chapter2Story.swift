@@ -6,7 +6,7 @@ let chapterTwoStory = StoryChapter(
     subtitle: "Hallucination / Bias / Bad Data",
     accentHex: "8B5CF6",
     coverBackgroundImage: "room",
-    coverCharacterImage: "unknow",
+    coverCharacterImage: "achar",
     overview: "A Saturday with your AI friend turns into a zoo memory trip where you learn hallucination, bias, and bad data through real-world corrections.",
     lines: [
         StoryDialogLine(
@@ -41,7 +41,7 @@ let chapterTwoStory = StoryChapter(
             text: "10:67.",
             emotion: .happy,
             backgroundImage: "room",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Confident Guess",
             cutsceneSubtitle: "Sounds sure • still wrong",
             showcaseMedia: DialogShowcaseMedia(
@@ -66,7 +66,7 @@ let chapterTwoStory = StoryChapter(
             text: "Oh, sorry. I guessed.",
             emotion: .sad,
             backgroundImage: "room",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Oops",
             cutsceneSubtitle: "Guessing without context"
         ),
@@ -84,7 +84,7 @@ let chapterTwoStory = StoryChapter(
             text: "Best fix: verify with real sources like clocks, signs, and trusted information. Also let me say 'I'm not sure' instead of forcing a guess.",
             emotion: .happy,
             backgroundImage: "room",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Safer Habit",
             cutsceneSubtitle: "Verify and allow uncertainty"
         ),
@@ -138,7 +138,7 @@ let chapterTwoStory = StoryChapter(
             text: "Field trip? Really? Where are we going?",
             emotion: .excited,
             backgroundImage: "room",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "{{ai_name}} Lights Up",
             cutsceneSubtitle: "AI friend is excited"
         ),
@@ -175,7 +175,7 @@ let chapterTwoStory = StoryChapter(
             text: "Wait... before we leave. I made mistakes today. Can we look at why? I want to understand what went wrong — the blurry glass, the Red Panda I rejected... help me sort it out?",
             emotion: .happy,
             backgroundImage: "cnxaqu",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Bias & Bad Data Lab",
             cutsceneSubtitle: "Understanding mistakes together",
             inlineActivity: .biasDataAudit(chapter2BiasAndBadDataLabMiniGame)
@@ -194,7 +194,7 @@ let chapterTwoStory = StoryChapter(
             text: "Thanks for correcting me... you do not get angry when I am wrong.",
             emotion: .happy,
             backgroundImage: "cnxaqu",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Quiet Moment",
             cutsceneSubtitle: "{{ai_name}} gets quieter"
         ),
@@ -221,7 +221,7 @@ let chapterTwoStory = StoryChapter(
             text: "Next time, I will try to say 'I'm not sure' before I guess. You can help me with better clues and better data.",
             emotion: .excited,
             backgroundImage: "room",
-            characterImage: "unknow",
+            characterImage: "achar",
             cutsceneTitle: "Chapter 2 Memories",
             cutsceneSubtitle: "Heading home",
             inlineActivity: .photoShowcase(
