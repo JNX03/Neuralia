@@ -5,8 +5,8 @@ let chapterTwoStory = StoryChapter(
     title: "New Friend?",
     subtitle: "Hallucination / Bias / Bad Data",
     accentHex: "8B5CF6",
-    coverBackgroundImage: "room",
-    coverCharacterImage: "achar",
+    coverBackgroundImage: "cnxaqu",
+    coverCharacterImage: "unknow",
     overview: "A Saturday with your AI friend turns into a zoo memory trip where you learn hallucination, bias, and bad data through real-world corrections.",
     lines: [
         StoryDialogLine(

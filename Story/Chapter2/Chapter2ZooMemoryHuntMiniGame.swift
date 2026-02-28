@@ -97,7 +97,7 @@ let chapter2ZooMemoryHuntMiniGame =
         summaryNote: "Zoo memory lesson: hallucination can sound confident, bias can overgeneralize from patterns, and bad data can cause wrong predictions. Check signs, labels, and clearer inputs.",
         teacherName: "{{ai_name}}",
         teacherRole: "AI Friend",
-        teacherImageName: "unknow",
+        teacherImageName: "achar",
         studentName: "You",
         studentRole: "Friend",
         studentImageName: "char",
