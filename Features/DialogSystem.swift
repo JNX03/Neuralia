@@ -1341,8 +1341,6 @@ struct ResponsiveDialogView: View {
     ) -> some View {
         let safeTop = max(geometry.safeAreaInsets.top, 20)
         let safeBottom = max(geometry.safeAreaInsets.bottom, 10)
-        let topInset = safeTop + 60 // Space for top bar
-        let bottomInset = safeBottom + 20
 
         return ZStack {
             // Full screen photos layer (no padding, fills entire screen)
@@ -9541,7 +9539,7 @@ struct MessengerLectureQuizMiniGameStage: View {
                     .padding(.vertical, 12)
                 }
                 .background(Color.white)
-                .onChange(of: chatMessages.count) { _ in
+                .onChange(of: chatMessages.count) {
                     if let last = chatMessages.last {
                         withAnimation {
                             proxy.scrollTo(last.id, anchor: .bottom)

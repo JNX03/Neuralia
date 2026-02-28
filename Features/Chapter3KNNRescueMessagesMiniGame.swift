@@ -725,17 +725,15 @@ struct Chapter3KNNRescueMessagesMiniGame: View {
                     .foregroundColor(.white.opacity(0.4))
             }
             .frame(width: size, height: size)
-            .background(photoAddButtonBackground)
-        }
-    }
-
-    private var photoAddButtonBackground: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .fill(Color.white.opacity(0.04))
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                    .fill(Color.white.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.1), style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                    )
             )
+        }
     }
 
     private func photoClassBackground(color: Color) -> some View {
