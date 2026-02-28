@@ -1,5 +1,5 @@
 # WWDC26 Swift Student Challenge Submission - Neuralia
-![WWDC2026 Logo](github/baner.png)
+![WWDC2026 Logo](github/banner.png)
 
 Hi I'm jean and this is my submission for Swift Student Challenge 2026 ✨.
 
