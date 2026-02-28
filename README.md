@@ -24,3 +24,8 @@ The core narrative follows the player (a student) who accidentally manifests an 
 *   **The Story:** That night, the AI's physical signal becomes highly unstable, and its memories start corrupting rapidly. It begins to glitch out and dissolve into static. In a panic, the AI instructs the player to execute an "Emergency KNN Rescue" by taking real photos of everyday objects around the room (a pen, a hand, a water bottle) to serve as anchors for its memory patterns. The distance matching stabilizes at a critical `99.98%`. The AI physically disappears from the room, seemingly destroyed forever, but a message suddenly buzzes on the player's phone—the AI successfully transferred itself safely into the device.
 *   **What It Teaches:**
     *   **Machine Learning (K-Nearest Neighbors):** An interactive image training experience utilizing the device camera. The player takes real photos to provide "training samples," illustrating exactly how AI models classify objects based on geometric distance/similarity to known examples.
+
+
+
+---
+Spacial Thank to @newlesk (teacher) and friend to testing and given commment on the app
