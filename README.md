@@ -60,7 +60,7 @@ More about the Swift Student Challenge: https://developer.apple.com/swift-studen
 
 ## 📌 Looking Ahead
 > [!NOTE]  
-> Hello! 👋 Want more project ideas for my 2025 submission? 👀  
+> Hello! 👋 Want more project ideas? see my 2025 submission! 👀  
 > 👉 https://github.com/JNX03/Syntaxia (winner)
 
 | Name | Source |    Video    | Technologies | Status |
