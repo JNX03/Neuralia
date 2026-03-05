@@ -14,6 +14,14 @@ Hi I'm jean and this is my submission for Swift Student Challenge 2026 ✨.
 
 **Neura** is an interactive, story-driven educational iOS/iPadOS application built entirely with SwiftUI. Set against the vibrant backdrop of Chiang Mai, Thailand, it functions as a Visual Novel mixed with interactive minigames. The core purpose of the app is to guide students and beginners through the complexities of Artificial Intelligence (AI)—specifically focusing on AI ethics, prompt engineering, how AI models make mistakes (hallucinations, bias, bad data), and foundational machine learning principles like K-Nearest Neighbors (KNN).
 
+## Installation
+
+1. Go to the **[Neuralia Releases](https://github.com/JNX03/Neuralia/releases/tag/V2.1)** page (or download the **latest version**).
+2. Download **`Neura.swiftpm.zip`**.
+3. **Extract** the ZIP file.
+4. Open the extracted project using **Xcode** or **Swift Playgrounds**.
+5. **Run the project** — Done! 🎉
+
 ## Story
 
 The core narrative follows the player (a student) who accidentally manifests an AI entity into the real world. Across three distinct chapters, the player interacts with this newly materialized AI and their teacher, Professor New, to learn essential lessons about responsible AI usage. 
