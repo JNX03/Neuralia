@@ -48,3 +48,13 @@ The core narrative follows the player (a student) who accidentally manifests an 
 Special thanks to **@newlesk** (my teacher - he also professor new in the game) and my friends for testing the app and providing valuable feedback and suggestions. Your insights helped refine the experience and improve the overall quality of Neuralia.
 
 More about the Swift Student Challenge: https://developer.apple.com/swift-student-challenge/ 🍎
+
+
+## 📌 Looking Ahead
+> [!NOTE]  
+> Hello! 👋 Want more project ideas for my 2025 submission? 👀  
+> 👉 https://github.com/JNX03/Syntaxia (winner)
+
+| Name | Source |    Video    | Technologies | Status |
+|-----:|:------:|:-----------:|:-------------|:------:|
+|[Jnx03](https://www.jnx03.xyz/)|[GitHub](https://github.com/JNX03/Syntaxia)|[Video](https://youtu.be/zJ4cAt7An84)|SwiftUI, Speech synthesis, Natural Language, Avfoundation , AVKit , AudioToolbox , Vision , UniformTypeIdentifiers , ScreenKit|![Winner](https://img.shields.io/badge/winner-slategold?style=for-the-badge)|
