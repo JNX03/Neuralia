@@ -9,7 +9,7 @@ Hi I'm jean and this is my submission for Swift Student Challenge 2026 ✨.
 
 | Name | Source |    Video    | Technologies | Status |
 |-----:|:------:|:-----------:|:-------------|:------:|
-|[Jnx03](https://www.jnx03.xyz/)|[GitHub](https://github.com/JNX03/Neuralia)|[Video](https://www.youtube.com/watch?v=EtrBb8nzsfI)|SwiftUI , Combine , Foundation , AVKit , AVFoundation ,PhotosUI , UIKit|![Submitted](https://img.shields.io/badge/submitted-slategrey?style=for-the-badge)|
+|[Jnx03](https://www.jnx03.xyz/)|[GitHub](https://github.com/JNX03/Neuralia)|[Video](https://www.youtube.com/watch?v=EtrBb8nzsfI)|SwiftUI , Combine , Foundation , AVKit , AVFoundation ,PhotosUI , UIKit|![Distinguished](https://img.shields.io/badge/distinguished-goldenrod?style=for-the-badge)|
 
 
 **Neura** is an interactive, story-driven educational iOS/iPadOS application built entirely with SwiftUI. Set against the vibrant backdrop of Chiang Mai, Thailand, it functions as a Visual Novel mixed with interactive minigames. The core purpose of the app is to guide students and beginners through the complexities of Artificial Intelligence (AI)—specifically focusing on AI ethics, prompt engineering, how AI models make mistakes (hallucinations, bias, bad data), and foundational machine learning principles like K-Nearest Neighbors (KNN).
