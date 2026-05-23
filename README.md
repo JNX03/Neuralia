@@ -66,3 +66,16 @@ More about the Swift Student Challenge: https://developer.apple.com/swift-studen
 | Name | Source |    Video    | Technologies | Status |
 |-----:|:------:|:-----------:|:-------------|:------:|
 |[Jnx03](https://www.jnx03.xyz/)|[GitHub](https://github.com/JNX03/Syntaxia)|[Video](https://youtu.be/zJ4cAt7An84)|SwiftUI, Speech synthesis, Natural Language, Avfoundation , AVKit , AudioToolbox , Vision , UniformTypeIdentifiers , ScreenKit|![Winner](https://img.shields.io/badge/winner-slategold?style=for-the-badge)|
+
+
+# Articles/Blog
+* 📰 **News Articles (Thank you! 🙏)**:
+
+  * [Manager Online](https://mgronline.com/cyberbiz/detail/9690000045941)
+  * [iphonemod](https://www.iphonemod.net/swift-student-challenge-2026-thailand.html)
+  * [Ceei](https://ceei.co/tech-innovation/thai-student-win-distinguished-winner-from-apple-swift-student-challenge-2026/)
+  * [liputan6](https://www.liputan6.com/tekno/read/6629329/apple-undang-dua-mahasiswa-indonesia-ke-wwdc-2026-lewat-app-soal-privasi-dan-rasa-takut-bicara)
+  * [detikcom](https://inet.detik.com/cyberlife/d-8489865/5-talenta-asean-bersinar-di-wwdc-2026-2-dari-indonesia?page=2)
+  * [Ceemeagain](https://www.facebook.com/share/p/1DFUEa9xW1/)
+  * [Selfd.id](https://selfd.id/prestasi-gemilang-5-developer-muda-asean-di-wwdc-2026-dua-dari-indonesia/)
+    
