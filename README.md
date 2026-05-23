@@ -78,4 +78,5 @@ More about the Swift Student Challenge: https://developer.apple.com/swift-studen
   * [detikcom](https://inet.detik.com/cyberlife/d-8489865/5-talenta-asean-bersinar-di-wwdc-2026-2-dari-indonesia?page=2)
   * [Ceemeagain](https://www.facebook.com/share/p/1DFUEa9xW1/)
   * [Selfd.id](https://selfd.id/prestasi-gemilang-5-developer-muda-asean-di-wwdc-2026-dua-dari-indonesia/)
+  * [kilasrakyat](https://www.kilasrakyat.com/talenta-asean-dominasi-panggung-wwdc-2026-indonesia-kirim-dua-wakil/)
     
