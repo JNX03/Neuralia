@@ -79,4 +79,7 @@ More about the Swift Student Challenge: https://developer.apple.com/swift-studen
   * [Ceemeagain](https://www.facebook.com/share/p/1DFUEa9xW1/)
   * [Selfd.id](https://selfd.id/prestasi-gemilang-5-developer-muda-asean-di-wwdc-2026-dua-dari-indonesia/)
   * [kilasrakyat](https://www.kilasrakyat.com/talenta-asean-dominasi-panggung-wwdc-2026-indonesia-kirim-dua-wakil/)
+  * [thairath](https://www.thairath.co.th/newspaper/2934798)
+  * [iphone-droid](https://www.iphone-droid.net/apple-swift-student-challenge-2026-5-students-from-southeast-asia-win-distinguished-honors/)
+  * [TechOffside](https://www.techoffside.com/2026/05/thai-student-wins-swift-student-challenge-2026/)
     
