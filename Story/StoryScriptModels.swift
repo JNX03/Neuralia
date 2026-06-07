@@ -462,6 +462,7 @@ struct StoryDialogLine: Sendable {
     let inputVariableKey: String?
     let inputDefaultValue: String?
     let inlineActivity: DialogInlineActivity?
+    let titleCardText: String?
 
     init(
         speaker: String,
@@ -477,7 +478,8 @@ struct StoryDialogLine: Sendable {
         inputPlaceholder: String? = nil,
         inputVariableKey: String? = nil,
         inputDefaultValue: String? = nil,
-        inlineActivity: DialogInlineActivity? = nil
+        inlineActivity: DialogInlineActivity? = nil,
+        titleCardText: String? = nil
     ) {
         self.speaker = speaker
         self.text = text
@@ -493,6 +495,7 @@ struct StoryDialogLine: Sendable {
         self.inputVariableKey = inputVariableKey
         self.inputDefaultValue = inputDefaultValue
         self.inlineActivity = inlineActivity
+        self.titleCardText = titleCardText
     }
 
     func asDialogNode() -> DialogNode {
@@ -510,7 +513,8 @@ struct StoryDialogLine: Sendable {
             showcaseMedia: showcaseMedia,
             inputVariableKey: inputVariableKey,
             inputDefaultValue: inputDefaultValue,
-            inlineActivity: inlineActivity
+            inlineActivity: inlineActivity,
+            titleCardText: titleCardText
         )
     }
 }
