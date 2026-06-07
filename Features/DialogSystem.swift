@@ -19,7 +19,8 @@ struct DialogNode: Identifiable, Sendable {
     let inputVariableKey: String?
     let inputDefaultValue: String?
     let inlineActivity: DialogInlineActivity?
-    
+    let titleCardText: String?
+
     init(
         speaker: String,
         text: String,
@@ -35,6 +36,7 @@ struct DialogNode: Identifiable, Sendable {
         inputVariableKey: String? = nil,
         inputDefaultValue: String? = nil,
         inlineActivity: DialogInlineActivity? = nil,
+        titleCardText: String? = nil,
         onComplete: (() -> Void)? = nil
     ) {
         self.id = UUID()
@@ -52,6 +54,7 @@ struct DialogNode: Identifiable, Sendable {
         self.inputVariableKey = inputVariableKey
         self.inputDefaultValue = inputDefaultValue
         self.inlineActivity = inlineActivity
+        self.titleCardText = titleCardText
     }
 }
 
@@ -211,6 +214,18 @@ final class DialogViewModel: ObservableObject {
     func goBack() {
         guard canGoBack && !isTyping else { return }
         currentNodeIndex -= 1
+        startTyping()
+    }
+
+    /// Jump directly to a node (used by the in-game minigame sidebar so a
+    /// presenter can skip straight to any story minigame). Bypasses gating.
+    func jump(to index: Int) {
+        guard nodes.indices.contains(index) else { return }
+        typingTask?.cancel()
+        currentNodeIndex = index
+        showChoices = false
+        showTextInput = false
+        isCompleted = false
         startTyping()
     }
     
@@ -1006,7 +1021,13 @@ struct ResponsiveDialogView: View {
             // Background
             backgroundLayer(layout: layout, overlayStrength: backgroundOverlayStrength)
 
-            if let context = activeInlineActivityContext {
+            if let card = viewModel.currentNode?.titleCardText, !card.isEmpty {
+                titleCardLayout(
+                    text: viewModel.renderTemplate(card),
+                    subtitle: viewModel.resolvedCutsceneSubtitle(for: viewModel.currentNode),
+                    layout: layout
+                )
+            } else if let context = activeInlineActivityContext {
                 inlineActivityScene(
                     layout: layout,
                     geometry: geometry,
@@ -1699,8 +1720,16 @@ struct ResponsiveDialogView: View {
                 endRadius: max(layout.width, layout.height)
             )
             .ignoresSafeArea()
+
+            // While a minigame is active, dim the whole scene UNIFORMLY (covers the
+            // full screen including the bright mid-band) so the activity card pops.
+            if activeInlineActivityContext != nil {
+                Color.black.opacity(0.5)
+                    .ignoresSafeArea()
+            }
         }
         .opacity(backgroundOpacity)
+        .ignoresSafeArea()
     }
     
     // MARK: - Stacked Layout (Portrait/Default)
@@ -2018,6 +2047,243 @@ struct ResponsiveDialogView: View {
         .transition(.opacity)
     }
 
+    // MARK: - Minigame Jump Sidebar
+
+    /// All nodes that carry an inline minigame, with their node index.
+    private var minigameStops: [(index: Int, node: DialogNode)] {
+        viewModel.nodes.enumerated().compactMap { pair in
+            pair.element.inlineActivity != nil ? (pair.offset, pair.element) : nil
+        }
+    }
+
+    private func minigameLabel(for node: DialogNode) -> String {
+        if let title = viewModel.resolvedCutsceneTitle(for: node)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+        switch node.inlineActivity {
+        case .promptBuilder: return "Prompt Builder"
+        case .lectureQuiz: return "Quiz"
+        case .biasDataAudit: return "Bias & Bad Data"
+        case .chapter3KNNRescue: return "KNN Rescue"
+        case .video: return "Video"
+        case .photoShowcase: return "Showcase"
+        case .none: return "Scene"
+        }
+    }
+
+    private func minigameIcon(for node: DialogNode) -> String {
+        switch node.inlineActivity {
+        case .promptBuilder: return "text.bubble.fill"
+        case .lectureQuiz: return "checkmark.shield.fill"
+        case .biasDataAudit: return "chart.bar.doc.horizontal.fill"
+        case .chapter3KNNRescue: return "camera.viewfinder"
+        case .video: return "play.rectangle.fill"
+        case .photoShowcase: return "photo.on.rectangle.angled"
+        case .none: return "circle"
+        }
+    }
+
+    /// "You are here" progress header shown at the top of the menu panel.
+    private func chapterProgressSection(layout: DialogAdaptiveLayout) -> some View {
+        let total = max(viewModel.nodes.count, 1)
+        let current = min(viewModel.currentNodeIndex + 1, total)
+        let progress = max(0.04, min(1, Double(current) / Double(total)))
+        let nowTitle: String = {
+            if let t = viewModel.resolvedCutsceneTitle(for: viewModel.currentNode)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
+                return t
+            }
+            let speaker = viewModel.resolvedSpeaker(for: viewModel.currentNode)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return speaker.isEmpty ? "Scene \(current)" : speaker
+        }()
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("YOU ARE HERE")
+                    .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.95))
+                    .tracking(0.3)
+                Spacer(minLength: 0)
+                Text("\(current) / \(total)")
+                    .font(.system(size: layout.captionFontSize + 1, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: "0A6FEA"))
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Color.white.opacity(0.92), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.75), lineWidth: 1))
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.55)).frame(height: 8)
+                    Capsule()
+                        .fill(LinearGradient(colors: [Color(hex: "2EC5FF"), Color(hex: "0A6FEA")],
+                                             startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(8, proxy.size.width * progress), height: 8)
+                }
+            }
+            .frame(height: 8)
+
+            HStack(spacing: 6) {
+                Image(systemName: "location.fill")
+                    .font(.system(size: layout.captionFontSize, weight: .bold))
+                    .foregroundColor(Color(hex: "0A6FEA"))
+                Text(nowTitle)
+                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold, design: .rounded))
+                    .foregroundColor(.black.opacity(0.75))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AccessibleColors.sectionBorder, lineWidth: 1))
+    }
+
+    /// "Jump to scene" list embedded in the menu panel.
+    private func menuJumpSection(layout: DialogAdaptiveLayout) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("JUMP TO SCENE")
+                .font(.system(size: layout.bodyFontSize + (layout.isCompact ? 1 : 2), weight: .bold, design: .rounded))
+                .foregroundColor(.black.opacity(0.95))
+                .tracking(0.3)
+
+            VStack(spacing: 8) {
+                ForEach(Array(minigameStops.enumerated()), id: \.element.index) { pair in
+                    menuJumpRow(order: pair.offset + 1, stop: pair.element, layout: layout)
+                }
+            }
+        }
+    }
+
+    private func menuJumpRow(order: Int, stop: (index: Int, node: DialogNode),
+                             layout: DialogAdaptiveLayout) -> some View {
+        let isCurrent = stop.index == viewModel.currentNodeIndex
+        let isDone = viewModel.isInlineActivityCompleted(for: stop.node.id)
+        let blue = Color(hex: "0A6FEA")
+        return Button {
+            withAnimation(globalSettings.reduceMotion ? nil : .easeOut(duration: 0.18)) {
+                showSettingsPanel = false
+            }
+            speechManager.stop()
+            isAutoSkipping = false
+            stopAutoSkip()
+            viewModel.jump(to: stop.index)
+        } label: {
+            HStack(spacing: 11) {
+                ZStack {
+                    Circle()
+                        .fill(isCurrent ? blue : Color.white.opacity(0.95))
+                        .frame(width: 36, height: 36)
+                        .overlay(Circle().stroke(Color.white.opacity(0.7), lineWidth: 1))
+                    Image(systemName: minigameIcon(for: stop.node))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(isCurrent ? .white : blue)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(minigameLabel(for: stop.node))
+                        .font(.system(size: layout.bodyFontSize - (layout.isCompact ? 1 : 0), weight: .bold, design: .rounded))
+                        .foregroundColor(.black.opacity(0.9))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    if let sub = viewModel.resolvedCutsceneSubtitle(for: stop.node)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines), !sub.isEmpty {
+                        Text(sub)
+                            .font(.system(size: layout.captionFontSize, weight: .medium))
+                            .foregroundColor(.black.opacity(0.5))
+                            .lineLimit(1).minimumScaleFactor(0.85)
+                    }
+                }
+                Spacer(minLength: 0)
+                if isDone {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(Color(hex: "1FA85B"))
+                        .font(.system(size: 16))
+                } else if isCurrent {
+                    Text("NOW")
+                        .font(.system(size: layout.captionFontSize - 1, weight: .black, design: .rounded))
+                        .foregroundColor(.white).padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(blue, in: Capsule())
+                } else {
+                    Image(systemName: "arrow.right.circle.fill").foregroundColor(blue.opacity(0.55))
+                        .font(.system(size: 16))
+                }
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, 11)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isCurrent ? blue.opacity(0.16) : Color.white.opacity(0.95))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isCurrent ? blue.opacity(0.55) : AccessibleColors.sectionBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Scene \(order), \(minigameLabel(for: stop.node))\(isDone ? ", completed" : "")\(isCurrent ? ", current" : "")")
+        .accessibilityHint("Double tap to jump here")
+    }
+
+    // MARK: - Section Title Card (keynote-style divider between chapters)
+
+    private func titleCardLayout(text: String, subtitle: String?, layout: DialogAdaptiveLayout) -> some View {
+        let parts = splitTitle(text.uppercased())
+        let titleSize = min(layout.width, layout.height * 1.4) * (layout.isCompact ? 0.10 : 0.115)
+        return ZStack {
+            Color(hex: "F2F2F3").ignoresSafeArea()
+
+            VStack(spacing: layout.isCompact ? 14 : 22) {
+                Spacer()
+                (
+                    Text(parts.first).foregroundColor(Color(hex: "5B6CF5"))
+                    + Text(parts.rest).foregroundColor(.black)
+                )
+                .font(.system(size: titleSize, weight: .black))
+                .tracking(0.5)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.4)
+                .lineLimit(3)
+                .padding(.horizontal, layout.width * 0.06)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: layout.bodyFontSize + 3, weight: .semibold))
+                        .foregroundColor(.black.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, layout.width * 0.1)
+                }
+                Spacer()
+
+                if viewModel.currentNodeIndex < viewModel.nodes.count - 1 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "hand.tap.fill")
+                        Text("Tap to continue")
+                    }
+                    .font(.system(size: layout.captionFontSize + 1, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.35))
+                    .padding(.bottom, layout.safeAreaInsets.bottom + 26)
+                } else {
+                    Color.clear.frame(height: layout.safeAreaInsets.bottom + 26)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            speechManager.stop()
+            viewModel.advance()
+        }
+        .transition(.opacity)
+    }
+
+    private func splitTitle(_ text: String) -> (first: String, rest: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let spaceIndex = trimmed.firstIndex(of: " ") {
+            return (String(trimmed[..<spaceIndex]), String(trimmed[spaceIndex...]))
+        }
+        return (trimmed, "")
+    }
+
     private func cycleDialogSpeed() {
         switch dialogSpeed {
         case 1: dialogSpeed = 2
@@ -2276,10 +2542,10 @@ struct ResponsiveDialogView: View {
                 if isProfessorSpeaker(normalizedSpeaker) {
                     return "teachernew"
                 }
-                return "char_\(node.emotion.rawValue)"
+                return StoryCharacterAsset.placeholder(for: node.emotion)
             }
 
-            return "char_\(Emotion.neutral.rawValue)"
+            return StoryCharacterAsset.placeholder(for: .neutral)
         }()
         let specialSpriteScale: CGFloat = imageName == "unknow" ? 1.32 : 1.0
         
@@ -2764,77 +3030,99 @@ struct ResponsiveDialogView: View {
     private func settingsPanel(layout: DialogAdaptiveLayout) -> some View {
         ZStack {
             settingsPanelBackdrop
-            settingsPanelCard(layout: layout)
+            menuPopupCard(layout: layout)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private var settingsPanelBackdrop: some View {
-        Color.black.opacity(0.5)
+        Color.black.opacity(0.55)
             .ignoresSafeArea()
+            .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(globalSettings.reduceMotion ? nil : .spring()) { showSettingsPanel = false }
+                withAnimation(globalSettings.reduceMotion ? nil : .easeOut(duration: 0.2)) { showSettingsPanel = false }
             }
     }
 
-    private func settingsPanelCard(layout: DialogAdaptiveLayout) -> some View {
-        let cardWidth = min(layout.dialogMaxWidth, layout.isCompact ? 290 : 340)
-        let cornerRadius: CGFloat = 12
+    // Windowed modal styled to match the main-menu Options popup.
+    private func menuPopupCard(layout: DialogAdaptiveLayout) -> some View {
+        let cardWidth = min(layout.width - 32, layout.isCompact ? 560 : 720)
+        let cardHeight = min(layout.height * 0.88, layout.isCompact ? 640 : 560)
+        let hasJump = minigameStops.count > 1
 
-        return ZStack(alignment: .topLeading) {
-            settingsPanelContent(layout: layout)
-                .frame(width: cardWidth)
-                .background(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "D9F1FF"),
-                                    Color(hex: "A9DBFF"),
-                                    Color(hex: "7FC3F3")
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(Color.white.opacity(0.52), lineWidth: 1)
-                        )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .shadow(color: .black.opacity(0.14), radius: 10, x: 0, y: 6)
+        return VStack(spacing: 0) {
+            menuPopupHeader(layout: layout)
 
-            Image("Menu")
-                .resizable()
-                .scaledToFit()
-                .frame(width: min(cardWidth * 0.34, 118))
-                .offset(x: 10, y: -18)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                .allowsHitTesting(false)
-        }
-        .padding(.top, 16)
-        .padding(.horizontal, layout.dialogPadding)
-    }
+            Divider().overlay(AccessibleColors.panelBorder)
 
-    private func settingsPanelContent(layout: DialogAdaptiveLayout) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Color.clear
-                .frame(height: layout.isCompact ? 22 : 26)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 12) {
+                    chapterProgressSection(layout: layout)
+                    if hasJump { menuJumpSection(layout: layout) }
+                    menuToggleSection(title: "Background Music", value: chapterMusicEnabledBinding, layout: layout)
+                    menuToggleSection(title: "Voice", value: Binding(get: { globalSettings.speechEnabled }, set: { globalSettings.speechEnabled = $0 }), layout: layout)
+                    menuVolumeSection(title: "Volume", value: chapterMusicVolumeBinding, layout: layout)
+                    aiNameSettingsSection(layout: layout)
+                }
+                .padding(14)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.white.opacity(0.55))
 
-            menuToggleSection(title: "BGM", value: chapterMusicEnabledBinding, layout: layout)
-            menuToggleSection(title: "VOICE", value: Binding(get: { globalSettings.speechEnabled }, set: { globalSettings.speechEnabled = $0 }), layout: layout)
-            menuVolumeSection(title: "VOLUME", value: chapterMusicVolumeBinding, layout: layout)
-            aiNameSettingsSection(layout: layout)
+            Divider().overlay(AccessibleColors.panelBorder)
 
             HStack(spacing: 10) {
                 resumeButton(layout: layout)
                 exitChapterButton(layout: layout)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                LinearGradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0.32)],
+                               startPoint: .top, endPoint: .bottom)
+            )
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: cardWidth, maxHeight: cardHeight)
+        .background(AccessibleColors.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(AccessibleColors.panelBorder, lineWidth: 1))
+        .shadow(color: .black.opacity(0.28), radius: 26, x: 0, y: 14)
+        .padding(.horizontal, 16)
+    }
+
+    private func menuPopupHeader(layout: DialogAdaptiveLayout) -> some View {
+        HStack(spacing: 12) {
+            // Balance the close button so the title stays centered.
+            Color.clear.frame(width: 34, height: 1)
+            Spacer(minLength: 0)
+            VStack(spacing: 6) {
+                Text("Menu")
+                    .font(.system(size: layout.bodyFontSize + 6, weight: .bold))
+                    .foregroundStyle(AccessibleColors.textPrimary)
+                Rectangle()
+                    .fill(Color(red: 0.95, green: 0.85, blue: 0.25))
+                    .frame(width: 86, height: 4)
+                    .clipShape(Capsule())
+            }
+            Spacer(minLength: 0)
+            Button {
+                withAnimation(globalSettings.reduceMotion ? nil : .easeOut(duration: 0.2)) { showSettingsPanel = false }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: layout.bodyFontSize + 2, weight: .bold))
+                    .foregroundStyle(AccessibleColors.textPrimary)
+                    .frame(width: 34, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close menu")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(colors: [Color.white.opacity(0.75), Color.white.opacity(0.45)],
+                           startPoint: .top, endPoint: .bottom)
+        )
     }
 
     private func aiNameSettingsSection(layout: DialogAdaptiveLayout) -> some View {
@@ -4231,13 +4519,20 @@ struct PromptBuilderMiniGameCard: View {
 
             showcasePromptPaletteSection
         }
-        .background(Color(red: 0.93, green: 0.94, blue: 0.97))
-        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .background(Color(red: 0.95, green: 0.96, blue: 0.98))
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        // Thin aluminium-style bezel with a soft inner highlight (more iPad-like).
         .overlay(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(Color.black.opacity(0.96), lineWidth: 2.8)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.black.opacity(0.88), lineWidth: 2)
         )
-        .shadow(color: Color.black.opacity(0.26), radius: 18, x: 0, y: 10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.white.opacity(0.20), lineWidth: 1)
+                .padding(2)
+        )
+        .shadow(color: Color.black.opacity(0.38), radius: 28, x: 0, y: 18)
+        .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 2)
     }
 
     private var messagesTopChrome: some View {
@@ -5185,10 +5480,15 @@ struct PromptBuilderMiniGameCard: View {
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 14)
-        .background(Color(hex: "C9CBD2"))
+        .background(
+            LinearGradient(
+                colors: [Color(hex: "EDEEF2"), Color(hex: "DEE0E6")],
+                startPoint: .top, endPoint: .bottom
+            )
+        )
         .overlay(
             Rectangle()
-                .fill(Color.black.opacity(0.08))
+                .fill(Color.black.opacity(0.07))
                 .frame(height: 0.8),
             alignment: .top
         )
@@ -5201,65 +5501,98 @@ struct PromptBuilderMiniGameCard: View {
     }
 
     private func showcasePromptSlotCard(_ slot: PromptBuilderSlot, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+        let accent = showcaseSlotAccent(for: index)
+        return VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .center, spacing: 7) {
+                Circle()
+                    .fill(accent)
+                    .frame(width: 9, height: 9)
                 Text(slot.label)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.black.opacity(0.80))
+                    .font(.system(size: 13.5, weight: .heavy, design: .rounded))
+                    .foregroundColor(.black.opacity(0.82))
 
                 Spacer(minLength: 4)
 
-                if let selected = selectedOption(for: slot) {
-                    Text(selected.chipText)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.black.opacity(0.75))
-                        .lineLimit(1)
+                if selectedOption(for: slot) != nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(accent)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
                 ForEach(slot.options) { option in
                     let isSelected = selectedOptionBySlotID[slot.id] == option.id
 
                     Button {
                         guard !arePromptSlotsLocked else { return }
-                        selectedOptionBySlotID[slot.id] = option.id
+                        withAnimation(.spring(response: 0.26, dampingFraction: 0.72)) {
+                            selectedOptionBySlotID[slot.id] = option.id
+                        }
                     } label: {
-                        Text(option.chipText)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(isSelected ? .white : .black.opacity(0.78))
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 9)
-                            .background(
-                                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                    .fill(isSelected ? Color.black.opacity(0.68) : Color.white.opacity(0.84))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            .stroke(Color.white.opacity(isSelected ? 0.18 : 0.42), lineWidth: 1)
-                                    )
-                            )
+                        HStack(spacing: 6) {
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .black))
+                                    .foregroundColor(.white)
+                            }
+                            Text(option.chipText)
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(isSelected ? .white : .black.opacity(0.82))
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .fill(isSelected ? accent : Color.white)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(isSelected ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+                        )
+                        .shadow(color: isSelected ? accent.opacity(0.38) : Color.black.opacity(0.08),
+                                radius: isSelected ? 6 : 2, x: 0, y: isSelected ? 3 : 1)
                     }
                     .buttonStyle(.plain)
                     .disabled(arePromptSlotsLocked)
                 }
             }
         }
-        .padding(12)
-        .background(showcaseSlotFillColor(for: index), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.45), lineWidth: 1)
+        .padding(13)
+        .background(
+            LinearGradient(
+                colors: [showcaseSlotFillColor(for: index), showcaseSlotFillColor(for: index).opacity(0.78)],
+                startPoint: .top, endPoint: .bottom
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.55), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.10), radius: 6, x: 0, y: 3)
     }
 
     private func showcaseSlotFillColor(for index: Int) -> Color {
         let palette: [Color] = [
-            Color(hex: "8ED0F7"),
-            Color(hex: "91F0C3"),
-            Color(hex: "F5E08F"),
-            Color(hex: "BE93F5")
+            Color(hex: "A9DBF9"),
+            Color(hex: "A8F2CE"),
+            Color(hex: "F7E6A1"),
+            Color(hex: "CDA9F7")
+        ]
+        return palette[index % palette.count]
+    }
+
+    private func showcaseSlotAccent(for index: Int) -> Color {
+        let palette: [Color] = [
+            Color(hex: "1C7DD6"),
+            Color(hex: "12A359"),
+            Color(hex: "C98A0E"),
+            Color(hex: "7A3FD6")
         ]
         return palette[index % palette.count]
     }
@@ -5788,11 +6121,12 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var phonePanelWidth: CGFloat {
-        min(max(availableWidth * 0.64, 520), 980)
+        min(max(availableWidth * 0.70, 560), 1080)
     }
 
     private var phoneWideUpOffset: CGFloat {
-        min(max(availableHeight * 0.12, 64), 150)
+        // Lower = iPad sits further down on screen.
+        min(max(availableHeight * 0.055, 28), 82)
     }
 
     private var heroMinHeight: CGFloat {
@@ -5808,7 +6142,7 @@ struct PromptBuilderMessagesMiniGameStage: View {
     }
 
     private var wideCenterPhoneWidth: CGFloat {
-        min(phonePanelWidth, layout.width < 1280 ? 840 : 940)
+        min(phonePanelWidth, layout.width < 1280 ? 930 : 1040)
     }
 
     private var wideCharacterSpriteHeight: CGFloat {
