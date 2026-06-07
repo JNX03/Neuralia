@@ -79,6 +79,7 @@ class MainMenuViewModel: ObservableObject {
 
 // MARK: - Menu Destination Enum
 enum MenuDestination: Hashable {
+    case demo
     case featureTesting
     case chapterSelect
     case playChapterOne
@@ -87,6 +88,7 @@ enum MenuDestination: Hashable {
 extension MenuDestination: Identifiable {
     var id: String {
         switch self {
+        case .demo: return "demo"
         case .featureTesting: return "featureTesting"
         case .chapterSelect: return "chapterSelect"
         case .playChapterOne: return "playChapterOne"
@@ -178,6 +180,9 @@ struct MainMenuView: View {
             }
             .fullScreenCover(item: $destination) { destination in
                 switch destination {
+                case .demo:
+                    DemoMenuView()
+                        .neuraPointerFX()
                 case .featureTesting:
                     FeatureTestingView()
                         .neuraPointerFX()
@@ -281,6 +286,7 @@ struct MainMenuView: View {
                         themeWhite: themeWhite,
                         themeDark: themeDark,
                         hoveredButton: $hoveredButton,
+                        onDemo: { destination = .demo },
                         onPlay: { destination = .playChapterOne },
                         onSelect: { destination = .chapterSelect },
                         onLab: { destination = .featureTesting },
@@ -333,6 +339,7 @@ struct MainMenuView: View {
                 themeWhite: themeWhite,
                 themeDark: themeDark,
                 hoveredButton: $hoveredButton,
+                onDemo: { destination = .demo },
                 onPlay: { destination = .playChapterOne },
                 onSelect: { destination = .chapterSelect },
                 onLab: { destination = .featureTesting },
@@ -380,13 +387,14 @@ private struct MainMenuSidebar: View {
     let themeWhite: Color
     let themeDark: Color
     @Binding var hoveredButton: String?
-    
+
+    let onDemo: () -> Void
     let onPlay: () -> Void
     let onSelect: () -> Void
     let onLab: () -> Void
     let onSettings: () -> Void
     let onAbout: () -> Void
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: layout.scaled(15)) {
             Text("SYSTEM MENU")
@@ -395,9 +403,20 @@ private struct MainMenuSidebar: View {
                 .tracking(1.5)
                 .padding(.leading, layout.scaled(10))
                 .padding(.bottom, layout.scaled(5))
-            
+
             ScrollView(showsIndicators: false) {
                 VStack(spacing: layout.scaled(16)) {
+                    // Featured: Live Demo (for presentations)
+                    DemoFeaturedButton(
+                        isHovered: hoveredButton == "demo",
+                        layout: layout,
+                        themeBlue: themeBlue,
+                        themeWhite: themeWhite,
+                        themeDark: themeDark,
+                        onHover: { hovering in hoveredButton = hovering ? "demo" : nil },
+                        action: onDemo
+                    )
+
                     // Main Actions
                     SlantedMenuButton(
                         title: "START MISSION",
@@ -606,6 +625,88 @@ private struct SlantedSmallButton: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
         .accessibilityHint("Double tap to open \(title.lowercased())")
+        .accessibilityAddTraits(.isButton)
+        #if os(macOS)
+        .onHover { onHover($0) }
+        #endif
+        .pressEvents {
+            isPressed = true
+        } onRelease: {
+            isPressed = false
+        }
+    }
+}
+
+// MARK: - Featured Live Demo Button
+private struct DemoFeaturedButton: View {
+    let isHovered: Bool
+    let layout: ResponsiveLayout
+    let themeBlue: Color
+    let themeWhite: Color
+    let themeDark: Color
+    let onHover: (Bool) -> Void
+    let action: () -> Void
+
+    @State private var isPressed = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: layout.scaled(14)) {
+                ZStack {
+                    Circle().fill(themeWhite.opacity(0.18))
+                        .frame(width: layout.scaled(44), height: layout.scaled(44))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: layout.scaled(20), weight: .bold))
+                        .foregroundColor(themeWhite)
+                }
+
+                VStack(alignment: .leading, spacing: layout.scaled(2)) {
+                    HStack(spacing: layout.scaled(6)) {
+                        Text("LIVE DEMO")
+                            .font(.system(size: layout.scaled(17), weight: .black, design: .rounded))
+                            .foregroundColor(themeWhite)
+                            .tracking(1)
+                        Text("NEW")
+                            .font(.system(size: layout.scaled(9), weight: .black, design: .rounded))
+                            .foregroundColor(themeBlue)
+                            .padding(.horizontal, layout.scaled(6))
+                            .padding(.vertical, layout.scaled(2))
+                            .background(themeWhite, in: Capsule())
+                    }
+                    Text("EVERY FEATURE IN ~90 SECONDS")
+                        .font(.system(size: layout.scaled(10), weight: .bold))
+                        .foregroundColor(themeWhite.opacity(0.85))
+                        .tracking(1)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: layout.scaled(15), weight: .heavy))
+                    .foregroundColor(themeWhite)
+            }
+            .padding(.vertical, layout.scaled(16))
+            .padding(.horizontal, layout.scaled(18))
+            .background(
+                LinearGradient(
+                    colors: [themeBlue, Color(red: 0.05, green: 0.42, blue: 0.78)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(SlantedRect(offset: layout.scaled(12), direction: .backward))
+            .overlay(
+                SlantedRect(offset: layout.scaled(12), direction: .backward)
+                    .stroke(themeWhite.opacity(isHovered || isPressed ? 1 : 0.6), lineWidth: layout.scaled(2))
+            )
+            .shadow(color: themeBlue.opacity(0.4), radius: layout.scaled(10), x: 0, y: layout.scaled(5))
+            .offset(x: isHovered || isPressed ? layout.scaled(-10) : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+            .animation(.spring(response: 0.2, dampingFraction: 0.9), value: isPressed)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Live Demo. Every feature in about ninety seconds.")
+        .accessibilityHint("Double tap to open the demo showcase")
         .accessibilityAddTraits(.isButton)
         #if os(macOS)
         .onHover { onHover($0) }
